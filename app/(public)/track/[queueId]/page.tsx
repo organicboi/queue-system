@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { QueueTypeBadge } from "@/components/shared/QueueTypeBadge"
 import { ServiceTypeBadge } from "@/components/shared/ServiceTypeBadge"
-import { CircularProgress } from "@/components/tracking/CircularProgress"
 import { WaitTimeline } from "@/components/tracking/WaitTimeline"
 import { StatusMessage } from "@/components/tracking/StatusMessage"
 import { CompletionScreen } from "@/components/tracking/CompletionScreen"
@@ -16,7 +15,7 @@ import { LeaveQueueDialog } from "@/components/tracking/LeaveQueueDialog"
 import { useQueueStore } from "@/store/queueStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { estimateWait, formatDuration, formatRelativeTime } from "@/lib/queueUtils"
-import { flipNumber, staggerContainer, staggerItem } from "@/lib/animations"
+import { flipNumber } from "@/lib/animations"
 import { toast } from "sonner"
 
 export default function TrackPage({
@@ -36,9 +35,7 @@ export default function TrackPage({
   const [leaveOpen, setLeaveOpen] = useState(false)
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setLastUpdated(new Date())
-    }, 5000)
+    const timer = setInterval(() => setLastUpdated(new Date()), 5000)
     return () => clearInterval(timer)
   }, [])
 
@@ -51,12 +48,11 @@ export default function TrackPage({
   if (!entry) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white border border-gray-200 rounded-md p-8 text-center max-w-sm">
+        <div className="bg-white border border-gray-200 rounded-2xl p-10 text-center max-w-sm">
+          <p className="text-5xl font-black text-gray-200 mb-4">#?</p>
           <h1 className="text-xl font-bold text-gray-900">Queue Not Found</h1>
-          <p className="text-sm text-gray-500 mt-2">
-            This tracking link is invalid or has expired.
-          </p>
-          <Button asChild className="mt-6 bg-primary hover:bg-primary/90">
+          <p className="text-sm text-gray-500 mt-2">This tracking link is invalid or has expired.</p>
+          <Button asChild className="mt-6 w-full">
             <Link href="/join">Join a New Queue</Link>
           </Button>
         </div>
@@ -71,12 +67,13 @@ export default function TrackPage({
   if (entry.status === "cancelled") {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white border border-gray-200 rounded-md p-8 text-center max-w-sm">
+        <div className="bg-white border border-gray-200 rounded-2xl p-10 text-center max-w-sm">
+          <div className="size-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+            <LogOut className="size-6 text-red-400" />
+          </div>
           <h1 className="text-xl font-bold text-gray-900">You Left the Queue</h1>
-          <p className="text-gray-500 text-sm mt-2">
-            Queue #{entry.queueNumber} was cancelled.
-          </p>
-          <Button asChild className="mt-6 bg-primary hover:bg-primary/90">
+          <p className="text-gray-500 text-sm mt-2">Queue #{entry.queueNumber} was cancelled.</p>
+          <Button asChild className="mt-6 w-full">
             <Link href="/join">Rejoin Queue</Link>
           </Button>
         </div>
@@ -84,188 +81,256 @@ export default function TrackPage({
     )
   }
 
+  const isYourTurn = entry.status === "in-progress"
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-8">
-      <div className="mx-auto max-w-sm px-4 pt-8">
+    <div className="min-h-screen bg-gray-50">
 
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6 text-center"
-        >
-          <h1 className="text-xl font-bold text-gray-900">{businessName}</h1>
-          <p className="text-xs text-gray-400 mt-0.5 uppercase tracking-wide">Queue Tracker</p>
-        </motion.div>
+      {/* Header */}
+      <header className="sticky top-0 z-10 bg-white/90 backdrop-blur-sm border-b border-gray-100">
+        <div className="mx-auto max-w-5xl px-5 sm:px-8 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-semibold text-sm text-gray-900 truncate">{businessName}</span>
+            <span className="text-gray-300 shrink-0">/</span>
+            <span className="text-xs text-gray-400 shrink-0">Queue Tracker</span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 ml-4">
+            <span className="relative flex size-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
+            </span>
+            <span className="text-xs text-gray-400 hidden sm:inline">
+              {formatRelativeTime(lastUpdated.toISOString())}
+            </span>
+          </div>
+        </div>
+      </header>
 
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          animate="show"
-          className="space-y-3"
-        >
-          {/* Queue number card */}
+      {/* Your turn banner */}
+      <AnimatePresence>
+        {isYourTurn && (
           <motion.div
-            variants={staggerItem}
-            className="bg-white border border-gray-200 rounded-md p-6 text-center"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="bg-emerald-500 overflow-hidden"
           >
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <StatusBadge status={entry.status} pulse />
-              <QueueTypeBadge type={entry.type} />
-            </div>
-
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Your Queue Number</p>
-            <AnimatePresence mode="wait">
-              <motion.p
-                key={entry.queueNumber}
-                variants={flipNumber}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                className="text-8xl font-black text-gray-900 leading-none my-3"
-              >
-                #{entry.queueNumber}
-              </motion.p>
-            </AnimatePresence>
-
-            <ServiceTypeBadge service={entry.service} />
-          </motion.div>
-
-          {/* Now serving / your turn */}
-          {entry.status === "in-progress" ? (
-            <motion.div
-              variants={staggerItem}
-              className="bg-emerald-50 border border-emerald-200 rounded-md p-6 text-center"
-            >
-              <p className="text-2xl font-black text-emerald-700">It's Your Turn!</p>
-              <p className="text-gray-500 text-sm mt-1">
-                Please proceed to the counter now.
+            <div className="max-w-5xl mx-auto px-5 sm:px-8 py-3 flex items-center justify-center gap-3">
+              <motion.span
+                animate={{ opacity: [1, 0.4, 1] }}
+                transition={{ repeat: Infinity, duration: 1.4 }}
+                className="size-2 rounded-full bg-white shrink-0"
+              />
+              <p className="text-white font-semibold text-sm sm:text-base">
+                It&apos;s your turn! Please proceed to the counter.
               </p>
-            </motion.div>
-          ) : (
+              <motion.span
+                animate={{ opacity: [1, 0.4, 1] }}
+                transition={{ repeat: Infinity, duration: 1.4, delay: 0.7 }}
+                className="size-2 rounded-full bg-white shrink-0"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <main className="mx-auto max-w-5xl px-5 sm:px-8 py-6 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+          {/* ── PRIMARY COLUMN ── */}
+          <div className="lg:col-span-2 space-y-4">
+
+            {/* Main ticket card */}
             <motion.div
-              variants={staggerItem}
-              className="bg-white border border-gray-200 rounded-md p-5"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+              className="bg-white border border-gray-200 rounded-2xl overflow-hidden"
             >
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-3xl font-black text-gray-900">{currentServingNumber}</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Now Serving</p>
+              {/* Now Serving */}
+              <div className="text-center px-8 pt-8 pb-7">
+                <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-gray-400 mb-3">
+                  Now Serving
+                </p>
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={currentServingNumber}
+                    variants={flipNumber}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    className="text-8xl sm:text-9xl font-black text-gray-900 leading-none tabular-nums"
+                  >
+                    {currentServingNumber}
+                  </motion.p>
+                </AnimatePresence>
+                {isYourTurn && (
+                  <motion.p
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-emerald-600 font-semibold text-sm mt-3"
+                  >
+                    That&apos;s you — head to the counter!
+                  </motion.p>
+                )}
+              </div>
+
+              {/* Stats row */}
+              <div className="grid grid-cols-3 border-t border-gray-100">
+                <div className="py-5 px-4 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
+                    Your Number
+                  </p>
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={entry.queueNumber}
+                      variants={flipNumber}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      className="text-3xl sm:text-4xl font-black text-gray-900 tabular-nums leading-none"
+                    >
+                      #{entry.queueNumber}
+                    </motion.p>
+                  </AnimatePresence>
                 </div>
-                <div className="flex flex-col items-center">
-                  <CircularProgress value={position} max={position + 3} size={72} strokeWidth={6} />
+                <div className="py-5 px-4 text-center border-x border-gray-100">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
+                    Ahead
+                  </p>
+                  <p className="text-3xl sm:text-4xl font-black text-gray-900 leading-none tabular-nums">
+                    {position}
+                  </p>
                 </div>
-                <div>
-                  <p className="text-3xl font-black text-gray-900">{estimatedWaitMins}</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Est. Mins</p>
+                <div className="py-5 px-4 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
+                    Est. Wait
+                  </p>
+                  <p className="text-3xl sm:text-4xl font-black text-gray-900 leading-none tabular-nums">
+                    {estimatedWaitMins}
+                    <span className="text-sm font-semibold text-gray-400 ml-0.5">m</span>
+                  </p>
                 </div>
               </div>
 
-              {position > 0 && (
-                <div className="mt-4 h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+              {/* Progress + badges */}
+              <div className="px-6 pb-6 pt-1 space-y-3 border-t border-gray-100">
+                <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden mt-4">
                   <motion.div
                     className="h-full rounded-full bg-gray-800"
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.max(5, 100 - position * 10)}%` }}
-                    transition={{ duration: 1, ease: "easeOut" }}
+                    animate={{ width: `${Math.max(4, 100 - position * 10)}%` }}
+                    transition={{ duration: 1.2, ease: "easeOut" }}
                   />
                 </div>
-              )}
-
-              <div className="flex items-center justify-between mt-3 text-xs text-gray-400">
-                <div className="flex items-center gap-1">
-                  <Users className="size-3" />
-                  <span>{position} {position === 1 ? "person" : "people"} ahead</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Clock className="size-3" />
-                  <span>{formatDuration(estimatedWaitMins)} est.</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <StatusBadge status={entry.status} pulse />
+                    <QueueTypeBadge type={entry.type} />
+                    <ServiceTypeBadge service={entry.service} />
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-gray-400 shrink-0">
+                    <Users className="size-3" />
+                    <span>{position} ahead</span>
+                  </div>
                 </div>
               </div>
             </motion.div>
-          )}
 
-          {/* Status message */}
-          {entry.status === "waiting" && (
-            <motion.div variants={staggerItem}>
-              <StatusMessage position={position} />
-            </motion.div>
-          )}
-
-          {/* Timeline */}
-          <motion.div
-            variants={staggerItem}
-            className="bg-white border border-gray-200 rounded-md p-5"
-          >
-            <h3 className="text-sm font-semibold mb-4">Queue Progress</h3>
-            <WaitTimeline status={entry.status} />
-          </motion.div>
-
-          {/* Last updated */}
-          <motion.div
-            variants={staggerItem}
-            className="text-center text-xs text-gray-400"
-          >
-            Last updated: {formatRelativeTime(lastUpdated.toISOString())}
-          </motion.div>
-
-          {/* Help section */}
-          <motion.div
-            variants={staggerItem}
-            className="bg-white border border-gray-200 rounded-md p-5 space-y-4"
-          >
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900">Need Assistance?</h3>
-              <p className="text-xs text-gray-400 mt-0.5">{businessName}</p>
-              <p className="text-xs text-gray-400">{address}</p>
-              <p className="text-xs text-gray-400">{hours}</p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <Button variant="outline" size="sm" className="flex-col h-12 gap-1 text-[10px]" asChild>
-                <a href={`tel:${phone}`}>
-                  <Phone className="size-3.5" />
-                  Call
-                </a>
-              </Button>
-              <Button variant="outline" size="sm" className="flex-col h-12 gap-1 text-[10px]" asChild>
-                <a
-                  href={`https://wa.me/${phone.replace(/\D/g, "")}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <MessageCircle className="size-3.5" />
-                  WhatsApp
-                </a>
-              </Button>
-              <Button variant="outline" size="sm" className="flex-col h-12 gap-1 text-[10px]" asChild>
-                <a
-                  href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <MapPin className="size-3.5" />
-                  Directions
-                </a>
-              </Button>
-            </div>
-          </motion.div>
-
-          {/* Leave queue */}
-          {entry.status === "waiting" && (
-            <motion.div variants={staggerItem}>
-              <Button
-                variant="ghost"
-                className="w-full gap-2 text-gray-400 hover:text-red-500 hover:bg-red-50"
-                onClick={() => setLeaveOpen(true)}
+            {/* Status message */}
+            {entry.status === "waiting" && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
               >
-                <LogOut className="size-4" />
-                Leave Queue
-              </Button>
+                <StatusMessage position={position} />
+              </motion.div>
+            )}
+          </div>
+
+          {/* ── SECONDARY COLUMN ── */}
+          <div className="space-y-4">
+
+            {/* Timeline */}
+            <motion.div
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.15 }}
+              className="bg-white border border-gray-200 rounded-2xl p-6"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-5">
+                Progress
+              </p>
+              <WaitTimeline status={entry.status} />
             </motion.div>
-          )}
-        </motion.div>
-      </div>
+
+            {/* Contact */}
+            <motion.div
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4"
+            >
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">
+                  Contact
+                </p>
+                <p className="text-sm font-semibold text-gray-900">{businessName}</p>
+                {address && <p className="text-xs text-gray-500 mt-0.5">{address}</p>}
+                {hours && <p className="text-xs text-gray-500">{hours}</p>}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { href: `tel:${phone}`, icon: Phone, label: "Call" },
+                  {
+                    href: `https://wa.me/${phone.replace(/\D/g, "")}`,
+                    icon: MessageCircle,
+                    label: "WhatsApp",
+                    external: true,
+                  },
+                  {
+                    href: `https://maps.google.com/?q=${encodeURIComponent(address)}`,
+                    icon: MapPin,
+                    label: "Directions",
+                    external: true,
+                  },
+                ].map(({ href, icon: Icon, label, external }) => (
+                  <Button
+                    key={label}
+                    variant="outline"
+                    size="sm"
+                    className="flex-col h-14 gap-1 rounded-xl border-gray-200 text-gray-600 hover:bg-gray-50"
+                    asChild
+                  >
+                    <a href={href} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+                      <Icon className="size-4" />
+                      <span className="text-[10px] font-semibold">{label}</span>
+                    </a>
+                  </Button>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Leave */}
+            {entry.status === "waiting" && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}>
+                <Button
+                  variant="ghost"
+                  className="w-full gap-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-2xl h-11"
+                  onClick={() => setLeaveOpen(true)}
+                >
+                  <LogOut className="size-4" />
+                  Leave Queue
+                </Button>
+              </motion.div>
+            )}
+          </div>
+
+        </div>
+      </main>
 
       <LeaveQueueDialog
         open={leaveOpen}

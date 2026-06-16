@@ -105,15 +105,15 @@ export default function DisplayPage() {
         </div>
 
         {/* Right: Next up + Completed */}
-        <div className="flex w-2/5 flex-col bg-gray-50">
+        <div className="flex w-2/5 flex-col overflow-hidden bg-gray-50">
 
           {/* Next in line */}
-          <div className="flex-1 p-6 lg:p-8 overflow-hidden">
-            <p className="text-xs font-bold uppercase tracking-[0.4em] text-gray-400 mb-6">
+          <div className="flex-1 min-h-0 flex flex-col p-6 lg:p-8">
+            <p className="shrink-0 text-xs font-bold uppercase tracking-[0.4em] text-gray-400 mb-6">
               Next in Line
             </p>
 
-            <div className="space-y-2">
+            <div className="flex-1 min-h-0 overflow-hidden space-y-2">
               <AnimatePresence>
                 {nextWaiting.map((entry, i) => (
                   <motion.div
