@@ -1,7 +1,12 @@
 "use client"
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from "recharts"
-import { hourlyVolumeData } from "@/lib/mockData"
+const hourlyVolumeData = [
+  { hour: "11:00", customers: 5 }, { hour: "12:00", customers: 22 },
+  { hour: "13:00", customers: 19 }, { hour: "14:00", customers: 15 },
+  { hour: "15:00", customers: 20 }, { hour: "16:00", customers: 14 },
+  { hour: "17:00", customers: 8 }, { hour: "18:00", customers: 4 },
+]
 
 export function HourlyVolumeChart() {
   return (

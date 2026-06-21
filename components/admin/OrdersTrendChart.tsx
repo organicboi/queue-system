@@ -10,7 +10,12 @@ import {
   Tooltip,
   Legend,
 } from "recharts"
-import { weeklyTrendData } from "@/lib/mockData"
+const weeklyTrendData = [
+  { day: "Mon", completed: 38, joined: 42 }, { day: "Tue", completed: 45, joined: 48 },
+  { day: "Wed", completed: 52, joined: 55 }, { day: "Thu", completed: 61, joined: 65 },
+  { day: "Fri", completed: 73, joined: 78 }, { day: "Sat", completed: 89, joined: 94 },
+  { day: "Sun", completed: 64, joined: 68 },
+]
 
 export function OrdersTrendChart() {
   return (

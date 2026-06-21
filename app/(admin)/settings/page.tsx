@@ -81,7 +81,7 @@ export default function SettingsPage() {
                     id="btype"
                     value={localForm.businessType}
                     onChange={(e) => setLocalForm((f) => ({ ...f, businessType: e.target.value }))}
-                    placeholder="e.g. Clinic, Restaurant, Bank"
+                    placeholder="e.g. Restaurant, Café, Food Court"
                   />
                 </div>
                 <div className="space-y-1.5">

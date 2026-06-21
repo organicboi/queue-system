@@ -2,8 +2,7 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ExternalLink, Trash2, CheckCheck } from "lucide-react"
-import Link from "next/link"
+import { Trash2, CheckCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -17,8 +16,6 @@ import {
 } from "@/components/ui/table"
 import { useQueueStore } from "@/store/queueStore"
 import { StatusBadge } from "@/components/shared/StatusBadge"
-import { QueueTypeBadge } from "@/components/shared/QueueTypeBadge"
-import { ServiceTypeBadge } from "@/components/shared/ServiceTypeBadge"
 import { formatTime } from "@/lib/queueUtils"
 import { toast } from "sonner"
 import type { QueueStatus } from "@/lib/types"
@@ -44,9 +41,8 @@ export function QueueTable({ compact }: QueueTableProps) {
     .filter((e) => filter === "all" || e.status === filter)
     .filter(
       (e) =>
-        e.name.toLowerCase().includes(search.toLowerCase()) ||
         String(e.queueNumber).includes(search) ||
-        e.service.toLowerCase().includes(search.toLowerCase())
+        e.billNumber.toLowerCase().includes(search.toLowerCase())
     )
     .sort((a, b) => a.queueNumber - b.queueNumber)
 
@@ -82,7 +78,7 @@ export function QueueTable({ compact }: QueueTableProps) {
         </Tabs>
 
         <Input
-          placeholder="Search..."
+          placeholder="Search queue # or bill..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="h-8 text-xs w-full sm:w-44"
@@ -93,12 +89,10 @@ export function QueueTable({ compact }: QueueTableProps) {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent border-border bg-muted/30">
-              <TableHead className="text-xs w-14">#</TableHead>
-              <TableHead className="text-xs">Customer</TableHead>
-              {!compact && <TableHead className="text-xs">Service</TableHead>}
-              <TableHead className="text-xs">Type</TableHead>
+              <TableHead className="text-xs w-16">Queue #</TableHead>
+              <TableHead className="text-xs">Bill Number</TableHead>
               <TableHead className="text-xs">Status</TableHead>
-              {!compact && <TableHead className="text-xs">Joined</TableHead>}
+              {!compact && <TableHead className="text-xs">Added At</TableHead>}
               <TableHead className="text-xs text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -114,26 +108,15 @@ export function QueueTable({ compact }: QueueTableProps) {
                     entry.status === "in-progress" ? "bg-blue-50/50" : ""
                   }`}
                 >
-                  <TableCell className="font-mono font-bold text-sm py-3">
+                  <TableCell className="font-mono font-black text-base py-3">
                     {entry.queueNumber === currentServingNumber ? (
-                      <span className="text-blue-600">{entry.queueNumber}</span>
+                      <span className="text-blue-600">#{entry.queueNumber}</span>
                     ) : (
-                      entry.queueNumber
+                      <span>#{entry.queueNumber}</span>
                     )}
                   </TableCell>
                   <TableCell className="py-3">
-                    <div>
-                      <p className="text-sm font-medium">{entry.name}</p>
-                      <p className="text-[10px] text-muted-foreground">{entry.phone}</p>
-                    </div>
-                  </TableCell>
-                  {!compact && (
-                    <TableCell className="py-3">
-                      <ServiceTypeBadge service={entry.service} />
-                    </TableCell>
-                  )}
-                  <TableCell className="py-3">
-                    <QueueTypeBadge type={entry.type} />
+                    <span className="font-mono text-sm font-medium">{entry.billNumber}</span>
                   </TableCell>
                   <TableCell className="py-3">
                     <StatusBadge status={entry.status} pulse />
@@ -145,11 +128,6 @@ export function QueueTable({ compact }: QueueTableProps) {
                   )}
                   <TableCell className="py-3">
                     <div className="flex items-center justify-end gap-1">
-                      <Link href={`/track/${entry.trackingToken}`} target="_blank">
-                        <Button variant="ghost" size="icon-xs" title="View tracking">
-                          <ExternalLink className="size-3" />
-                        </Button>
-                      </Link>
                       {entry.status === "waiting" && (
                         <Button
                           variant="ghost"

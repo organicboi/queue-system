@@ -9,14 +9,7 @@ import { useSettingsStore } from "@/store/settingsStore"
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/queue-management", label: "Queue Management" },
-  { href: "/analytics", label: "Analytics" },
-  { href: "/customer-links", label: "Customer Links" },
   { href: "/settings", label: "Settings" },
-]
-
-const externalItems = [
-  { href: "/display", label: "Display Screen" },
-  { href: "/join", label: "Join Queue" },
 ]
 
 interface SidebarProps {
@@ -29,17 +22,16 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
-      {/* Logo */}
       <div className="flex h-16 items-center border-b border-sidebar-border px-5">
         <div>
           <p className="text-sm font-semibold text-sidebar-foreground truncate">{businessName}</p>
-          <p className="text-[11px] text-muted-foreground">Queue Management</p>
+          <p className="text-[11px] text-muted-foreground">Restaurant Queue</p>
         </div>
       </div>
 
       <nav className="flex-1 px-4 py-5 space-y-0.5">
         <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-          Main
+          Menu
         </p>
         {navItems.map(({ href, label }) => {
           const isActive = pathname === href || pathname.startsWith(href + "/")
@@ -63,24 +55,29 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         <Separator className="my-4 bg-sidebar-border" />
 
         <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-          Public
+          Display
         </p>
-        {externalItems.map(({ href, label }) => (
-          <Link
-            key={href}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between px-3 py-2 text-sm font-medium rounded-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-          >
-            {label}
-            <span className="text-[10px] text-muted-foreground">↗</span>
-          </Link>
-        ))}
+        <Link
+          href="/display"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-between px-3 py-2 text-sm font-medium rounded-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+        >
+          Display Screen
+          <span className="text-[10px] text-muted-foreground">↗</span>
+        </Link>
       </nav>
 
-      {/* Status */}
-      <div className="border-t border-sidebar-border p-4">
+      <div className="border-t border-sidebar-border p-4 space-y-1">
+        <Link
+          href="/business"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-between px-3 py-2 text-sm font-medium rounded-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+        >
+          Business Mode
+          <span className="text-[10px] text-muted-foreground">↗</span>
+        </Link>
         <div className="flex items-center gap-2 px-3 py-2">
           <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
           <span className="text-xs text-muted-foreground font-medium">Queue Active</span>

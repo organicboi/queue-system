@@ -4,7 +4,6 @@ import { useState, useCallback } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { DisplayClock } from "@/components/display/DisplayClock"
-import { MarqueeBanner } from "@/components/display/MarqueeBanner"
 import { useQueueStore } from "@/store/queueStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { flipNumber } from "@/lib/animations"
@@ -41,13 +40,11 @@ export default function DisplayPage() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-white flex flex-col select-none">
 
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-200 bg-white px-10 py-5 shrink-0">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">{businessName}</h1>
-          <p className="text-sm text-gray-400 mt-0.5 uppercase tracking-widest font-medium">Queue Management</p>
+          <p className="text-sm text-gray-400 mt-0.5 uppercase tracking-widest font-medium">Restaurant Queue</p>
         </div>
-
         <div className="flex items-center gap-6">
           <DisplayClock />
           <Button
@@ -61,7 +58,6 @@ export default function DisplayPage() {
         </div>
       </div>
 
-      {/* Main content */}
       <div className="relative flex flex-1 overflow-hidden">
 
         {/* Left: Now Serving */}
@@ -91,10 +87,11 @@ export default function DisplayPage() {
                 key={currentEntry.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-8 space-y-1"
+                className="mt-8"
               >
-                <p className="text-3xl font-semibold text-gray-800">{currentEntry.name}</p>
-                <p className="text-lg text-gray-400">{currentEntry.service}</p>
+                <p className="text-2xl font-mono font-semibold text-gray-500">
+                  Bill {currentEntry.billNumber}
+                </p>
               </motion.div>
             )}
 
@@ -107,7 +104,6 @@ export default function DisplayPage() {
         {/* Right: Next up + Completed */}
         <div className="flex w-2/5 flex-col overflow-hidden bg-gray-50">
 
-          {/* Next in line */}
           <div className="flex-1 min-h-0 flex flex-col p-6 lg:p-8">
             <p className="shrink-0 text-xs font-bold uppercase tracking-[0.4em] text-gray-400 mb-6">
               Next in Line
@@ -127,10 +123,9 @@ export default function DisplayPage() {
                     <p className="text-3xl font-black text-gray-900 tabular-nums w-14 shrink-0">
                       {entry.queueNumber}
                     </p>
-                    <div className="min-w-0">
-                      <p className="text-lg font-semibold text-gray-800 truncate">{entry.name}</p>
-                      <p className="text-sm text-gray-400 truncate">{entry.service}</p>
-                    </div>
+                    <p className="text-lg font-mono font-semibold text-gray-600 truncate">
+                      Bill {entry.billNumber}
+                    </p>
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -140,7 +135,6 @@ export default function DisplayPage() {
             </div>
           </div>
 
-          {/* Recently completed */}
           {recentCompleted.length > 0 && (
             <div className="shrink-0 border-t border-gray-200 px-6 py-5 lg:px-8 lg:py-6 bg-white">
               <p className="text-xs font-bold uppercase tracking-[0.4em] text-gray-400 mb-3">
@@ -159,12 +153,9 @@ export default function DisplayPage() {
                       <p className="text-xl font-black text-gray-400 tabular-nums shrink-0 w-8">
                         {entry.queueNumber}
                       </p>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-500 truncate leading-tight">
-                          {entry.name}
-                        </p>
-                        <p className="text-xs text-gray-400 truncate">{entry.service}</p>
-                      </div>
+                      <p className="text-sm font-mono text-gray-500 truncate">
+                        {entry.billNumber}
+                      </p>
                     </motion.div>
                   ))}
                 </AnimatePresence>
@@ -173,9 +164,6 @@ export default function DisplayPage() {
           )}
         </div>
       </div>
-
-      {/* Marquee banner */}
-      <MarqueeBanner />
     </div>
   )
 }

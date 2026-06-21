@@ -29,12 +29,12 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      businessName: "TechBiz Queue",
-      businessType: "Universal Queue Platform",
+      businessName: "My Restaurant",
+      businessType: "Restaurant",
       phone: "+1 555-100-2000",
-      email: "hello@techbizqueue.com",
-      address: "123 Business Ave, San Francisco, CA 94105",
-      hours: "Mon–Fri 8:00 AM – 6:00 PM",
+      email: "hello@myrestaurant.com",
+      address: "123 Main St, San Francisco, CA 94105",
+      hours: "Daily 11:00 AM – 10:00 PM",
       queueLabel: "Queue Number",
       maxCapacity: 50,
       averageServiceTime: 3,

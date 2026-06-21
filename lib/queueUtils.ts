@@ -1,4 +1,4 @@
-import type { QueueStatus, QueueType } from "./types"
+import type { QueueStatus } from "./types"
 
 export function estimateWait(position: number, avgServiceMinutes = 3): number {
   return position * avgServiceMinutes
@@ -70,17 +70,6 @@ export function getStatusLabel(status: QueueStatus): string {
       return "Completed"
     case "cancelled":
       return "Cancelled"
-  }
-}
-
-export function getQueueTypeBg(type: QueueType): string {
-  switch (type) {
-    case "normal":
-      return "bg-gray-100 border-gray-200 text-gray-600"
-    case "priority":
-      return "bg-amber-50 border-amber-200 text-amber-700"
-    case "vip":
-      return "bg-yellow-50 border-yellow-200 text-yellow-700"
   }
 }
 

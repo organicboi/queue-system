@@ -11,9 +11,10 @@ interface QRDisplayProps {
   token: string
   queueNumber: number
   customerName: string
+  billNumber?: string
 }
 
-export function QRDisplay({ token, queueNumber, customerName }: QRDisplayProps) {
+export function QRDisplay({ token, queueNumber, customerName, billNumber }: QRDisplayProps) {
   const [copied, setCopied] = useState(false)
   const url = generateTrackingUrl(token)
 
@@ -39,6 +40,11 @@ export function QRDisplay({ token, queueNumber, customerName }: QRDisplayProps) 
       <div className="text-center">
         <p className="text-3xl font-black text-gray-900">#{queueNumber}</p>
         <p className="text-sm text-muted-foreground mt-1">{customerName}</p>
+        {billNumber && (
+          <p className="text-xs font-medium text-muted-foreground mt-0.5">
+            Bill <span className="font-mono text-foreground">{billNumber}</span>
+          </p>
+        )}
       </div>
 
       <div className="w-full rounded-sm border border-border bg-muted/40 p-3">

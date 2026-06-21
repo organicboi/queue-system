@@ -1,6 +1,6 @@
 "use client"
 
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -13,14 +13,12 @@ const pageTitles: Record<string, string> = {
   "/analytics": "Analytics",
   "/customer-links": "Customer Links",
   "/settings": "Settings",
+  "/add-customer": "Add Customer",
 }
 
-interface TopBarProps {
-  onAddCustomer: () => void
-}
-
-export function TopBar({ onAddCustomer }: TopBarProps) {
+export function TopBar() {
   const pathname = usePathname()
+  const router = useRouter()
   const title = pageTitles[pathname] ?? "Dashboard"
   const [open, setOpen] = useState(false)
 
@@ -42,13 +40,15 @@ export function TopBar({ onAddCustomer }: TopBarProps) {
         <h1 className="text-base font-semibold text-gray-900">{title}</h1>
       </div>
 
-      <Button
-        onClick={onAddCustomer}
-        size="sm"
-        className="bg-primary hover:bg-primary/90 text-primary-foreground"
-      >
-        Add Customer
-      </Button>
+      {pathname !== "/add-customer" && (
+        <Button
+          onClick={() => router.push("/add-customer")}
+          size="sm"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground"
+        >
+          Add Customer
+        </Button>
+      )}
     </header>
   )
 }

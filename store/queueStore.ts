@@ -3,7 +3,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { initialQueue, initialActivityLogs } from "@/lib/mockData"
-import type { QueueEntry, ActivityLog, ServiceType, QueueType } from "@/lib/types"
+import type { QueueEntry, ActivityLog } from "@/lib/types"
 
 interface QueueState {
   entries: QueueEntry[]
@@ -14,15 +14,9 @@ interface QueueState {
   callNext: () => void
   callPrevious: () => void
   completeCurrentEntry: () => void
-  addEntry: (data: {
-    name: string
-    phone: string
-    email: string
-    service: ServiceType
-    type: QueueType
-  }) => QueueEntry
+  markEntryCompleted: (queueNumber: number) => void
+  addEntry: (billNumber: string) => QueueEntry
   cancelEntry: (queueNumber: number) => void
-  getEntryByToken: (token: string) => QueueEntry | undefined
   getPositionInQueue: (queueNumber: number) => number
   resetToDefaults: () => void
 }
@@ -116,30 +110,46 @@ export const useQueueStore = create<QueueState>()(
         get().callNext()
       },
 
-      addEntry: (data) => {
+      markEntryCompleted: (queueNumber) => {
+        const entry = get().entries.find((e) => e.queueNumber === queueNumber)
+        if (!entry || entry.status === "completed" || entry.status === "cancelled") return
+
+        const wasInProgress = entry.status === "in-progress"
+        const now = new Date().toISOString()
+
+        set((s) => ({
+          entries: s.entries.map((e) =>
+            e.queueNumber === queueNumber ? { ...e, status: "completed", completedAt: now } : e
+          ),
+          activityLogs: [
+            makeLog("completed", queueNumber, `Queue #${queueNumber} completed`),
+            ...s.activityLogs,
+          ].slice(0, 50),
+        }))
+
+        if (wasInProgress) {
+          get().callNext()
+        }
+      },
+
+      addEntry: (billNumber) => {
         const { nextQueueNumber } = get()
         const queueNumber = nextQueueNumber
-        const token = `Q-${queueNumber}`
         const now = new Date().toISOString()
 
         const newEntry: QueueEntry = {
           id: `entry-${queueNumber}`,
           queueNumber,
-          name: data.name,
-          phone: data.phone,
-          email: data.email,
-          service: data.service,
-          type: data.type,
+          billNumber,
           status: "waiting",
           joinedAt: now,
-          trackingToken: token,
         }
 
         set((s) => ({
           entries: [...s.entries, newEntry],
           nextQueueNumber: queueNumber + 1,
           activityLogs: [
-            makeLog("joined", queueNumber, `Queue #${queueNumber} joined (${data.name})`),
+            makeLog("joined", queueNumber, `Queue #${queueNumber} — Bill ${billNumber}`),
             ...s.activityLogs,
           ].slice(0, 50),
         }))
@@ -148,7 +158,7 @@ export const useQueueStore = create<QueueState>()(
       },
 
       cancelEntry: (queueNumber) => {
-        const { entries, currentServingNumber } = get()
+        const { entries } = get()
         const entry = entries.find((e) => e.queueNumber === queueNumber)
         if (!entry) return
 
@@ -169,10 +179,6 @@ export const useQueueStore = create<QueueState>()(
         }
       },
 
-      getEntryByToken: (token) => {
-        return get().entries.find((e) => e.trackingToken === token)
-      },
-
       getPositionInQueue: (queueNumber) => {
         const { entries } = get()
         return entries.filter(
@@ -190,7 +196,7 @@ export const useQueueStore = create<QueueState>()(
       },
     }),
     {
-      name: "techbizqueue-queue-state",
+      name: "restaurant-queue-state",
       partialize: (state) => ({
         entries: state.entries,
         currentServingNumber: state.currentServingNumber,
@@ -203,7 +209,7 @@ export const useQueueStore = create<QueueState>()(
 
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (e) => {
-    if (e.key === "techbizqueue-queue-state") {
+    if (e.key === "restaurant-queue-state") {
       useQueueStore.persist.rehydrate()
     }
   })
