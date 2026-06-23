@@ -2,7 +2,12 @@
 
 import { useState, useEffect } from "react"
 
-export function DisplayClock() {
+interface DisplayClockProps {
+  timeColor?: string
+  dateColor?: string
+}
+
+export function DisplayClock({ timeColor = "#111827", dateColor = "#9CA3AF" }: DisplayClockProps) {
   const [time, setTime] = useState(new Date())
 
   useEffect(() => {
@@ -25,8 +30,19 @@ export function DisplayClock() {
 
   return (
     <div className="text-right" suppressHydrationWarning>
-      <p className="text-2xl font-mono font-bold text-gray-900" suppressHydrationWarning>{timeStr}</p>
-      <p className="text-xs text-gray-400 mt-0.5">{dateStr}</p>
+      <p
+        className="font-mono font-bold leading-none"
+        style={{ fontSize: "clamp(1.1rem, 1.8vw, 2rem)", color: timeColor }}
+        suppressHydrationWarning
+      >
+        {timeStr}
+      </p>
+      <p
+        className="mt-1"
+        style={{ fontSize: "clamp(0.6rem, 0.85vw, 0.8rem)", color: dateColor }}
+      >
+        {dateStr}
+      </p>
     </div>
   )
 }

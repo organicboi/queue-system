@@ -8,7 +8,6 @@ import { useSettingsStore } from "@/store/settingsStore"
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/queue-management", label: "Queue Management" },
   { href: "/settings", label: "Settings" },
 ]
 
@@ -78,10 +77,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           Business Mode
           <span className="text-[10px] text-muted-foreground">↗</span>
         </Link>
-        <div className="flex items-center gap-2 px-3 py-2">
-          <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
-          <span className="text-xs text-muted-foreground font-medium">Queue Active</span>
-        </div>
       </div>
     </div>
   )

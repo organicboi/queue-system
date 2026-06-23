@@ -9,9 +9,6 @@ import { useState } from "react"
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
-  "/queue-management": "Queue Management",
-  "/analytics": "Analytics",
-  "/customer-links": "Customer Links",
   "/settings": "Settings",
   "/add-customer": "Add Customer",
 }

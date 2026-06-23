@@ -1,265 +1,222 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
-import { AnimatePresence, motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { motion } from "framer-motion"
 import { DisplayClock } from "@/components/display/DisplayClock"
-import { useSupabaseQueue } from "@/lib/useSupabaseQueue"
 import { useSettingsStore } from "@/store/settingsStore"
-import { flipNumber } from "@/lib/animations"
-import { supabase } from "@/lib/supabase"
+import { ALL_THEMES, THEME_ROUTES } from "@/components/display/displayThemes"
+import type { TVTheme } from "@/components/display/displayThemes"
 
-interface CalledInfo {
-  queueNumber: number
-  billNumber: string
-  callCount: number
-  key: number
-}
-
-function announce(queueNumber: number) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return
-  window.speechSynthesis.cancel()
-  const utter = new SpeechSynthesisUtterance(
-    `Queue number ${queueNumber}. Queue number ${queueNumber}. Please proceed to the counter.`
-  )
-  utter.rate = 0.82
-  utter.pitch = 1.0
-  utter.volume = 1.0
-  window.speechSynthesis.speak(utter)
-}
-
-export default function DisplayPage() {
-  const { entries, currentServingNumber } = useSupabaseQueue()
-  const { businessName } = useSettingsStore()
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [calledInfo, setCalledInfo] = useState<CalledInfo | null>(null)
-
-  // Subscribe to call broadcasts from the business terminal
-  useEffect(() => {
-    const ch = supabase
-      .channel("queue-display-signals")
-      .on("broadcast", { event: "customer-called" }, ({ payload }) => {
-        setCalledInfo((prev) => ({
-          queueNumber: payload.queueNumber as number,
-          billNumber: payload.billNumber as string,
-          callCount: payload.callCount as number,
-          key: (prev?.key ?? 0) + 1,
-        }))
-        announce(payload.queueNumber as number)
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(ch) }
-  }, [])
-
-  // Auto-dismiss the calling overlay after 7 seconds
-  useEffect(() => {
-    if (!calledInfo) return
-    const t = setTimeout(() => setCalledInfo(null), 7000)
-    return () => clearTimeout(t)
-  }, [calledInfo?.key])
-
-  const nextWaiting = entries
-    .filter((e) => e.status === "waiting")
-    .sort((a, b) => a.queueNumber - b.queueNumber)
-    .slice(0, 4)
-
-  const recentCompleted = entries
-    .filter((e) => e.status === "completed")
-    .sort((a, b) => new Date(b.completedAt ?? 0).getTime() - new Date(a.completedAt ?? 0).getTime())
-    .slice(0, 4)
-
-  const currentEntry = entries.find(
-    (e) => e.queueNumber === currentServingNumber && e.status === "in-progress"
-  )
-
-  const toggleFullscreen = useCallback(async () => {
-    if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen()
-      setIsFullscreen(true)
-    } else {
-      await document.exitFullscreen()
-      setIsFullscreen(false)
-    }
-  }, [])
-
+function ThemePreview({ theme }: { theme: TVTheme }) {
   return (
-    <div className="h-screen w-screen overflow-hidden bg-white flex flex-col select-none">
+    <div className="w-full rounded-lg overflow-hidden" style={{ aspectRatio: "16/9", border: `1px solid ${theme.navBorder}` }}>
+      {/* Nav strip */}
+      <div
+        className="flex items-center justify-between px-3"
+        style={{ height: "14%", backgroundColor: theme.navBg, borderBottom: `1px solid ${theme.navBorder}` }}
+      >
+        <div
+          className="rounded font-black"
+          style={{ width: "30%", height: "40%", backgroundColor: theme.navTitle, opacity: 0.8, borderRadius: 2 }}
+        />
+        <div
+          className="rounded font-mono"
+          style={{ width: "18%", height: "35%", backgroundColor: theme.navTitle, opacity: 0.4, borderRadius: 2 }}
+        />
+      </div>
 
-      <div className="flex items-center justify-between border-b border-gray-200 bg-white px-10 py-5 shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">{businessName}</h1>
-          <p className="text-sm text-gray-400 mt-0.5 uppercase tracking-widest font-medium">Restaurant Queue</p>
-        </div>
-        <div className="flex items-center gap-6">
-          <DisplayClock />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleFullscreen}
-            className="text-gray-400 hover:text-gray-700 text-xs uppercase tracking-wide"
+      {/* Content */}
+      <div className="flex" style={{ height: "73%" }}>
+        {/* Left 40% */}
+        <div
+          className="flex flex-col"
+          style={{ width: "40%", backgroundColor: theme.servingBg, borderRight: `1px solid ${theme.sectionBorder}` }}
+        >
+          {/* Now serving */}
+          <div
+            className="flex items-center justify-center"
+            style={{ flex: 3, borderBottom: `1px solid ${theme.servingBorder}` }}
           >
-            {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-          </Button>
+            <span
+              className="font-black tabular-nums"
+              style={{ fontSize: "clamp(1.5rem, 3.5vw, 4rem)", color: theme.servingNumber, lineHeight: 1 }}
+            >
+              3
+            </span>
+          </div>
+          {/* Bottom 2 cols */}
+          <div className="flex" style={{ flex: 2 }}>
+            <div
+              className="flex-1 p-1"
+              style={{ backgroundColor: theme.nextBg, borderRight: `1px solid ${theme.sectionBorder}` }}
+            >
+              {[4, 5, 6].map((n) => (
+                <div
+                  key={n}
+                  className="rounded mb-1"
+                  style={{ height: "22%", backgroundColor: theme.rowBg, border: `1px solid ${theme.rowBorder}` }}
+                />
+              ))}
+            </div>
+            <div className="flex-1 p-1" style={{ backgroundColor: theme.recentBg }}>
+              {[2, 1].map((n) => (
+                <div
+                  key={n}
+                  className="rounded mb-1"
+                  style={{ height: "22%", backgroundColor: theme.rowBg, border: `1px solid ${theme.rowBorder}`, opacity: 0.5 }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right 60% — always dark ad panel */}
+        <div className="flex items-center justify-center" style={{ flex: 1, backgroundColor: "#0F172A" }}>
+          <div className="text-center px-4">
+            <div className="rounded-full px-3 py-1 mb-2 inline-block" style={{ backgroundColor: `${theme.tickerChipBg}22`, border: `1px solid ${theme.tickerChipBg}44` }}>
+              <span style={{ fontSize: "0.35rem", color: theme.tickerChipBg, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase" }}>
+                Today's Special
+              </span>
+            </div>
+            <p className="font-black text-white leading-tight" style={{ fontSize: "clamp(0.6rem, 1.2vw, 1.1rem)" }}>
+              Grilled Salmon
+            </p>
+            <p className="font-black" style={{ fontSize: "clamp(0.8rem, 1.6vw, 1.5rem)", color: theme.tickerChipBg }}>
+              $24.99
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="relative flex flex-1 overflow-hidden">
-
-        {/* Left: Now Serving */}
-        <div className="relative flex w-3/5 flex-col items-center justify-center border-r border-gray-200 p-12">
-
-          {/* Normal now-serving content */}
-          <p className="text-xs font-bold uppercase tracking-[0.4em] text-gray-400 mb-10">
-            Now Serving
-          </p>
-
-          <div className="text-center">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentServingNumber}
-                variants={flipNumber}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-              >
-                <p className="font-black leading-none text-gray-900"
-                   style={{ fontSize: "clamp(8rem, 22vw, 20rem)", lineHeight: 1 }}>
-                  {currentServingNumber}
-                </p>
-              </motion.div>
-            </AnimatePresence>
-
-            {currentEntry && (
-              <motion.div
-                key={currentEntry.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-8"
-              >
-                <p className="text-2xl font-mono font-semibold text-gray-500">
-                  Bill {currentEntry.billNumber}
-                </p>
-              </motion.div>
-            )}
-
-            {!currentEntry && (
-              <p className="mt-8 text-xl text-gray-300">Waiting for next customer</p>
-            )}
-          </div>
-
-          {/* Calling overlay — covers the left panel */}
-          <AnimatePresence>
-            {calledInfo && (
-              <motion.div
-                key={calledInfo.key}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0, transition: { duration: 0.6 } }}
-                transition={{ duration: 0.25 }}
-                className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 z-10"
-              >
-                {/* Blinking "NOW CALLING" label */}
-                <motion.p
-                  animate={{ opacity: [1, 0.1, 1] }}
-                  transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut" }}
-                  className="text-[10px] font-black uppercase tracking-[0.6em] text-amber-400 mb-10"
-                >
-                  Now Calling
-                </motion.p>
-
-                {/* Blinking queue number */}
-                <motion.p
-                  animate={{ opacity: [1, 0.35, 1] }}
-                  transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut", delay: 0.08 }}
-                  className="font-black text-white tabular-nums leading-none"
-                  style={{ fontSize: "clamp(8rem, 20vw, 18rem)", lineHeight: 1 }}
-                >
-                  {calledInfo.queueNumber}
-                </motion.p>
-
-                <p className="mt-10 text-slate-400 text-xl font-medium tracking-wide">
-                  Please proceed to the counter
-                </p>
-
-                {calledInfo.callCount > 1 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-4 flex items-center gap-2 bg-amber-400/10 border border-amber-400/20 rounded-full px-4 py-1.5"
-                  >
-                    <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
-                    <span className="text-amber-400 text-sm font-semibold uppercase tracking-widest">
-                      Recalled ×{calledInfo.callCount}
-                    </span>
-                  </motion.div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+      {/* Ticker */}
+      <div
+        className="flex items-center"
+        style={{ height: "13%", backgroundColor: theme.tickerBg, borderTop: `1px solid ${theme.tickerBorder}` }}
+      >
+        <div
+          className="flex items-center justify-center self-stretch px-2"
+          style={{ backgroundColor: theme.tickerChipBg, minWidth: "12%" }}
+        >
+          <span style={{ fontSize: "0.35rem", color: theme.tickerChipText, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+            News
+          </span>
         </div>
+        <div className="overflow-hidden flex-1 px-2">
+          <div className="rounded" style={{ height: "35%", backgroundColor: theme.tickerText, opacity: 0.3 }} />
+        </div>
+      </div>
+    </div>
+  )
+}
 
-        {/* Right: Next up + Completed */}
-        <div className="flex w-2/5 flex-col overflow-hidden bg-gray-50">
+export default function DisplaySelectorPage() {
+  const { businessName, businessType } = useSettingsStore()
 
-          <div className="flex-1 min-h-0 flex flex-col p-6 lg:p-8">
-            <p className="shrink-0 text-xs font-bold uppercase tracking-[0.4em] text-gray-400 mb-6">
-              Next in Line
-            </p>
+  return (
+    <div className="h-screen w-screen overflow-hidden flex flex-col select-none bg-[#030712]">
 
-            <div className="flex-1 min-h-0 overflow-hidden space-y-2">
-              <AnimatePresence>
-                {nextWaiting.map((entry, i) => (
-                  <motion.div
-                    key={entry.id}
-                    initial={{ opacity: 0, x: 16 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -16 }}
-                    transition={{ delay: i * 0.04 }}
-                    className="flex items-center gap-5 bg-white border border-gray-200 rounded-md px-5 py-4"
-                  >
-                    <p className="text-3xl font-black text-gray-900 tabular-nums w-14 shrink-0">
-                      {entry.queueNumber}
-                    </p>
-                    <p className="text-lg font-mono font-semibold text-gray-600 truncate">
-                      Bill {entry.billNumber}
-                    </p>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              {nextWaiting.length === 0 && (
-                <p className="text-base text-gray-400 text-center py-12">Queue is empty</p>
-              )}
-            </div>
-          </div>
+      {/* Header */}
+      <header className="flex items-center justify-between px-12 shrink-0" style={{ height: "clamp(60px, 7vh, 80px)", borderBottom: "1px solid #0F172A" }}>
+        <div>
+          <h1 className="font-black tracking-tight text-white leading-none" style={{ fontSize: "clamp(1rem, 1.5vw, 1.5rem)" }}>
+            {businessName}
+          </h1>
+          <p className="uppercase tracking-widest font-semibold mt-1 text-slate-600" style={{ fontSize: "clamp(0.45rem, 0.7vw, 0.65rem)" }}>
+            {businessType} Queue
+          </p>
+        </div>
+        <DisplayClock timeColor="#F8FAFC" dateColor="#475569" />
+      </header>
 
-          {recentCompleted.length > 0 && (
-            <div className="shrink-0 border-t border-gray-200 px-6 py-5 lg:px-8 lg:py-6 bg-white">
-              <p className="text-xs font-bold uppercase tracking-[0.4em] text-gray-400 mb-3">
-                Recently Served
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <AnimatePresence>
-                  {recentCompleted.map((entry) => (
-                    <motion.div
-                      key={entry.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="flex items-center gap-3 rounded-md border border-gray-100 bg-gray-50 px-3 py-2.5"
+      {/* Content */}
+      <div className="flex-1 overflow-hidden flex flex-col items-center justify-center px-12 py-8">
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="text-center mb-10"
+        >
+          <p className="font-black uppercase tracking-[0.5em] text-slate-600 mb-3" style={{ fontSize: "clamp(0.5rem, 0.9vw, 0.8rem)" }}>
+            Display Settings
+          </p>
+          <h2 className="font-black text-white leading-none" style={{ fontSize: "clamp(1.8rem, 4vw, 4.5rem)" }}>
+            Select a Theme
+          </h2>
+          <p className="mt-3 text-slate-500" style={{ fontSize: "clamp(0.7rem, 1.2vw, 1.1rem)" }}>
+            Choose how your queue display screen looks for customers
+          </p>
+        </motion.div>
+
+        {/* Theme cards */}
+        <div className="grid grid-cols-4 gap-6 w-full max-w-[90vw]">
+          {ALL_THEMES.map((theme, i) => (
+            <motion.div
+              key={theme.id}
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + i * 0.08, duration: 0.45 }}
+            >
+              <Link href={THEME_ROUTES[theme.id]} className="block group">
+                <div
+                  className="rounded-xl overflow-hidden transition-all duration-300 group-hover:scale-[1.02] group-hover:shadow-2xl"
+                  style={{
+                    backgroundColor: "#0B1120",
+                    border: "1px solid #1E293B",
+                    padding: "clamp(10px, 1.2vw, 16px)",
+                  }}
+                >
+                  {/* Preview */}
+                  <ThemePreview theme={theme} />
+
+                  {/* Info */}
+                  <div className="mt-4 px-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <p
+                        className="font-black text-white"
+                        style={{ fontSize: "clamp(0.85rem, 1.4vw, 1.25rem)" }}
+                      >
+                        {theme.name}
+                      </p>
+                      {i === 0 && (
+                        <span
+                          className="rounded-full font-black uppercase tracking-wider"
+                          style={{
+                            fontSize: "clamp(0.4rem, 0.6vw, 0.55rem)",
+                            padding: "0.25em 0.75em",
+                            backgroundColor: "#1E293B",
+                            color: "#64748B",
+                          }}
+                        >
+                          Default
+                        </span>
+                      )}
+                    </div>
+                    <p
+                      className="text-slate-500 leading-snug"
+                      style={{ fontSize: "clamp(0.6rem, 0.95vw, 0.875rem)" }}
                     >
-                      <p className="text-xl font-black text-gray-400 tabular-nums shrink-0 w-8">
-                        {entry.queueNumber}
-                      </p>
-                      <p className="text-sm font-mono text-gray-500 truncate">
-                        {entry.billNumber}
-                      </p>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            </div>
-          )}
+                      {theme.description}
+                    </p>
+
+                    {/* Color dots */}
+                    <div className="flex items-center gap-2 mt-3">
+                      <div className="rounded-full size-3" style={{ backgroundColor: theme.servingNumber }} />
+                      <div className="rounded-full size-3" style={{ backgroundColor: theme.navTitle, opacity: 0.6 }} />
+                      <div className="rounded-full size-3" style={{ backgroundColor: theme.tickerChipBg, opacity: 0.8 }} />
+                      <div className="flex-1" />
+                      <span
+                        className="font-semibold uppercase tracking-widest text-slate-500 group-hover:text-white transition-colors"
+                        style={{ fontSize: "clamp(0.4rem, 0.65vw, 0.6rem)" }}
+                      >
+                        Select →
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            </motion.div>
+          ))}
         </div>
       </div>
     </div>
