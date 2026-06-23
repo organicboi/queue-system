@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   PlusCircle, Radio, Users, ArrowLeft, ArrowRight,
-  CheckCircle, Printer, Search, X, ChevronRight,
+  CheckCircle, Printer, Search, X, ChevronRight, LogOut,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useQueueStore } from "@/store/queueStore"
+import { useSupabaseQueue } from "@/lib/useSupabaseQueue"
 import { useSettingsStore } from "@/store/settingsStore"
 import { toast } from "sonner"
 import { formatTime, formatRelativeTime } from "@/lib/queueUtils"
@@ -19,44 +19,48 @@ type Tab = "add" | "serving" | "customers"
 type AddStep = "entry" | "success"
 
 const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
-  { id: "add", label: "Add Customer", Icon: PlusCircle },
+  { id: "add", label: "Add", Icon: PlusCircle },
   { id: "serving", label: "Serving", Icon: Radio },
   { id: "customers", label: "Customers", Icon: Users },
 ]
 
-const STATUS_STYLES: Record<string, string> = {
-  waiting: "bg-blue-50 text-blue-700 border border-blue-200",
-  "in-progress": "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  completed: "bg-gray-100 text-gray-500 border border-gray-200",
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  waiting: "Waiting",
-  "in-progress": "Serving",
-  completed: "Done",
+const STATUS_CONFIG: Record<string, { label: string; dot: string; pill: string }> = {
+  waiting: {
+    label: "Waiting",
+    dot: "bg-amber-400",
+    pill: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
+  },
+  "in-progress": {
+    label: "Serving",
+    dot: "bg-emerald-500",
+    pill: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
+  },
+  completed: {
+    label: "Done",
+    dot: "bg-slate-400",
+    pill: "bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200",
+  },
 }
 
 export default function BusinessPage() {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>("add")
 
-  // Add customer
   const [addStep, setAddStep] = useState<AddStep>("entry")
   const [billNumber, setBillNumber] = useState("")
   const [createdEntry, setCreatedEntry] = useState<QueueEntry | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Currently Serving — integrated search
   const [csQuery, setCsQuery] = useState("")
   const [csSelectedId, setCsSelectedId] = useState<string | null>(null)
+  const [navEntryId, setNavEntryId] = useState<string | null>(null)
 
-  // Print
   const [printEntry, setPrintEntry] = useState<QueueEntry | null>(null)
 
   const {
     entries, currentServingNumber, callNext, callPrevious,
-    completeCurrentEntry, addEntry, markEntryCompleted,
-  } = useQueueStore()
+    completeCurrentEntry, addEntry, markEntryCompleted, callEntry,
+  } = useSupabaseQueue()
   const { businessName } = useSettingsStore()
 
   const currentEntry = entries.find(
@@ -64,15 +68,18 @@ export default function BusinessPage() {
   )
   const waitingCount = entries.filter((e) => e.status === "waiting").length
 
-  // Live-looked-up selected entry
   const csSearchedEntry = csSelectedId
     ? entries.find((e) => e.id === csSelectedId) ?? null
     : null
 
-  // What the CS card displays — searched entry overrides current
-  const displayEntry = csSearchedEntry ?? currentEntry
+  const navEntries = entries
+    .filter((e) => e.status !== "cancelled")
+    .sort((a, b) => a.queueNumber - b.queueNumber)
+  const navEntry = navEntryId ? (entries.find((e) => e.id === navEntryId) ?? null) : null
+  const effectiveForNav = navEntry ?? currentEntry
+  const navIndex = effectiveForNav ? navEntries.findIndex((e) => e.id === effectiveForNav.id) : -1
 
-  // Show results list when typing and nothing selected yet
+  const displayEntry = csSearchedEntry ?? navEntry ?? currentEntry
   const isSearchMode = csQuery.trim().length > 0 && !csSelectedId
 
   const csResults = isSearchMode
@@ -97,14 +104,12 @@ export default function BusinessPage() {
       return a.queueNumber - b.queueNumber
     })
 
-  // Auto-focus bill input when on Add tab
   useEffect(() => {
     if (tab === "add" && addStep === "entry") {
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [tab, addStep])
 
-  // Print side-effects
   useEffect(() => {
     if (!printEntry) return
     const timer = setTimeout(() => window.print(), 80)
@@ -117,11 +122,10 @@ export default function BusinessPage() {
     return () => window.removeEventListener("afterprint", handler)
   }, [])
 
-  // Handlers
-  const handleAddSubmit = () => {
+  const handleAddSubmit = async () => {
     const trimmed = billNumber.trim()
     if (!trimmed) return
-    const entry = addEntry(trimmed)
+    const entry = await addEntry(trimmed)
     setCreatedEntry(entry)
     setAddStep("success")
     toast.success(`Queue #${entry.queueNumber} — Bill ${entry.billNumber}`)
@@ -133,25 +137,36 @@ export default function BusinessPage() {
     setAddStep("entry")
   }
 
-  const handleComplete = () => {
-    completeCurrentEntry()
-    toast.success(`Queue #${currentServingNumber} completed`)
+  const handleComplete = async () => {
+    const num = currentServingNumber
+    await completeCurrentEntry()
+    toast.success(`Queue #${num} completed`)
   }
 
-  const handleCompleteDisplayed = () => {
+  const handleCompleteDisplayed = async () => {
     if (!displayEntry) return
     if (csSelectedId) {
-      markEntryCompleted(displayEntry.queueNumber)
+      await markEntryCompleted(displayEntry.queueNumber)
       toast.success(`Queue #${displayEntry.queueNumber} marked as completed`)
       setCsSelectedId(null)
       setCsQuery("")
     } else {
-      handleComplete()
+      await handleComplete()
     }
   }
 
   const handlePrint = (entry: QueueEntry) => {
     setPrintEntry(entry)
+  }
+
+  const handleNavPrev = () => {
+    if (navIndex <= 0) return
+    setNavEntryId(navEntries[navIndex - 1].id)
+  }
+
+  const handleNavNext = () => {
+    if (navIndex >= navEntries.length - 1) return
+    setNavEntryId(navEntries[navIndex + 1].id)
   }
 
   const handleCsSelect = (entry: QueueEntry) => {
@@ -162,11 +177,12 @@ export default function BusinessPage() {
   const handleCsBack = () => {
     setCsSelectedId(null)
     setCsQuery("")
+    setNavEntryId(null)
   }
 
   return (
     <>
-      {/* Print-only receipt */}
+      {/* Print styles */}
       <style>{`
         @media print {
           .no-print { display: none !important; }
@@ -174,6 +190,7 @@ export default function BusinessPage() {
         }
       `}</style>
 
+      {/* Print receipt */}
       <div
         id="biz-print"
         style={{ display: "none" }}
@@ -194,145 +211,211 @@ export default function BusinessPage() {
         )}
       </div>
 
-      {/* Main screen */}
-      <div className="no-print flex flex-col h-full">
+      {/* Main UI */}
+      <div className="no-print flex flex-col h-full bg-slate-50">
 
-        {/* Header */}
-        <header className="shrink-0 flex items-center justify-between px-5 h-14 border-b border-border bg-white">
+        {/* ── Header ── */}
+        <header className="shrink-0 bg-slate-900 px-5 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="font-semibold text-gray-900 text-sm truncate">{businessName}</span>
-            <span className="text-[10px] uppercase tracking-widest font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-              Business Mode
-            </span>
+            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+              <Radio className="size-4 text-white/70" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-white font-semibold text-sm leading-tight truncate">{businessName}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <p className="text-slate-400 text-[11px] leading-tight font-medium">Business Mode</p>
+              </div>
+            </div>
           </div>
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Exit
-          </button>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            {waitingCount > 0 && (
+              <div className="flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/20 text-amber-300 rounded-full px-2.5 py-1 text-[11px] font-semibold">
+                <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+                {waitingCount} waiting
+              </div>
+            )}
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors text-xs font-medium"
+            >
+              <LogOut className="size-3.5" />
+              Exit
+            </button>
+          </div>
         </header>
 
-        {/* Tab bar */}
-        <div className="shrink-0 flex border-b border-border bg-white">
-          {TABS.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={[
-                "relative flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors",
-                tab === id ? "text-primary" : "text-muted-foreground hover:text-foreground",
-              ].join(" ")}
-            >
-              <Icon className="size-4.5" />
-              <span>{label}</span>
-              {tab === id && (
-                <motion.span
-                  layoutId="tab-indicator"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full"
+        {/* ── Segmented Tab Bar ── */}
+        <div className="shrink-0 bg-white border-b border-slate-200 px-4 py-2.5">
+          <div className="bg-slate-100 rounded-xl p-1 flex gap-0.5">
+            {TABS.map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className="relative flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors"
+              >
+                {tab === id && (
+                  <motion.span
+                    layoutId="tab-bg"
+                    className="absolute inset-0 bg-white rounded-lg shadow-sm"
+                    style={{ zIndex: 0 }}
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.35 }}
+                  />
+                )}
+                <Icon
+                  className={[
+                    "size-3.5 relative z-10 transition-colors",
+                    tab === id ? "text-slate-900" : "text-slate-400",
+                  ].join(" ")}
                 />
-              )}
-            </button>
-          ))}
+                <span
+                  className={[
+                    "relative z-10 transition-colors",
+                    tab === id ? "text-slate-900" : "text-slate-400",
+                  ].join(" ")}
+                >
+                  {label}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Tab content */}
+        {/* ── Tab Content ── */}
         <div className="flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
 
-            {/* ── ADD CUSTOMER TAB ── */}
+            {/* ════ ADD TAB ════ */}
             {tab === "add" && (
               <motion.div
                 key="add"
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.15 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18 }}
                 className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 items-start"
               >
 
-                {/* ── Quick Entry ── */}
-                <div className="rounded-xl border border-border bg-white p-5">
-                  <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-4">
-                    Quick Entry
-                  </p>
-                  <AnimatePresence mode="wait">
-                    {addStep === "entry" ? (
-                      <motion.div
-                        key="entry"
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        transition={{ duration: 0.12 }}
-                        className="space-y-4"
-                      >
-                        <input
-                          ref={inputRef}
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="Bill number…"
-                          value={billNumber}
-                          onChange={(e) => setBillNumber(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && handleAddSubmit()}
-                          className="w-full rounded-md border border-input bg-background px-4 py-4 text-center text-3xl font-bold tracking-widest placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                        <Button
-                          onClick={handleAddSubmit}
-                          disabled={!billNumber.trim()}
-                          className="w-full h-12 text-base bg-primary hover:bg-primary/90"
+                {/* Quick Entry */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-5 pt-5 pb-4 border-b border-slate-100">
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Quick Entry</p>
+                    <p className="text-sm font-semibold text-slate-700 mt-0.5">Add a customer to the queue</p>
+                  </div>
+
+                  <div className="p-5">
+                    <AnimatePresence mode="wait">
+                      {addStep === "entry" ? (
+                        <motion.div
+                          key="entry"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.14 }}
+                          className="space-y-3"
                         >
-                          Generate Queue Number
-                        </Button>
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key="success"
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.15 }}
-                        className="space-y-4 text-center"
-                      >
-                        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
-                          <CheckCircle className="size-5 text-emerald-600" />
-                        </div>
-                        <div className="rounded-lg border border-border bg-muted/30 py-6 px-4 space-y-1">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Queue Number</p>
-                          <p className="text-6xl font-black text-gray-900 tabular-nums leading-none">
-                            #{createdEntry?.queueNumber}
-                          </p>
-                          <p className="text-sm font-mono text-muted-foreground mt-1">
-                            Bill {createdEntry?.billNumber}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button variant="outline" className="flex-1" onClick={handleAddAnother}>
-                            Add Another
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                              Bill Number
+                            </label>
+                            <input
+                              ref={inputRef}
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="0000"
+                              value={billNumber}
+                              onChange={(e) => setBillNumber(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && handleAddSubmit()}
+                              className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-5 text-center text-4xl font-black tracking-widest text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-slate-900 focus:bg-white transition-all"
+                            />
+                          </div>
+                          <Button
+                            onClick={handleAddSubmit}
+                            disabled={!billNumber.trim()}
+                            className="w-full h-12 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl gap-2"
+                          >
+                            <PlusCircle className="size-4" />
+                            Generate Queue Number
                           </Button>
-                          {createdEntry && (
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="success"
+                          initial={{ opacity: 0, scale: 0.96 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.96 }}
+                          transition={{ duration: 0.18 }}
+                          className="space-y-4"
+                        >
+                          {/* Ticket */}
+                          <div className="rounded-2xl bg-slate-900 overflow-hidden relative">
+                            <div className="absolute inset-0 opacity-[0.04] pointer-events-none">
+                              <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white" />
+                              <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white" />
+                            </div>
+                            <div className="relative p-6 text-center">
+                              <p className="text-slate-400 text-[10px] uppercase tracking-widest font-semibold mb-4">
+                                Queue Number
+                              </p>
+                              <div className="flex items-center justify-center gap-1 mb-1">
+                                <CheckCircle className="size-5 text-emerald-400" />
+                                <span className="text-emerald-400 text-xs font-semibold">Added successfully</span>
+                              </div>
+                              <AnimatePresence mode="wait">
+                                <motion.p
+                                  key={createdEntry?.queueNumber}
+                                  variants={flipNumber}
+                                  initial="initial"
+                                  animate="animate"
+                                  exit="exit"
+                                  className="text-8xl font-black text-white tabular-nums leading-none mt-2"
+                                >
+                                  #{createdEntry?.queueNumber}
+                                </motion.p>
+                              </AnimatePresence>
+                              <div className="border-t border-dashed border-white/15 my-5" />
+                              <p className="text-slate-300 text-sm font-mono font-semibold">
+                                Bill {createdEntry?.billNumber}
+                              </p>
+                              <p className="text-slate-500 text-[11px] mt-1">
+                                {createdEntry ? formatTime(createdEntry.joinedAt) : ""}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
                             <Button
                               variant="outline"
-                              className="flex-none px-3"
-                              onClick={() => handlePrint(createdEntry)}
-                              title="Print ticket"
+                              className="flex-1 h-10 rounded-xl text-sm font-semibold border-slate-200 hover:bg-slate-50"
+                              onClick={handleAddAnother}
                             >
-                              <Printer className="size-4" />
+                              Add Another
                             </Button>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                            {createdEntry && (
+                              <Button
+                                variant="outline"
+                                className="h-10 px-3.5 rounded-xl border-slate-200 hover:bg-slate-50"
+                                onClick={() => handlePrint(createdEntry)}
+                                title="Print ticket"
+                              >
+                                <Printer className="size-4 text-slate-600" />
+                              </Button>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
 
-                {/* ── Currently Serving (with integrated search) ── */}
-                <div className="rounded-xl border border-border bg-white overflow-hidden flex flex-col">
-
-                  {/* Card header */}
-                  <div className="flex items-center justify-between px-5 pt-5 pb-3">
-                    <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
-                      Currently Serving
-                    </p>
+                {/* Now Serving (Add tab) */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                  <div className="px-5 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Now Serving</p>
+                      <p className="text-sm font-semibold text-slate-700 mt-0.5">Manage current entry</p>
+                    </div>
                     <AnimatePresence>
                       {csSelectedId && (
                         <motion.button
@@ -341,34 +424,31 @@ export default function BusinessPage() {
                           exit={{ opacity: 0, x: 6 }}
                           transition={{ duration: 0.12 }}
                           onClick={handleCsBack}
-                          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                          className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-700 transition-colors font-medium"
                         >
                           <X className="size-3" />
-                          Back to current
+                          Back
                         </motion.button>
                       )}
                     </AnimatePresence>
                   </div>
 
-                  {/* Search bar */}
-                  <div className="px-5 pb-3">
+                  {/* Search */}
+                  <div className="px-5 pt-4 pb-2 shrink-0">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
                       <input
                         type="text"
                         inputMode="numeric"
-                        placeholder="Find by queue # or bill number…"
+                        placeholder="Find by queue # or bill…"
                         value={csQuery}
-                        onChange={(e) => {
-                          setCsQuery(e.target.value)
-                          setCsSelectedId(null)
-                        }}
-                        className="w-full rounded-lg border border-input bg-muted/40 pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-colors placeholder:text-muted-foreground/60"
+                        onChange={(e) => { setCsQuery(e.target.value); setCsSelectedId(null) }}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-slate-400 focus:bg-white transition-all placeholder:text-slate-400"
                       />
                       {csQuery && (
                         <button
                           onClick={() => { setCsQuery(""); setCsSelectedId(null) }}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
                         >
                           <X className="size-3.5" />
                         </button>
@@ -376,11 +456,11 @@ export default function BusinessPage() {
                     </div>
                   </div>
 
-                  {/* Dynamic content area */}
-                  <div className="flex-1 px-5">
+                  {/* Dynamic content */}
+                  <div className="flex-1 px-5 overflow-hidden">
                     <AnimatePresence mode="wait">
 
-                      {/* Search results list */}
+                      {/* Search results */}
                       {isSearchMode ? (
                         <motion.div
                           key="results"
@@ -388,74 +468,72 @@ export default function BusinessPage() {
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -4 }}
                           transition={{ duration: 0.12 }}
+                          className="space-y-1.5 py-2"
                         >
                           {csResults.length === 0 ? (
                             <div className="py-10 text-center">
-                              <p className="text-sm text-muted-foreground">No matching entries</p>
+                              <p className="text-sm text-slate-400">No matching entries</p>
                             </div>
                           ) : (
-                            <div className="space-y-1.5 pb-2">
-                              {csResults.map((entry) => (
+                            csResults.map((entry) => {
+                              const cfg = STATUS_CONFIG[entry.status]
+                              return (
                                 <button
                                   key={entry.id}
                                   onClick={() => handleCsSelect(entry)}
-                                  className="w-full flex items-center gap-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 px-3 py-2.5 text-left transition-all group"
+                                  className="w-full flex items-center gap-3 rounded-xl border border-slate-200 hover:border-slate-900 hover:bg-slate-50 px-3 py-2.5 text-left transition-all group"
                                 >
-                                  <span className="text-xl font-black text-gray-900 tabular-nums w-9 shrink-0 text-center">
+                                  <span className="text-xl font-black text-slate-900 tabular-nums w-8 shrink-0 text-center">
                                     {entry.queueNumber}
                                   </span>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-mono font-semibold text-gray-800 truncate">
+                                    <p className="text-sm font-semibold text-slate-800 truncate font-mono">
                                       Bill {entry.billNumber}
                                     </p>
-                                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
                                       {formatTime(entry.joinedAt)}
                                     </p>
                                   </div>
-                                  <span
-                                    className={[
-                                      "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0",
-                                      STATUS_STYLES[entry.status] ?? "bg-gray-100 text-gray-500",
-                                    ].join(" ")}
-                                  >
-                                    {STATUS_LABEL[entry.status] ?? entry.status}
-                                  </span>
-                                  <ChevronRight className="size-3.5 text-muted-foreground/50 group-hover:text-primary/60 shrink-0 transition-colors" />
+                                  {cfg && (
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${cfg.pill}`}>
+                                      <span className={`size-1.5 rounded-full ${cfg.dot} shrink-0`} />
+                                      {cfg.label}
+                                    </span>
+                                  )}
+                                  <ChevronRight className="size-3.5 text-slate-300 group-hover:text-slate-600 shrink-0 transition-colors" />
                                 </button>
-                              ))}
-                            </div>
+                              )
+                            })
                           )}
                         </motion.div>
                       ) : (
 
-                        /* Big number display — current or searched */
+                        /* Big number */
                         <motion.div
                           key={displayEntry?.id ?? "empty"}
-                          initial={{ opacity: 0, scale: 0.96 }}
+                          initial={{ opacity: 0, scale: 0.97 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.96 }}
+                          exit={{ opacity: 0, scale: 0.97 }}
                           transition={{ duration: 0.14 }}
-                          className="flex flex-col items-center justify-center text-center py-5"
+                          className="flex flex-col items-center justify-center text-center py-6"
                         >
-                          {/* Searched-entry indicator */}
                           <AnimatePresence>
-                            {csSelectedId && displayEntry && (
-                              <motion.div
-                                initial={{ opacity: 0, y: -4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0 }}
-                                className="mb-3"
-                              >
-                                <span
-                                  className={[
-                                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide",
-                                    STATUS_STYLES[displayEntry.status] ?? "bg-gray-100 text-gray-500",
-                                  ].join(" ")}
+                            {csSelectedId && displayEntry && (() => {
+                              const cfg = STATUS_CONFIG[displayEntry.status]
+                              return cfg ? (
+                                <motion.div
+                                  initial={{ opacity: 0, y: -4 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0 }}
+                                  className="mb-3"
                                 >
-                                  {STATUS_LABEL[displayEntry.status] ?? displayEntry.status}
-                                </span>
-                              </motion.div>
-                            )}
+                                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${cfg.pill}`}>
+                                    <span className={`size-1.5 rounded-full ${cfg.dot}`} />
+                                    {cfg.label}
+                                  </span>
+                                </motion.div>
+                              ) : null
+                            })()}
                           </AnimatePresence>
 
                           <AnimatePresence mode="wait">
@@ -465,7 +543,7 @@ export default function BusinessPage() {
                               initial="initial"
                               animate="animate"
                               exit="exit"
-                              className="text-7xl font-black text-gray-900 tabular-nums leading-none"
+                              className="text-8xl font-black text-slate-900 tabular-nums leading-none"
                             >
                               #{displayEntry?.queueNumber ?? currentServingNumber}
                             </motion.p>
@@ -473,27 +551,27 @@ export default function BusinessPage() {
 
                           {displayEntry ? (
                             <div className="mt-3 space-y-0.5">
-                              <p className="text-base font-mono font-semibold text-gray-700">
+                              <p className="text-sm font-mono font-semibold text-slate-600">
                                 Bill {displayEntry.billNumber}
                               </p>
                               {displayEntry.startedAt && displayEntry.status === "in-progress" && (
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-xs text-slate-400">
                                   Started {formatRelativeTime(displayEntry.startedAt)}
                                 </p>
                               )}
                               {displayEntry.completedAt && displayEntry.status === "completed" && (
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-xs text-slate-400">
                                   Completed {formatRelativeTime(displayEntry.completedAt)}
                                 </p>
                               )}
                             </div>
                           ) : (
-                            <p className="text-xs text-muted-foreground mt-3">No active entry</p>
+                            <p className="text-xs text-slate-400 mt-3">No active entry</p>
                           )}
 
                           {!csSelectedId && (
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-4">
-                              <span className="size-1.5 rounded-full bg-amber-400" />
+                            <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-4">
+                              <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
                               {waitingCount} waiting
                             </div>
                           )}
@@ -503,7 +581,7 @@ export default function BusinessPage() {
                     </AnimatePresence>
                   </div>
 
-                  {/* Action buttons — hidden while showing results list */}
+                  {/* Actions */}
                   <AnimatePresence>
                     {!isSearchMode && (
                       <motion.div
@@ -511,207 +589,293 @@ export default function BusinessPage() {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.1 }}
-                        className="px-5 pb-5 pt-2 space-y-2"
+                        className="px-5 pb-5 pt-2 space-y-2 shrink-0"
                       >
-                        {/* Prev / Next — only when showing current serving */}
                         {!csSelectedId && (
                           <div className="grid grid-cols-2 gap-2">
                             <Button
                               variant="outline"
-                              className="h-10 gap-1.5 text-xs"
-                              onClick={() => callPrevious()}
+                              className="h-10 gap-1.5 text-xs rounded-xl border-slate-200 font-semibold"
+                              disabled={navIndex <= 0}
+                              onClick={handleNavPrev}
                             >
                               <ArrowLeft className="size-3.5" /> Prev
                             </Button>
                             <Button
                               variant="outline"
-                              className="h-10 gap-1.5 text-xs"
-                              onClick={() => callNext()}
+                              className="h-10 gap-1.5 text-xs rounded-xl border-slate-200 font-semibold"
+                              disabled={navIndex >= navEntries.length - 1}
+                              onClick={handleNavNext}
                             >
                               Next <ArrowRight className="size-3.5" />
                             </Button>
                           </div>
                         )}
 
-                        {/* Print + action */}
                         {displayEntry ? (
-                          <div className="grid grid-cols-2 gap-2">
-                            <Button
-                              variant="outline"
-                              className="h-11 gap-2 text-sm"
-                              onClick={() => handlePrint(displayEntry)}
-                            >
-                              <Printer className="size-4" />
-                              Print
-                            </Button>
-
+                          <div className="space-y-2">
                             {displayEntry.status === "completed" ? (
-                              <div className="flex items-center justify-center gap-1.5 rounded-md bg-muted/50 text-sm text-emerald-600 font-medium">
+                              <div className="h-11 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 text-sm text-emerald-600 font-semibold ring-1 ring-inset ring-emerald-100">
                                 <CheckCircle className="size-4" />
-                                Done
+                                Completed
                               </div>
                             ) : displayEntry.status === "cancelled" ? (
-                              <div className="flex items-center justify-center rounded-md bg-muted/50 text-sm text-muted-foreground font-medium">
+                              <div className="h-11 flex items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-400 font-medium">
                                 Cancelled
                               </div>
                             ) : (
                               <Button
-                                className="h-11 text-sm bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                                onClick={handleCompleteDisplayed}
+                                className="w-full h-11 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
+                                onClick={async () => {
+                                  const count = (displayEntry.callCount ?? 0) + 1
+                                  await callEntry(displayEntry.queueNumber)
+                                  toast.success(
+                                    count === 1
+                                      ? `Queue #${displayEntry.queueNumber} called!`
+                                      : `Queue #${displayEntry.queueNumber} recalled (×${count})`
+                                  )
+                                }}
                               >
-                                <CheckCircle className="size-4" />
-                                {csSelectedId ? "Complete" : "Mark Done"}
+                                <Radio className="size-4" />
+                                {(displayEntry.callCount ?? 0) === 0 ? "Call Customer" : "Recall Customer"}
                               </Button>
+                            )}
+                            {(displayEntry.callCount ?? 0) > 0 && (
+                              <p className="text-[11px] text-center text-slate-400">
+                                Called {displayEntry.callCount}× so far
+                              </p>
                             )}
                           </div>
                         ) : (
-                          /* No entry at all */
-                          <div className="h-11 flex items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
+                          <div className="h-11 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
                             No entry to act on
                           </div>
                         )}
                       </motion.div>
                     )}
                   </AnimatePresence>
-
                 </div>
+
               </motion.div>
             )}
 
-            {/* ── SERVING TAB ── */}
+            {/* ════ SERVING TAB ════ */}
             {tab === "serving" && (
               <motion.div
                 key="serving"
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.15 }}
-                className="flex min-h-full items-center justify-center p-6"
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18 }}
+                className="p-5"
               >
-                <div className="w-full max-w-sm space-y-6">
-                  <div className="rounded-xl border border-border bg-white p-8 text-center">
-                    <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-4">
-                      Currently Serving
-                    </p>
-                    <AnimatePresence mode="wait">
-                      <motion.p
-                        key={currentServingNumber}
-                        variants={flipNumber}
-                        initial="initial"
-                        animate="animate"
-                        exit="exit"
-                        className="text-8xl font-black text-gray-900 tabular-nums leading-none"
-                      >
-                        #{currentServingNumber}
-                      </motion.p>
-                    </AnimatePresence>
-                    {currentEntry ? (
-                      <motion.div
-                        key={currentEntry.id}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-4 space-y-0.5"
-                      >
-                        <p className="text-base font-mono font-semibold text-gray-700">
-                          Bill {currentEntry.billNumber}
-                        </p>
-                        {currentEntry.startedAt && (
-                          <p className="text-xs text-muted-foreground">
-                            Started {formatRelativeTime(currentEntry.startedAt)}
+                <div className="max-w-sm mx-auto space-y-4">
+
+                  {/* Hero card */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    {/* Status strip */}
+                    <div className="bg-slate-900 px-5 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-white/70 text-xs font-medium uppercase tracking-widest">
+                          Now Serving
+                        </span>
+                      </div>
+                      {waitingCount > 0 && (
+                        <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-medium">
+                          <span className="size-1.5 rounded-full bg-amber-400" />
+                          {waitingCount} in queue
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Number */}
+                    <div className="px-8 pt-10 pb-8 text-center">
+                      <AnimatePresence mode="wait">
+                        <motion.p
+                          key={currentServingNumber}
+                          variants={flipNumber}
+                          initial="initial"
+                          animate="animate"
+                          exit="exit"
+                          className="text-[6.5rem] font-black text-slate-900 tabular-nums leading-none"
+                        >
+                          #{currentServingNumber}
+                        </motion.p>
+                      </AnimatePresence>
+
+                      {currentEntry ? (
+                        <motion.div
+                          key={currentEntry.id}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-5 pt-5 border-t border-slate-100 space-y-1"
+                        >
+                          <p className="text-base font-mono font-bold text-slate-700">
+                            Bill {currentEntry.billNumber}
                           </p>
-                        )}
-                      </motion.div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground mt-4">No active entry</p>
-                    )}
-                    <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <span className="size-1.5 rounded-full bg-amber-400" />
-                      {waitingCount} waiting
+                          {currentEntry.startedAt && (
+                            <p className="text-xs text-slate-400">
+                              Serving for {formatRelativeTime(currentEntry.startedAt)}
+                            </p>
+                          )}
+                        </motion.div>
+                      ) : (
+                        <p className="text-sm text-slate-400 mt-6 pt-5 border-t border-slate-100">
+                          No active entry
+                        </p>
+                      )}
                     </div>
                   </div>
 
+                  {/* Navigation */}
                   <div className="grid grid-cols-2 gap-3">
-                    <Button variant="outline" className="h-12 gap-2" onClick={() => callPrevious()}>
-                      <ArrowLeft className="size-4" /> Prev
+                    <Button
+                      variant="outline"
+                      className="h-12 gap-2 rounded-xl border-slate-200 font-semibold text-slate-700 hover:bg-slate-50"
+                      onClick={() => callPrevious()}
+                    >
+                      <ArrowLeft className="size-4" /> Previous
                     </Button>
-                    <Button variant="outline" className="h-12 gap-2" onClick={() => callNext()}>
+                    <Button
+                      variant="outline"
+                      className="h-12 gap-2 rounded-xl border-slate-200 font-semibold text-slate-700 hover:bg-slate-50"
+                      onClick={() => callNext()}
+                    >
                       Next <ArrowRight className="size-4" />
                     </Button>
                   </div>
 
+                  {/* Recall */}
                   <Button
-                    className="w-full h-12 text-base bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                    onClick={handleComplete}
+                    className="w-full h-13 text-base rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
+                    disabled={!currentEntry}
+                    onClick={async () => {
+                      if (!currentEntry) return
+                      const count = (currentEntry.callCount ?? 0) + 1
+                      await callEntry(currentServingNumber)
+                      toast.success(
+                        count === 1
+                          ? `Queue #${currentServingNumber} called!`
+                          : `Queue #${currentServingNumber} recalled (×${count})`
+                      )
+                    }}
                   >
-                    <CheckCircle className="size-4" />
-                    Mark Completed
+                    <Radio className="size-5" />
+                    {(currentEntry?.callCount ?? 0) > 0 ? "Recall Customer" : "Call Customer"}
                   </Button>
+
                 </div>
               </motion.div>
             )}
 
-            {/* ── CUSTOMERS TAB ── */}
+            {/* ════ CUSTOMERS TAB ════ */}
             {tab === "customers" && (
               <motion.div
                 key="customers"
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.15 }}
-                className="p-4 space-y-2"
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18 }}
+                className="p-4 space-y-3"
               >
-                <div className="grid grid-cols-[3rem_1fr_5rem_2rem] gap-3 px-3 py-1.5 text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
-                  <span>#</span>
-                  <span>Bill</span>
-                  <span>Status</span>
+
+                {/* Stats strip */}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    {
+                      label: "In Service",
+                      count: entries.filter((e) => e.status === "in-progress").length,
+                      color: "text-emerald-600",
+                      bg: "bg-emerald-50 border-emerald-200",
+                      dot: "bg-emerald-500",
+                    },
+                    {
+                      label: "Waiting",
+                      count: waitingCount,
+                      color: "text-amber-600",
+                      bg: "bg-amber-50 border-amber-200",
+                      dot: "bg-amber-400",
+                    },
+                    {
+                      label: "Done",
+                      count: entries.filter((e) => e.status === "completed").length,
+                      color: "text-slate-500",
+                      bg: "bg-white border-slate-200",
+                      dot: "bg-slate-400",
+                    },
+                  ].map(({ label, count, color, bg, dot }) => (
+                    <div key={label} className={`rounded-xl border ${bg} p-3 text-center`}>
+                      <p className={`text-2xl font-black tabular-nums ${color}`}>{count}</p>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        <span className={`size-1.5 rounded-full ${dot}`} />
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{label}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Column headers */}
+                <div className="grid grid-cols-[2.5rem_1fr_4.5rem_2rem] gap-3 px-4 pt-1">
+                  <span className="text-[10px] uppercase tracking-widest font-bold text-slate-400">#</span>
+                  <span className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Bill</span>
+                  <span className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Status</span>
                   <span />
                 </div>
 
                 {customerList.length === 0 && (
-                  <div className="py-16 text-center text-sm text-muted-foreground">
-                    No customers yet
+                  <div className="py-16 text-center">
+                    <p className="text-sm text-slate-400">No customers yet</p>
                   </div>
                 )}
 
                 <AnimatePresence initial={false}>
-                  {customerList.map((entry, i) => (
-                    <motion.div
-                      key={entry.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, x: -8 }}
-                      transition={{ duration: 0.15, delay: i * 0.02 }}
-                      className="grid grid-cols-[3rem_1fr_5rem_2rem] items-center gap-3 rounded-md border border-border bg-white px-3 py-3"
-                    >
-                      <span className="text-xl font-black text-gray-900 tabular-nums">
-                        {entry.queueNumber}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="font-mono font-semibold text-sm text-gray-800 truncate">
-                          Bill {entry.billNumber}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {formatTime(entry.joinedAt)}
-                        </p>
-                      </div>
-                      <span
+                  {customerList.map((entry, i) => {
+                    const cfg = STATUS_CONFIG[entry.status]
+                    const isActive = entry.status === "in-progress"
+                    return (
+                      <motion.div
+                        key={entry.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, x: -8 }}
+                        transition={{ duration: 0.15, delay: i * 0.02 }}
                         className={[
-                          "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                          STATUS_STYLES[entry.status] ?? "bg-gray-100 text-gray-500",
+                          "grid grid-cols-[2.5rem_1fr_4.5rem_2rem] items-center gap-3 rounded-xl border px-4 py-3 transition-colors",
+                          isActive
+                            ? "bg-emerald-50/60 border-emerald-200"
+                            : "bg-white border-slate-200",
                         ].join(" ")}
                       >
-                        {STATUS_LABEL[entry.status] ?? entry.status}
-                      </span>
-                      <button
-                        onClick={() => handlePrint(entry)}
-                        className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-                        title="Print ticket"
-                      >
-                        <Printer className="size-4" />
-                      </button>
-                    </motion.div>
-                  ))}
+                        <span className={`text-xl font-black tabular-nums ${isActive ? "text-emerald-700" : "text-slate-900"}`}>
+                          {entry.queueNumber}
+                        </span>
+                        <div className="min-w-0">
+                          <p className={`font-mono font-semibold text-sm truncate ${isActive ? "text-emerald-800" : "text-slate-800"}`}>
+                            Bill {entry.billNumber}
+                          </p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {formatTime(entry.joinedAt)}
+                          </p>
+                        </div>
+                        {cfg ? (
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${cfg.pill}`}>
+                            <span className={`size-1.5 rounded-full ${cfg.dot} shrink-0`} />
+                            {cfg.label}
+                          </span>
+                        ) : null}
+                        <button
+                          onClick={() => handlePrint(entry)}
+                          className="flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
+                          title="Print ticket"
+                        >
+                          <Printer className="size-4" />
+                        </button>
+                      </motion.div>
+                    )
+                  })}
                 </AnimatePresence>
+
               </motion.div>
             )}
 

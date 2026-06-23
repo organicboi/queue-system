@@ -8,6 +8,7 @@ export interface QueueEntry {
   joinedAt: string
   startedAt?: string
   completedAt?: string
+  callCount?: number
 }
 
 export interface ActivityLog {

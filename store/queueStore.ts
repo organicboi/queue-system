@@ -15,6 +15,7 @@ interface QueueState {
   callPrevious: () => void
   completeCurrentEntry: () => void
   markEntryCompleted: (queueNumber: number) => void
+  callEntry: (queueNumber: number) => void
   addEntry: (billNumber: string) => QueueEntry
   cancelEntry: (queueNumber: number) => void
   getPositionInQueue: (queueNumber: number) => number
@@ -108,6 +109,28 @@ export const useQueueStore = create<QueueState>()(
 
       completeCurrentEntry: () => {
         get().callNext()
+      },
+
+      callEntry: (queueNumber) => {
+        const entry = get().entries.find((e) => e.queueNumber === queueNumber)
+        if (!entry) return
+        const newCount = (entry.callCount ?? 0) + 1
+        const isRecall = newCount > 1
+        set((s) => ({
+          entries: s.entries.map((e) =>
+            e.queueNumber === queueNumber ? { ...e, callCount: newCount } : e
+          ),
+          activityLogs: [
+            makeLog(
+              "called",
+              queueNumber,
+              isRecall
+                ? `Queue #${queueNumber} recalled (×${newCount})`
+                : `Queue #${queueNumber} called`
+            ),
+            ...s.activityLogs,
+          ].slice(0, 50),
+        }))
       },
 
       markEntryCompleted: (queueNumber) => {

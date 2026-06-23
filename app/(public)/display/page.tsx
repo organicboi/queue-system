@@ -1,17 +1,63 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { DisplayClock } from "@/components/display/DisplayClock"
-import { useQueueStore } from "@/store/queueStore"
+import { useSupabaseQueue } from "@/lib/useSupabaseQueue"
 import { useSettingsStore } from "@/store/settingsStore"
 import { flipNumber } from "@/lib/animations"
+import { supabase } from "@/lib/supabase"
+
+interface CalledInfo {
+  queueNumber: number
+  billNumber: string
+  callCount: number
+  key: number
+}
+
+function announce(queueNumber: number) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return
+  window.speechSynthesis.cancel()
+  const utter = new SpeechSynthesisUtterance(
+    `Queue number ${queueNumber}. Queue number ${queueNumber}. Please proceed to the counter.`
+  )
+  utter.rate = 0.82
+  utter.pitch = 1.0
+  utter.volume = 1.0
+  window.speechSynthesis.speak(utter)
+}
 
 export default function DisplayPage() {
-  const { entries, currentServingNumber } = useQueueStore()
+  const { entries, currentServingNumber } = useSupabaseQueue()
   const { businessName } = useSettingsStore()
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [calledInfo, setCalledInfo] = useState<CalledInfo | null>(null)
+
+  // Subscribe to call broadcasts from the business terminal
+  useEffect(() => {
+    const ch = supabase
+      .channel("queue-display-signals")
+      .on("broadcast", { event: "customer-called" }, ({ payload }) => {
+        setCalledInfo((prev) => ({
+          queueNumber: payload.queueNumber as number,
+          billNumber: payload.billNumber as string,
+          callCount: payload.callCount as number,
+          key: (prev?.key ?? 0) + 1,
+        }))
+        announce(payload.queueNumber as number)
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(ch) }
+  }, [])
+
+  // Auto-dismiss the calling overlay after 7 seconds
+  useEffect(() => {
+    if (!calledInfo) return
+    const t = setTimeout(() => setCalledInfo(null), 7000)
+    return () => clearTimeout(t)
+  }, [calledInfo?.key])
 
   const nextWaiting = entries
     .filter((e) => e.status === "waiting")
@@ -61,7 +107,9 @@ export default function DisplayPage() {
       <div className="relative flex flex-1 overflow-hidden">
 
         {/* Left: Now Serving */}
-        <div className="flex w-3/5 flex-col items-center justify-center border-r border-gray-200 p-12">
+        <div className="relative flex w-3/5 flex-col items-center justify-center border-r border-gray-200 p-12">
+
+          {/* Normal now-serving content */}
           <p className="text-xs font-bold uppercase tracking-[0.4em] text-gray-400 mb-10">
             Now Serving
           </p>
@@ -99,6 +147,56 @@ export default function DisplayPage() {
               <p className="mt-8 text-xl text-gray-300">Waiting for next customer</p>
             )}
           </div>
+
+          {/* Calling overlay — covers the left panel */}
+          <AnimatePresence>
+            {calledInfo && (
+              <motion.div
+                key={calledInfo.key}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, transition: { duration: 0.6 } }}
+                transition={{ duration: 0.25 }}
+                className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 z-10"
+              >
+                {/* Blinking "NOW CALLING" label */}
+                <motion.p
+                  animate={{ opacity: [1, 0.1, 1] }}
+                  transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut" }}
+                  className="text-[10px] font-black uppercase tracking-[0.6em] text-amber-400 mb-10"
+                >
+                  Now Calling
+                </motion.p>
+
+                {/* Blinking queue number */}
+                <motion.p
+                  animate={{ opacity: [1, 0.35, 1] }}
+                  transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut", delay: 0.08 }}
+                  className="font-black text-white tabular-nums leading-none"
+                  style={{ fontSize: "clamp(8rem, 20vw, 18rem)", lineHeight: 1 }}
+                >
+                  {calledInfo.queueNumber}
+                </motion.p>
+
+                <p className="mt-10 text-slate-400 text-xl font-medium tracking-wide">
+                  Please proceed to the counter
+                </p>
+
+                {calledInfo.callCount > 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 flex items-center gap-2 bg-amber-400/10 border border-amber-400/20 rounded-full px-4 py-1.5"
+                  >
+                    <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    <span className="text-amber-400 text-sm font-semibold uppercase tracking-widest">
+                      Recalled ×{calledInfo.callCount}
+                    </span>
+                  </motion.div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Right: Next up + Completed */}
