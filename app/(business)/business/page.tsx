@@ -129,6 +129,7 @@ export default function BusinessPage() {
     setCreatedEntry(entry)
     setAddStep("success")
     toast.success(`Queue #${entry.queueNumber} — Bill ${entry.billNumber}`)
+    handlePrint(entry)
   }
 
   const handleAddAnother = () => {
@@ -182,32 +183,54 @@ export default function BusinessPage() {
 
   return (
     <>
-      {/* Print styles */}
+      {/* Print styles — 80 mm thermal paper */}
       <style>{`
+        @page {
+          size: 80mm auto;
+          margin: 0;
+        }
         @media print {
+          * { box-sizing: border-box; }
           .no-print { display: none !important; }
-          #biz-print { display: flex !important; }
+          #biz-print { display: block !important; width: 80mm; }
         }
       `}</style>
 
       {/* Print receipt */}
-      <div
-        id="biz-print"
-        style={{ display: "none" }}
-        className="flex-col items-center justify-center p-10 font-mono text-black"
-      >
+      <div id="biz-print" style={{ display: "none" }}>
         {printEntry && (
-          <>
-            <p className="text-lg font-bold text-center">{businessName}</p>
-            <p className="text-xs text-center text-gray-500 mt-0.5 mb-6 uppercase tracking-widest">Queue Ticket</p>
-            <div className="border-t border-dashed border-gray-400 w-full mb-6" />
-            <p className="text-xs text-center text-gray-500 uppercase tracking-widest mb-1">Queue Number</p>
-            <p className="text-8xl font-black text-center leading-none mb-4">#{printEntry.queueNumber}</p>
-            <p className="text-lg font-semibold text-center">Bill {printEntry.billNumber}</p>
-            <p className="text-xs text-center text-gray-400 mt-2">{formatTime(printEntry.joinedAt)}</p>
-            <div className="border-t border-dashed border-gray-400 w-full mt-6 mb-4" />
-            <p className="text-xs text-center text-gray-400">Thank you for your patience</p>
-          </>
+          <div style={{
+            width: "80mm",
+            padding: "5mm 4mm 6mm",
+            fontFamily: "'Courier New', Courier, monospace",
+            color: "#000",
+            textAlign: "center",
+          }}>
+            <p style={{ fontSize: "13pt", fontWeight: "700", margin: "0 0 1.5mm", letterSpacing: "0.5px" }}>
+              {businessName}
+            </p>
+            <p style={{ fontSize: "7pt", textTransform: "uppercase", letterSpacing: "2.5px", color: "#555", margin: "0 0 4mm" }}>
+              Queue Ticket
+            </p>
+            <div style={{ borderTop: "1px dashed #888", margin: "0 0 4mm" }} />
+            <p style={{ fontSize: "7pt", textTransform: "uppercase", letterSpacing: "1.5px", color: "#777", margin: "0 0 2mm" }}>
+              Queue Number
+            </p>
+            <p style={{ fontSize: "52pt", fontWeight: "900", lineHeight: "1", margin: "0 0 4mm", letterSpacing: "-1px" }}>
+              #{printEntry.queueNumber}
+            </p>
+            <div style={{ borderTop: "1px dashed #888", margin: "0 0 4mm" }} />
+            <p style={{ fontSize: "11pt", fontWeight: "600", margin: "0 0 2mm" }}>
+              Bill {printEntry.billNumber}
+            </p>
+            <p style={{ fontSize: "8pt", color: "#777", margin: "0 0 5mm" }}>
+              {formatTime(printEntry.joinedAt)}
+            </p>
+            <div style={{ borderTop: "1px dashed #888", margin: "0 0 3mm" }} />
+            <p style={{ fontSize: "7pt", color: "#999", margin: "0" }}>
+              Thank you for your patience
+            </p>
+          </div>
         )}
       </div>
 
