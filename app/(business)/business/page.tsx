@@ -446,10 +446,10 @@ function BusinessPageInner() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.18 }}
-                className="flex-1 min-h-0 flex flex-col gap-3 p-3 md:p-4"
+                className="flex-1 min-h-0 flex flex-col gap-2 p-3 md:p-4"
               >
 
-                {/* ── Search bar ── */}
+                {/* ── Search bar (always at top) ── */}
                 <div className="shrink-0">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400 pointer-events-none" />
@@ -542,15 +542,18 @@ function BusinessPageInner() {
                   </AnimatePresence>
                 </div>
 
-                {/* ── Hero card ── */}
-                <div className="flex-1 min-h-0 flex flex-col rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-white">
+                {/* ── Hero + Actions card
+                      Portrait  → dark hero stacked above white action zone
+                      Landscape → dark hero on LEFT, white action zone on RIGHT
+                ── */}
+                <div className="flex-1 min-h-0 flex flex-col landscape:flex-row rounded-2xl overflow-hidden shadow-sm border border-slate-200">
 
-                  {/* Dark hero — queue number + status */}
-                  <div className="relative flex-1 min-h-0 flex flex-col items-center justify-center bg-slate-900 px-6 py-6">
+                  {/* Dark hero — fills left in landscape, top in portrait */}
+                  <div className="relative flex-1 min-h-0 flex flex-col items-center justify-center bg-slate-900 px-6 py-4">
 
-                    {/* Waiting count badge — top right */}
+                    {/* Waiting count badge */}
                     {waitingCount > 0 && (
-                      <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-amber-400/15 border border-amber-400/25 rounded-full px-2.5 py-1">
+                      <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-amber-400/15 border border-amber-400/25 rounded-full px-2.5 py-1">
                         <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
                         <span className="text-[11px] font-bold text-amber-300 tabular-nums">{waitingCount} waiting</span>
                       </div>
@@ -562,7 +565,7 @@ function BusinessPageInner() {
                         key={displayEntry.status}
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="mb-3"
+                        className="mb-2"
                       >
                         {displayEntry.status === "in-progress" && (
                           <div className="flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/25 rounded-full px-3 py-1">
@@ -585,7 +588,7 @@ function BusinessPageInner() {
                       </motion.div>
                     )}
 
-                    {/* Queue number */}
+                    {/* Queue number — vmin so it scales well in both orientations */}
                     <AnimatePresence mode="wait">
                       <motion.p
                         key={displayEntry?.queueNumber ?? currentServingNumber}
@@ -594,7 +597,7 @@ function BusinessPageInner() {
                         animate="animate"
                         exit="exit"
                         className="font-black text-white tabular-nums leading-none"
-                        style={{ fontSize: "clamp(4.5rem, 18vh, 9rem)" }}
+                        style={{ fontSize: "clamp(3rem, 14vmin, 8rem)" }}
                       >
                         #{displayEntry?.queueNumber ?? currentServingNumber}
                       </motion.p>
@@ -606,9 +609,9 @@ function BusinessPageInner() {
                         key={displayEntry.id}
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mt-3 text-center space-y-0.5"
+                        className="mt-2 text-center space-y-0.5"
                       >
-                        <p className="text-base font-bold text-white/90 tracking-wide">
+                        <p className="text-sm font-bold text-white/90 tracking-wide">
                           Bill {displayEntry.billNumber}
                         </p>
                         {displayEntry.startedAt && displayEntry.status === "in-progress" && (
@@ -623,14 +626,17 @@ function BusinessPageInner() {
                         )}
                       </motion.div>
                     ) : (
-                      <p className="mt-3 text-sm text-slate-500">No active entry</p>
+                      <p className="mt-2 text-sm text-slate-500">No active entry</p>
                     )}
                   </div>
 
-                  {/* ── Action zone ── */}
-                  <div className="shrink-0 bg-white px-4 pt-3 pb-4 space-y-2.5">
+                  {/* ── Action zone
+                        Portrait  → shrink-0, sits below hero
+                        Landscape → fixed width right column, vertically centered
+                  ── */}
+                  <div className="shrink-0 landscape:w-60 bg-white px-4 pt-3 pb-4 space-y-2.5 landscape:flex landscape:flex-col landscape:justify-center landscape:py-5 landscape:border-l landscape:border-slate-100">
 
-                    {/* Nav row — secondary utility, small */}
+                    {/* Nav row */}
                     {!csSelectedId && (
                       <div className="grid grid-cols-2 gap-2">
                         <button
