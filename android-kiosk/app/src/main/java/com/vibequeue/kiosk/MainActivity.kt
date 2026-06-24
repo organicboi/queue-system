@@ -2,32 +2,57 @@ package com.vibequeue.kiosk
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Context
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.speech.tts.TextToSpeech
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import java.util.Locale
 
 private const val DISPLAY_URL = "https://queue-system-gray.vercel.app/display"
-
 private const val RETRY_DELAY_MS = 5_000L
+
+class TtsInterface(context: Context) : TextToSpeech.OnInitListener {
+    private val tts = TextToSpeech(context, this)
+    private var ready = false
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            tts.language = Locale.US
+            ready = true
+        }
+    }
+
+    @JavascriptInterface
+    fun speak(text: String) {
+        if (ready) tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "announce")
+    }
+
+    fun shutdown() = tts.shutdown()
+}
 
 class MainActivity : Activity() {
 
     private lateinit var webView: WebView
+    private lateinit var ttsInterface: TtsInterface
     private val handler = Handler(Looper.getMainLooper())
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         hideSystemUI()
+
+        ttsInterface = TtsInterface(this)
 
         webView = WebView(this).apply {
             settings.apply {
@@ -36,6 +61,7 @@ class MainActivity : Activity() {
                 cacheMode = WebSettings.LOAD_DEFAULT
                 mediaPlaybackRequiresUserGesture = false
             }
+            addJavascriptInterface(ttsInterface, "AndroidTTS")
             webViewClient = object : WebViewClient() {
                 override fun onReceivedError(
                     view: WebView,
@@ -53,12 +79,12 @@ class MainActivity : Activity() {
         setContentView(webView)
     }
 
-    // Block the back button on the TV remote so staff can't exit accidentally
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean =
         if (keyCode == KeyEvent.KEYCODE_BACK) true else super.onKeyDown(keyCode, event)
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        ttsInterface.shutdown()
         webView.destroy()
         super.onDestroy()
     }

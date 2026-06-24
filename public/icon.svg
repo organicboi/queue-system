@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#6366F1"/>
+  <!-- TV screen -->
+  <rect x="80" y="130" width="352" height="220" rx="20" fill="#1E1B4B"/>
+  <rect x="96" y="146" width="320" height="188" rx="12" fill="#0F172A"/>
+  <!-- Queue number -->
+  <text x="200" y="272" font-family="system-ui, sans-serif" font-size="120" font-weight="900" fill="#6366F1" text-anchor="middle">3</text>
+  <!-- Next up labels -->
+  <rect x="240" y="190" width="140" height="16" rx="4" fill="#334155"/>
+  <rect x="240" y="214" width="110" height="12" rx="4" fill="#1E293B"/>
+  <rect x="240" y="234" width="125" height="12" rx="4" fill="#1E293B"/>
+  <!-- TV stand -->
+  <polygon points="216,350 296,350 276,390 236,390" fill="#4F46E5"/>
+  <rect x="196" y="390" width="120" height="16" rx="8" fill="#4F46E5"/>
+</svg>

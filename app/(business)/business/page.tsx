@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useRef, useEffect, Suspense } from "react"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   PlusCircle, Radio, Users, ArrowLeft, ArrowRight,
@@ -17,11 +17,17 @@ import { flipNumber } from "@/lib/animations"
 
 type Tab = "add" | "serving" | "customers"
 type AddStep = "entry" | "success"
+type AddSection = "now-serving" | "quick-entry"
 
 const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
   { id: "add", label: "Add", Icon: PlusCircle },
   { id: "serving", label: "Serving", Icon: Radio },
   { id: "customers", label: "Customers", Icon: Users },
+]
+
+const ADD_SECTIONS: { id: AddSection; label: string }[] = [
+  { id: "now-serving", label: "Now Serving" },
+  { id: "quick-entry", label: "Quick Entry" },
 ]
 
 const STATUS_CONFIG: Record<string, { label: string; dot: string; pill: string }> = {
@@ -42,9 +48,20 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; pill: string }
   },
 }
 
-export default function BusinessPage() {
+function BusinessPageInner() {
   const router = useRouter()
-  const [tab, setTab] = useState<Tab>("add")
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = searchParams.get("tab")
+    return (["add", "serving", "customers"].includes(t ?? "") ? t : "add") as Tab
+  })
+
+  const [addSection, setAddSection] = useState<AddSection>(() => {
+    const s = searchParams.get("section")
+    return (["now-serving", "quick-entry"].includes(s ?? "") ? s : "now-serving") as AddSection
+  })
 
   const [addStep, setAddStep] = useState<AddStep>("entry")
   const [billNumber, setBillNumber] = useState("")
@@ -104,11 +121,26 @@ export default function BusinessPage() {
       return a.queueNumber - b.queueNumber
     })
 
+  const handleTabChange = (newTab: Tab) => {
+    setTab(newTab)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("tab", newTab)
+    if (newTab !== "add") params.delete("section")
+    router.replace(`${pathname}?${params.toString()}`)
+  }
+
+  const handleSectionChange = (newSection: AddSection) => {
+    setAddSection(newSection)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("section", newSection)
+    router.replace(`${pathname}?${params.toString()}`)
+  }
+
   useEffect(() => {
-    if (tab === "add" && addStep === "entry") {
+    if (tab === "add" && addSection === "quick-entry" && addStep === "entry") {
       setTimeout(() => inputRef.current?.focus(), 50)
     }
-  }, [tab, addStep])
+  }, [tab, addSection, addStep])
 
   useEffect(() => {
     if (!printEntry) return
@@ -275,7 +307,7 @@ export default function BusinessPage() {
             {TABS.map(({ id, label, Icon }) => (
               <button
                 key={id}
-                onClick={() => setTab(id)}
+                onClick={() => handleTabChange(id)}
                 className="relative flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors"
               >
                 {tab === id && (
@@ -317,365 +349,422 @@ export default function BusinessPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.18 }}
-                className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 items-start"
+                className="flex flex-col"
               >
 
-                {/* Quick Entry */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="px-5 pt-5 pb-4 border-b border-slate-100">
-                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Quick Entry</p>
-                    <p className="text-sm font-semibold text-slate-700 mt-0.5">Add a customer to the queue</p>
-                  </div>
-
-                  <div className="p-5">
-                    <AnimatePresence mode="wait">
-                      {addStep === "entry" ? (
-                        <motion.div
-                          key="entry"
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -6 }}
-                          transition={{ duration: 0.14 }}
-                          className="space-y-3"
+                {/* ── Add sub-tab bar ── */}
+                <div className="px-4 pt-4 pb-0">
+                  <div className="bg-slate-100 rounded-xl p-1 flex gap-0.5">
+                    {ADD_SECTIONS.map(({ id, label }) => (
+                      <button
+                        key={id}
+                        onClick={() => handleSectionChange(id)}
+                        className="relative flex-1 flex items-center justify-center py-2 rounded-lg text-xs font-semibold transition-colors"
+                      >
+                        {addSection === id && (
+                          <motion.span
+                            layoutId="add-section-bg"
+                            className="absolute inset-0 bg-white rounded-lg shadow-sm"
+                            style={{ zIndex: 0 }}
+                            transition={{ type: "spring", bounce: 0.2, duration: 0.35 }}
+                          />
+                        )}
+                        <span
+                          className={[
+                            "relative z-10 transition-colors",
+                            addSection === id ? "text-slate-900" : "text-slate-400",
+                          ].join(" ")}
                         >
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                              Bill Number
-                            </label>
-                            <input
-                              ref={inputRef}
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="0000"
-                              value={billNumber}
-                              onChange={(e) => setBillNumber(e.target.value)}
-                              onKeyDown={(e) => e.key === "Enter" && handleAddSubmit()}
-                              className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-5 text-center text-4xl font-black tracking-widest text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-slate-900 focus:bg-white transition-all"
-                            />
-                          </div>
-                          <Button
-                            onClick={handleAddSubmit}
-                            disabled={!billNumber.trim()}
-                            className="w-full h-12 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl gap-2"
-                          >
-                            <PlusCircle className="size-4" />
-                            Generate Queue Number
-                          </Button>
-                        </motion.div>
-                      ) : (
-                        <motion.div
-                          key="success"
-                          initial={{ opacity: 0, scale: 0.96 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.96 }}
-                          transition={{ duration: 0.18 }}
-                          className="space-y-4"
-                        >
-                          {/* Ticket */}
-                          <div className="rounded-2xl bg-slate-900 overflow-hidden relative">
-                            <div className="absolute inset-0 opacity-[0.04] pointer-events-none">
-                              <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white" />
-                              <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white" />
-                            </div>
-                            <div className="relative p-6 text-center">
-                              <p className="text-slate-400 text-[10px] uppercase tracking-widest font-semibold mb-4">
-                                Queue Number
-                              </p>
-                              <div className="flex items-center justify-center gap-1 mb-1">
-                                <CheckCircle className="size-5 text-emerald-400" />
-                                <span className="text-emerald-400 text-xs font-semibold">Added successfully</span>
-                              </div>
-                              <AnimatePresence mode="wait">
-                                <motion.p
-                                  key={createdEntry?.queueNumber}
-                                  variants={flipNumber}
-                                  initial="initial"
-                                  animate="animate"
-                                  exit="exit"
-                                  className="text-8xl font-black text-white tabular-nums leading-none mt-2"
-                                >
-                                  #{createdEntry?.queueNumber}
-                                </motion.p>
-                              </AnimatePresence>
-                              <div className="border-t border-dashed border-white/15 my-5" />
-                              <p className="text-slate-300 text-sm font-mono font-semibold">
-                                Bill {createdEntry?.billNumber}
-                              </p>
-                              <p className="text-slate-500 text-[11px] mt-1">
-                                {createdEntry ? formatTime(createdEntry.joinedAt) : ""}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              className="flex-1 h-10 rounded-xl text-sm font-semibold border-slate-200 hover:bg-slate-50"
-                              onClick={handleAddAnother}
-                            >
-                              Add Another
-                            </Button>
-                            {createdEntry && (
-                              <Button
-                                variant="outline"
-                                className="h-10 px-3.5 rounded-xl border-slate-200 hover:bg-slate-50"
-                                onClick={() => handlePrint(createdEntry)}
-                                title="Print ticket"
-                              >
-                                <Printer className="size-4 text-slate-600" />
-                              </Button>
-                            )}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                          {label}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Now Serving (Add tab) */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-                  <div className="px-5 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between shrink-0">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Now Serving</p>
-                      <p className="text-sm font-semibold text-slate-700 mt-0.5">Manage current entry</p>
-                    </div>
-                    <AnimatePresence>
-                      {csSelectedId && (
-                        <motion.button
-                          initial={{ opacity: 0, x: 6 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 6 }}
-                          transition={{ duration: 0.12 }}
-                          onClick={handleCsBack}
-                          className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-700 transition-colors font-medium"
-                        >
-                          <X className="size-3" />
-                          Back
-                        </motion.button>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                {/* ── Add section content ── */}
+                <div className="p-4">
+                  <AnimatePresence mode="wait">
 
-                  {/* Search */}
-                  <div className="px-5 pt-4 pb-2 shrink-0">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="Find by queue # or bill…"
-                        value={csQuery}
-                        onChange={(e) => { setCsQuery(e.target.value); setCsSelectedId(null) }}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-slate-400 focus:bg-white transition-all placeholder:text-slate-400"
-                      />
-                      {csQuery && (
-                        <button
-                          onClick={() => { setCsQuery(""); setCsSelectedId(null) }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
-                        >
-                          <X className="size-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Dynamic content */}
-                  <div className="flex-1 px-5 overflow-hidden">
-                    <AnimatePresence mode="wait">
-
-                      {/* Search results */}
-                      {isSearchMode ? (
-                        <motion.div
-                          key="results"
-                          initial={{ opacity: 0, y: 4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -4 }}
-                          transition={{ duration: 0.12 }}
-                          className="space-y-1.5 py-2"
-                        >
-                          {csResults.length === 0 ? (
-                            <div className="py-10 text-center">
-                              <p className="text-sm text-slate-400">No matching entries</p>
-                            </div>
-                          ) : (
-                            csResults.map((entry) => {
-                              const cfg = STATUS_CONFIG[entry.status]
-                              return (
-                                <button
-                                  key={entry.id}
-                                  onClick={() => handleCsSelect(entry)}
-                                  className="w-full flex items-center gap-3 rounded-xl border border-slate-200 hover:border-slate-900 hover:bg-slate-50 px-3 py-2.5 text-left transition-all group"
-                                >
-                                  <span className="text-xl font-black text-slate-900 tabular-nums w-8 shrink-0 text-center">
-                                    {entry.queueNumber}
-                                  </span>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-slate-800 truncate font-mono">
-                                      Bill {entry.billNumber}
-                                    </p>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">
-                                      {formatTime(entry.joinedAt)}
-                                    </p>
-                                  </div>
-                                  {cfg && (
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${cfg.pill}`}>
-                                      <span className={`size-1.5 rounded-full ${cfg.dot} shrink-0`} />
-                                      {cfg.label}
-                                    </span>
-                                  )}
-                                  <ChevronRight className="size-3.5 text-slate-300 group-hover:text-slate-600 shrink-0 transition-colors" />
-                                </button>
-                              )
-                            })
-                          )}
-                        </motion.div>
-                      ) : (
-
-                        /* Big number */
-                        <motion.div
-                          key={displayEntry?.id ?? "empty"}
-                          initial={{ opacity: 0, scale: 0.97 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.97 }}
-                          transition={{ duration: 0.14 }}
-                          className="flex flex-col items-center justify-center text-center py-6"
-                        >
-                          <AnimatePresence>
-                            {csSelectedId && displayEntry && (() => {
-                              const cfg = STATUS_CONFIG[displayEntry.status]
-                              return cfg ? (
-                                <motion.div
-                                  initial={{ opacity: 0, y: -4 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  exit={{ opacity: 0 }}
-                                  className="mb-3"
-                                >
-                                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${cfg.pill}`}>
-                                    <span className={`size-1.5 rounded-full ${cfg.dot}`} />
-                                    {cfg.label}
-                                  </span>
-                                </motion.div>
-                              ) : null
-                            })()}
-                          </AnimatePresence>
-
-                          <AnimatePresence mode="wait">
-                            <motion.p
-                              key={displayEntry?.queueNumber ?? currentServingNumber}
-                              variants={flipNumber}
-                              initial="initial"
-                              animate="animate"
-                              exit="exit"
-                              className="text-8xl font-black text-slate-900 tabular-nums leading-none"
-                            >
-                              #{displayEntry?.queueNumber ?? currentServingNumber}
-                            </motion.p>
-                          </AnimatePresence>
-
-                          {displayEntry ? (
-                            <div className="mt-3 space-y-0.5">
-                              <p className="text-sm font-mono font-semibold text-slate-600">
-                                Bill {displayEntry.billNumber}
-                              </p>
-                              {displayEntry.startedAt && displayEntry.status === "in-progress" && (
-                                <p className="text-xs text-slate-400">
-                                  Started {formatRelativeTime(displayEntry.startedAt)}
-                                </p>
-                              )}
-                              {displayEntry.completedAt && displayEntry.status === "completed" && (
-                                <p className="text-xs text-slate-400">
-                                  Completed {formatRelativeTime(displayEntry.completedAt)}
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            <p className="text-xs text-slate-400 mt-3">No active entry</p>
-                          )}
-
-                          {!csSelectedId && (
-                            <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-4">
-                              <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
-                              {waitingCount} waiting
-                            </div>
-                          )}
-                        </motion.div>
-                      )}
-
-                    </AnimatePresence>
-                  </div>
-
-                  {/* Actions */}
-                  <AnimatePresence>
-                    {!isSearchMode && (
+                    {/* Now Serving section */}
+                    {addSection === "now-serving" && (
                       <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.1 }}
-                        className="px-5 pb-5 pt-2 space-y-2 shrink-0"
+                        key="now-serving"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.15 }}
                       >
-                        {!csSelectedId && (
-                          <div className="grid grid-cols-2 gap-2">
-                            <Button
-                              variant="outline"
-                              className="h-10 gap-1.5 text-xs rounded-xl border-slate-200 font-semibold"
-                              disabled={navIndex <= 0}
-                              onClick={handleNavPrev}
-                            >
-                              <ArrowLeft className="size-3.5" /> Prev
-                            </Button>
-                            <Button
-                              variant="outline"
-                              className="h-10 gap-1.5 text-xs rounded-xl border-slate-200 font-semibold"
-                              disabled={navIndex >= navEntries.length - 1}
-                              onClick={handleNavNext}
-                            >
-                              Next <ArrowRight className="size-3.5" />
-                            </Button>
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                          <div className="px-5 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Now Serving</p>
+                              <p className="text-sm font-semibold text-slate-700 mt-0.5">Manage current entry</p>
+                            </div>
+                            <AnimatePresence>
+                              {csSelectedId && (
+                                <motion.button
+                                  initial={{ opacity: 0, x: 6 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  exit={{ opacity: 0, x: 6 }}
+                                  transition={{ duration: 0.12 }}
+                                  onClick={handleCsBack}
+                                  className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-700 transition-colors font-medium"
+                                >
+                                  <X className="size-3" />
+                                  Back
+                                </motion.button>
+                              )}
+                            </AnimatePresence>
                           </div>
-                        )}
 
-                        {displayEntry ? (
-                          <div className="space-y-2">
-                            {displayEntry.status === "completed" ? (
-                              <div className="h-11 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 text-sm text-emerald-600 font-semibold ring-1 ring-inset ring-emerald-100">
-                                <CheckCircle className="size-4" />
-                                Completed
-                              </div>
-                            ) : displayEntry.status === "cancelled" ? (
-                              <div className="h-11 flex items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-400 font-medium">
-                                Cancelled
-                              </div>
-                            ) : (
-                              <Button
-                                className="w-full h-11 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
-                                onClick={async () => {
-                                  const count = (displayEntry.callCount ?? 0) + 1
-                                  await callEntry(displayEntry.queueNumber)
-                                  toast.success(
-                                    count === 1
-                                      ? `Queue #${displayEntry.queueNumber} called!`
-                                      : `Queue #${displayEntry.queueNumber} recalled (×${count})`
-                                  )
-                                }}
+                          {/* Search */}
+                          <div className="px-5 pt-4 pb-2 shrink-0">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="Find by queue # or bill…"
+                                value={csQuery}
+                                onChange={(e) => { setCsQuery(e.target.value); setCsSelectedId(null) }}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-slate-400 focus:bg-white transition-all placeholder:text-slate-400"
+                              />
+                              {csQuery && (
+                                <button
+                                  onClick={() => { setCsQuery(""); setCsSelectedId(null) }}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
+                                >
+                                  <X className="size-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Dynamic content */}
+                          <div className="flex-1 px-5 overflow-hidden">
+                            <AnimatePresence mode="wait">
+
+                              {/* Search results */}
+                              {isSearchMode ? (
+                                <motion.div
+                                  key="results"
+                                  initial={{ opacity: 0, y: 4 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -4 }}
+                                  transition={{ duration: 0.12 }}
+                                  className="space-y-1.5 py-2"
+                                >
+                                  {csResults.length === 0 ? (
+                                    <div className="py-10 text-center">
+                                      <p className="text-sm text-slate-400">No matching entries</p>
+                                    </div>
+                                  ) : (
+                                    csResults.map((entry) => {
+                                      const cfg = STATUS_CONFIG[entry.status]
+                                      return (
+                                        <button
+                                          key={entry.id}
+                                          onClick={() => handleCsSelect(entry)}
+                                          className="w-full flex items-center gap-3 rounded-xl border border-slate-200 hover:border-slate-900 hover:bg-slate-50 px-3 py-2.5 text-left transition-all group"
+                                        >
+                                          <span className="text-xl font-black text-slate-900 tabular-nums w-8 shrink-0 text-center">
+                                            {entry.queueNumber}
+                                          </span>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-semibold text-slate-800 truncate font-mono">
+                                              Bill {entry.billNumber}
+                                            </p>
+                                            <p className="text-[11px] text-slate-400 mt-0.5">
+                                              {formatTime(entry.joinedAt)}
+                                            </p>
+                                          </div>
+                                          {cfg && (
+                                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${cfg.pill}`}>
+                                              <span className={`size-1.5 rounded-full ${cfg.dot} shrink-0`} />
+                                              {cfg.label}
+                                            </span>
+                                          )}
+                                          <ChevronRight className="size-3.5 text-slate-300 group-hover:text-slate-600 shrink-0 transition-colors" />
+                                        </button>
+                                      )
+                                    })
+                                  )}
+                                </motion.div>
+                              ) : (
+
+                                /* Big number */
+                                <motion.div
+                                  key={displayEntry?.id ?? "empty"}
+                                  initial={{ opacity: 0, scale: 0.97 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.97 }}
+                                  transition={{ duration: 0.14 }}
+                                  className="flex flex-col items-center justify-center text-center py-6"
+                                >
+                                  <AnimatePresence>
+                                    {csSelectedId && displayEntry && (() => {
+                                      const cfg = STATUS_CONFIG[displayEntry.status]
+                                      return cfg ? (
+                                        <motion.div
+                                          initial={{ opacity: 0, y: -4 }}
+                                          animate={{ opacity: 1, y: 0 }}
+                                          exit={{ opacity: 0 }}
+                                          className="mb-3"
+                                        >
+                                          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${cfg.pill}`}>
+                                            <span className={`size-1.5 rounded-full ${cfg.dot}`} />
+                                            {cfg.label}
+                                          </span>
+                                        </motion.div>
+                                      ) : null
+                                    })()}
+                                  </AnimatePresence>
+
+                                  <AnimatePresence mode="wait">
+                                    <motion.p
+                                      key={displayEntry?.queueNumber ?? currentServingNumber}
+                                      variants={flipNumber}
+                                      initial="initial"
+                                      animate="animate"
+                                      exit="exit"
+                                      className="text-8xl font-black text-slate-900 tabular-nums leading-none"
+                                    >
+                                      #{displayEntry?.queueNumber ?? currentServingNumber}
+                                    </motion.p>
+                                  </AnimatePresence>
+
+                                  {displayEntry ? (
+                                    <div className="mt-3 space-y-0.5">
+                                      <p className="text-sm font-mono font-semibold text-slate-600">
+                                        Bill {displayEntry.billNumber}
+                                      </p>
+                                      {displayEntry.startedAt && displayEntry.status === "in-progress" && (
+                                        <p className="text-xs text-slate-400">
+                                          Started {formatRelativeTime(displayEntry.startedAt)}
+                                        </p>
+                                      )}
+                                      {displayEntry.completedAt && displayEntry.status === "completed" && (
+                                        <p className="text-xs text-slate-400">
+                                          Completed {formatRelativeTime(displayEntry.completedAt)}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-slate-400 mt-3">No active entry</p>
+                                  )}
+
+                                  {!csSelectedId && (
+                                    <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-4">
+                                      <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                      {waitingCount} waiting
+                                    </div>
+                                  )}
+                                </motion.div>
+                              )}
+
+                            </AnimatePresence>
+                          </div>
+
+                          {/* Actions */}
+                          <AnimatePresence>
+                            {!isSearchMode && (
+                              <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.1 }}
+                                className="px-5 pb-5 pt-2 space-y-2 shrink-0"
                               >
-                                <Radio className="size-4" />
-                                {(displayEntry.callCount ?? 0) === 0 ? "Call Customer" : "Recall Customer"}
-                              </Button>
+                                {!csSelectedId && (
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <Button
+                                      variant="outline"
+                                      className="h-10 gap-1.5 text-xs rounded-xl border-slate-200 font-semibold"
+                                      disabled={navIndex <= 0}
+                                      onClick={handleNavPrev}
+                                    >
+                                      <ArrowLeft className="size-3.5" /> Prev
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      className="h-10 gap-1.5 text-xs rounded-xl border-slate-200 font-semibold"
+                                      disabled={navIndex >= navEntries.length - 1}
+                                      onClick={handleNavNext}
+                                    >
+                                      Next <ArrowRight className="size-3.5" />
+                                    </Button>
+                                  </div>
+                                )}
+
+                                {displayEntry ? (
+                                  <div className="space-y-2">
+                                    {displayEntry.status === "completed" ? (
+                                      <div className="h-11 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 text-sm text-emerald-600 font-semibold ring-1 ring-inset ring-emerald-100">
+                                        <CheckCircle className="size-4" />
+                                        Completed
+                                      </div>
+                                    ) : displayEntry.status === "cancelled" ? (
+                                      <div className="h-11 flex items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-400 font-medium">
+                                        Cancelled
+                                      </div>
+                                    ) : (
+                                      <Button
+                                        className="w-full h-11 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
+                                        onClick={async () => {
+                                          const count = (displayEntry.callCount ?? 0) + 1
+                                          await callEntry(displayEntry.queueNumber)
+                                          toast.success(
+                                            count === 1
+                                              ? `Queue #${displayEntry.queueNumber} called!`
+                                              : `Queue #${displayEntry.queueNumber} recalled (×${count})`
+                                          )
+                                        }}
+                                      >
+                                        <Radio className="size-4" />
+                                        {(displayEntry.callCount ?? 0) === 0 ? "Call Customer" : "Recall Customer"}
+                                      </Button>
+                                    )}
+                                    {(displayEntry.callCount ?? 0) > 0 && (
+                                      <p className="text-[11px] text-center text-slate-400">
+                                        Called {displayEntry.callCount}× so far
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="h-11 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
+                                    No entry to act on
+                                  </div>
+                                )}
+                              </motion.div>
                             )}
-                            {(displayEntry.callCount ?? 0) > 0 && (
-                              <p className="text-[11px] text-center text-slate-400">
-                                Called {displayEntry.callCount}× so far
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="h-11 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
-                            No entry to act on
-                          </div>
-                        )}
+                          </AnimatePresence>
+                        </div>
                       </motion.div>
                     )}
+
+                    {/* Quick Entry section */}
+                    {addSection === "quick-entry" && (
+                      <motion.div
+                        key="quick-entry"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="px-5 pt-5 pb-4 border-b border-slate-100">
+                            <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Quick Entry</p>
+                            <p className="text-sm font-semibold text-slate-700 mt-0.5">Add a customer to the queue</p>
+                          </div>
+
+                          <div className="p-5">
+                            <AnimatePresence mode="wait">
+                              {addStep === "entry" ? (
+                                <motion.div
+                                  key="entry"
+                                  initial={{ opacity: 0, y: 6 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -6 }}
+                                  transition={{ duration: 0.14 }}
+                                  className="space-y-3"
+                                >
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                                      Bill Number
+                                    </label>
+                                    <input
+                                      ref={inputRef}
+                                      type="text"
+                                      inputMode="numeric"
+                                      placeholder="0000"
+                                      value={billNumber}
+                                      onChange={(e) => setBillNumber(e.target.value)}
+                                      onKeyDown={(e) => e.key === "Enter" && handleAddSubmit()}
+                                      className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-5 text-center text-4xl font-black tracking-widest text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-slate-900 focus:bg-white transition-all"
+                                    />
+                                  </div>
+                                  <Button
+                                    onClick={handleAddSubmit}
+                                    disabled={!billNumber.trim()}
+                                    className="w-full h-12 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl gap-2"
+                                  >
+                                    <PlusCircle className="size-4" />
+                                    Generate Queue Number
+                                  </Button>
+                                </motion.div>
+                              ) : (
+                                <motion.div
+                                  key="success"
+                                  initial={{ opacity: 0, scale: 0.96 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.96 }}
+                                  transition={{ duration: 0.18 }}
+                                  className="space-y-4"
+                                >
+                                  {/* Ticket */}
+                                  <div className="rounded-2xl bg-slate-900 overflow-hidden relative">
+                                    <div className="absolute inset-0 opacity-[0.04] pointer-events-none">
+                                      <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white" />
+                                      <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white" />
+                                    </div>
+                                    <div className="relative p-6 text-center">
+                                      <p className="text-slate-400 text-[10px] uppercase tracking-widest font-semibold mb-4">
+                                        Queue Number
+                                      </p>
+                                      <div className="flex items-center justify-center gap-1 mb-1">
+                                        <CheckCircle className="size-5 text-emerald-400" />
+                                        <span className="text-emerald-400 text-xs font-semibold">Added successfully</span>
+                                      </div>
+                                      <AnimatePresence mode="wait">
+                                        <motion.p
+                                          key={createdEntry?.queueNumber}
+                                          variants={flipNumber}
+                                          initial="initial"
+                                          animate="animate"
+                                          exit="exit"
+                                          className="text-8xl font-black text-white tabular-nums leading-none mt-2"
+                                        >
+                                          #{createdEntry?.queueNumber}
+                                        </motion.p>
+                                      </AnimatePresence>
+                                      <div className="border-t border-dashed border-white/15 my-5" />
+                                      <p className="text-slate-300 text-sm font-mono font-semibold">
+                                        Bill {createdEntry?.billNumber}
+                                      </p>
+                                      <p className="text-slate-500 text-[11px] mt-1">
+                                        {createdEntry ? formatTime(createdEntry.joinedAt) : ""}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="outline"
+                                      className="flex-1 h-10 rounded-xl text-sm font-semibold border-slate-200 hover:bg-slate-50"
+                                      onClick={handleAddAnother}
+                                    >
+                                      Add Another
+                                    </Button>
+                                    {createdEntry && (
+                                      <Button
+                                        variant="outline"
+                                        className="h-10 px-3.5 rounded-xl border-slate-200 hover:bg-slate-50"
+                                        onClick={() => handlePrint(createdEntry)}
+                                        title="Print ticket"
+                                      >
+                                        <Printer className="size-4 text-slate-600" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
                   </AnimatePresence>
                 </div>
 
@@ -906,5 +995,13 @@ export default function BusinessPage() {
         </div>
       </div>
     </>
+  )
+}
+
+export default function BusinessPage() {
+  return (
+    <Suspense fallback={null}>
+      <BusinessPageInner />
+    </Suspense>
   )
 }

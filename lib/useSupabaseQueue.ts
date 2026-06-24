@@ -242,14 +242,46 @@ export function useSupabaseQueue() {
   )
 
   const callEntry = useCallback(async (queueNumber: number) => {
-    const entry = ref.current.entries.find((e) => e.queueNumber === queueNumber)
+    const { entries, currentServingNumber } = ref.current
+    const entry = entries.find((e) => e.queueNumber === queueNumber)
     if (!entry) return
-    const newCount = (entry.callCount ?? 0) + 1
 
-    await supabase
-      .from("queue_entries")
-      .update({ call_count: newCount })
-      .eq("queue_number", queueNumber)
+    const newCount = (entry.callCount ?? 0) + 1
+    const now = new Date().toISOString()
+    const isAlreadyServing = entry.status === "in-progress"
+
+    const ops: Promise<unknown>[] = [
+      supabase
+        .from("queue_entries")
+        .update({
+          call_count: newCount,
+          ...(isAlreadyServing ? {} : { status: "in-progress", started_at: now }),
+        })
+        .eq("id", entry.id),
+    ]
+
+    if (!isAlreadyServing) {
+      ops.push(
+        supabase
+          .from("queue_state")
+          .update({ current_serving_number: queueNumber, updated_at: now })
+          .eq("id", 1)
+      )
+
+      const prev = entries.find(
+        (e) => e.queueNumber === currentServingNumber && e.status === "in-progress"
+      )
+      if (prev) {
+        ops.push(
+          supabase
+            .from("queue_entries")
+            .update({ status: "completed", completed_at: now })
+            .eq("id", prev.id)
+        )
+      }
+    }
+
+    await Promise.all(ops)
 
     supabase.channel("queue-display-signals").send({
       type: "broadcast",

@@ -19,11 +19,20 @@ interface CalledInfo {
 }
 
 function announce(queueNumber: number) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return
+  if (typeof window === "undefined") return
+  const text = `Queue number ${queueNumber}. Queue number ${queueNumber}. Please proceed to the counter.`
+
+  // Native TTS bridge injected by the Android WebView kiosk app — no user-gesture needed
+  if ("AndroidTTS" in window) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(window as any).AndroidTTS.speak(text)
+    return
+  }
+
+  // Web Speech API for desktop/Chrome browsers
+  if (!("speechSynthesis" in window)) return
   window.speechSynthesis.cancel()
-  const utter = new SpeechSynthesisUtterance(
-    `Queue number ${queueNumber}. Queue number ${queueNumber}. Please proceed to the counter.`
-  )
+  const utter = new SpeechSynthesisUtterance(text)
   utter.rate = 0.82
   utter.pitch = 1.0
   utter.volume = 1.0
@@ -61,12 +70,12 @@ export function TVDisplay({ theme }: { theme: TVTheme }) {
   const nextWaiting = entries
     .filter((e) => e.status === "waiting")
     .sort((a, b) => a.queueNumber - b.queueNumber)
-    .slice(0, 6)
+    .slice(0, 3)
 
   const recentCompleted = entries
     .filter((e) => e.status === "completed")
     .sort((a, b) => new Date(b.completedAt ?? 0).getTime() - new Date(a.completedAt ?? 0).getTime())
-    .slice(0, 6)
+    .slice(0, 3)
 
   const currentEntry = entries.find(
     (e) => e.queueNumber === currentServingNumber && e.status === "in-progress"
@@ -260,19 +269,19 @@ export function TVDisplay({ theme }: { theme: TVTheme }) {
 
             {/* Next in Line */}
             <div
-              className="flex flex-1 flex-col overflow-hidden p-5"
+              className="flex flex-1 flex-col overflow-hidden px-4 py-3"
               style={{
                 backgroundColor: theme.nextBg,
                 borderRight: `1px solid ${theme.sectionBorder}`,
               }}
             >
               <p
-                className="shrink-0 font-black uppercase tracking-[0.4em] mb-4"
+                className="shrink-0 font-black uppercase tracking-[0.4em] mb-2"
                 style={{ fontSize: "clamp(0.5rem, 0.8vw, 0.7rem)", color: theme.sectionLabel }}
               >
                 Next in Line
               </p>
-              <div className="flex-1 overflow-hidden flex flex-col gap-2">
+              <div className="flex-1 overflow-hidden flex flex-col gap-1.5">
                 <AnimatePresence>
                   {nextWaiting.map((entry, i) => (
                     <motion.div
@@ -281,7 +290,7 @@ export function TVDisplay({ theme }: { theme: TVTheme }) {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -12 }}
                       transition={{ delay: i * 0.04 }}
-                      className="flex items-center gap-3 rounded-lg px-4 py-2.5 shrink-0"
+                      className="flex flex-1 items-center gap-3 rounded-lg px-4"
                       style={{
                         backgroundColor: theme.rowBg,
                         border: `1px solid ${theme.rowBorder}`,
@@ -319,16 +328,16 @@ export function TVDisplay({ theme }: { theme: TVTheme }) {
 
             {/* Recently Served */}
             <div
-              className="flex flex-1 flex-col overflow-hidden p-5"
+              className="flex flex-1 flex-col overflow-hidden px-4 py-3"
               style={{ backgroundColor: theme.recentBg }}
             >
               <p
-                className="shrink-0 font-black uppercase tracking-[0.4em] mb-4"
+                className="shrink-0 font-black uppercase tracking-[0.4em] mb-2"
                 style={{ fontSize: "clamp(0.5rem, 0.8vw, 0.7rem)", color: theme.sectionLabel }}
               >
                 Recently Served
               </p>
-              <div className="flex-1 overflow-hidden flex flex-col gap-2">
+              <div className="flex-1 overflow-hidden flex flex-col gap-1.5">
                 <AnimatePresence>
                   {recentCompleted.map((entry, i) => (
                     <motion.div
@@ -337,7 +346,7 @@ export function TVDisplay({ theme }: { theme: TVTheme }) {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -12 }}
                       transition={{ delay: i * 0.04 }}
-                      className="flex items-center gap-3 rounded-lg px-4 py-2.5 shrink-0"
+                      className="flex flex-1 items-center gap-3 rounded-lg px-4"
                       style={{
                         backgroundColor: theme.rowBg,
                         border: `1px solid ${theme.rowBorder}`,

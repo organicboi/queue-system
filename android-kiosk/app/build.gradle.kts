@@ -35,5 +35,4 @@ android {
 }
 
 dependencies {
-    // No external dependencies — only Android SDK APIs used
 }

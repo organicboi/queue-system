@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { DisplayClock } from "@/components/display/DisplayClock"
+import { InstallPrompt } from "@/components/display/InstallPrompt"
 import { useSettingsStore } from "@/store/settingsStore"
 import { ALL_THEMES, THEME_ROUTES } from "@/components/display/displayThemes"
 import type { TVTheme } from "@/components/display/displayThemes"
@@ -114,6 +115,7 @@ export default function DisplaySelectorPage() {
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col select-none bg-[#030712]">
+      <InstallPrompt />
 
       {/* Header */}
       <header className="flex items-center justify-between px-12 shrink-0" style={{ height: "clamp(60px, 7vh, 80px)", borderBottom: "1px solid #0F172A" }}>
