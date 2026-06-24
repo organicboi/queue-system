@@ -72,7 +72,7 @@ export function TVDisplay({ theme }: { theme: TVTheme }) {
 
   const announce = useCallback((queueNumber: number) => {
     if (typeof window === "undefined") return
-    const text = `Queue number ${queueNumber}. Queue number ${queueNumber}. Please proceed to the counter.`
+    const text = `Token Number ${queueNumber}, please proceed to the counter.`
 
     // Android WebView kiosk — uses native TTS, no browser restrictions
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

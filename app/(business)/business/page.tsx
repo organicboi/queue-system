@@ -310,7 +310,7 @@ function BusinessPageInner() {
         </div>
 
         {/* ── Tab Content ── */}
-        <div className="flex-1 overflow-y-auto">
+        <div className={`flex-1 min-h-0 flex flex-col ${tab === 'serving' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           <AnimatePresence mode="wait">
 
             {/* ════ ADD TAB ════ */}
@@ -446,309 +446,235 @@ function BusinessPageInner() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.18 }}
-                className="p-4 md:p-5 lg:p-6"
+                className="flex-1 min-h-0 flex flex-col p-3 md:p-4"
               >
-                <div className="max-w-5xl mx-auto">
-                  <div className="flex flex-col lg:flex-row lg:items-start lg:gap-6 gap-4">
+                {/* ── Single card: fills all available height ── */}
+                <div className="flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
-                    {/* ── Search Panel ── */}
-                    <div className="lg:w-80 xl:w-96 shrink-0">
-                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="px-5 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between">
-                          <div>
-                            <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Search</p>
-                            <p className="text-sm font-semibold text-slate-700 mt-0.5">Find a customer</p>
-                          </div>
-                          <AnimatePresence>
-                            {csSelectedId && (
-                              <motion.button
-                                initial={{ opacity: 0, x: 6 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 6 }}
-                                transition={{ duration: 0.12 }}
-                                onClick={handleCsBack}
-                                className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-700 transition-colors font-medium"
-                              >
-                                <X className="size-3" />
-                                Clear
-                              </motion.button>
-                            )}
-                          </AnimatePresence>
-                        </div>
-
-                        {/* Search input */}
-                        <div className="px-5 pt-4 pb-3">
-                          <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="Find by queue # or bill…"
-                              value={csQuery}
-                              onChange={(e) => { setCsQuery(e.target.value); setCsSelectedId(null) }}
-                              className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-slate-400 focus:bg-white transition-all placeholder:text-slate-400"
-                            />
-                            {csQuery && (
-                              <button
-                                onClick={() => { setCsQuery(""); setCsSelectedId(null) }}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
-                              >
-                                <X className="size-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Search results / selection / hint */}
-                        <div className="px-5 pb-4">
-                          <AnimatePresence mode="wait">
-                            {isSearchMode ? (
-                              <motion.div
-                                key="results"
-                                initial={{ opacity: 0, y: 4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -4 }}
-                                transition={{ duration: 0.12 }}
-                                className="space-y-1.5"
-                              >
-                                {csResults.length === 0 ? (
-                                  <div className="py-8 text-center">
-                                    <p className="text-sm text-slate-400">No matching entries</p>
-                                  </div>
-                                ) : (
-                                  csResults.map((entry) => {
-                                    const cfg = STATUS_CONFIG[entry.status]
-                                    return (
-                                      <button
-                                        key={entry.id}
-                                        onClick={() => handleCsSelect(entry)}
-                                        className="w-full flex items-center gap-3 rounded-xl border border-slate-200 hover:border-slate-900 hover:bg-slate-50 px-3 py-2.5 text-left transition-all group"
-                                      >
-                                        <span className="text-xl font-black text-slate-900 tabular-nums w-8 shrink-0 text-center">
-                                          {entry.queueNumber}
-                                        </span>
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-sm font-semibold text-slate-800 truncate font-mono">
-                                            Bill {entry.billNumber}
-                                          </p>
-                                          <p className="text-[11px] text-slate-400 mt-0.5">
-                                            {formatTime(entry.joinedAt)}
-                                          </p>
-                                        </div>
-                                        {cfg && (
-                                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${cfg.pill}`}>
-                                            <span className={`size-1.5 rounded-full ${cfg.dot} shrink-0`} />
-                                            {cfg.label}
-                                          </span>
-                                        )}
-                                        <ChevronRight className="size-3.5 text-slate-300 group-hover:text-slate-600 shrink-0 transition-colors" />
-                                      </button>
-                                    )
-                                  })
-                                )}
-                              </motion.div>
-                            ) : csSelectedId && displayEntry ? (
-                              <motion.div
-                                key="selected"
-                                initial={{ opacity: 0, y: 4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -4 }}
-                                transition={{ duration: 0.12 }}
-                              >
-                                {(() => {
-                                  const cfg = STATUS_CONFIG[displayEntry.status]
-                                  return (
-                                    <div className="flex items-center gap-3 rounded-xl border-2 border-slate-900 bg-slate-50 px-3 py-2.5">
-                                      <span className="text-xl font-black text-slate-900 tabular-nums w-8 shrink-0 text-center">
-                                        {displayEntry.queueNumber}
-                                      </span>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-slate-800 truncate font-mono">
-                                          Bill {displayEntry.billNumber}
-                                        </p>
-                                        <p className="text-[11px] text-slate-400 mt-0.5">
-                                          {formatTime(displayEntry.joinedAt)}
-                                        </p>
-                                      </div>
-                                      {cfg && (
-                                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${cfg.pill}`}>
-                                          <span className={`size-1.5 rounded-full ${cfg.dot} shrink-0`} />
-                                          {cfg.label}
-                                        </span>
-                                      )}
-                                    </div>
-                                  )
-                                })()}
-                              </motion.div>
-                            ) : (
-                              <motion.div
-                                key="hint"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.1 }}
-                                className="py-6 text-center"
-                              >
-                                <p className="text-xs text-slate-400">Type to search by queue # or bill</p>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* ── Serving Card + Controls ── */}
-                    <div className="flex-1 min-w-0 space-y-3 md:space-y-4">
-
-                      {/* Hero card */}
-                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="bg-slate-900 px-5 py-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
-                            <span className="text-white/70 text-xs font-medium uppercase tracking-widest">
-                              {csSelectedId ? "Selected Entry" : "Now Serving"}
-                            </span>
-                          </div>
-                          {csSelectedId && displayEntry ? (
-                            (() => {
-                              const cfg = STATUS_CONFIG[displayEntry.status]
-                              return cfg ? (
-                                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${cfg.pill}`}>
-                                  <span className={`size-1.5 rounded-full ${cfg.dot}`} />
-                                  {cfg.label}
-                                </span>
-                              ) : null
-                            })()
-                          ) : waitingCount > 0 ? (
-                            <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-medium">
-                              <span className="size-1.5 rounded-full bg-amber-400" />
-                              {waitingCount} in queue
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div className="px-8 pt-10 pb-8 text-center">
-                          <AnimatePresence mode="wait">
-                            <motion.p
-                              key={displayEntry?.queueNumber ?? currentServingNumber}
-                              variants={flipNumber}
-                              initial="initial"
-                              animate="animate"
-                              exit="exit"
-                              className="text-[6.5rem] font-black text-slate-900 tabular-nums leading-none"
-                            >
-                              #{displayEntry?.queueNumber ?? currentServingNumber}
-                            </motion.p>
-                          </AnimatePresence>
-
-                          {displayEntry ? (
-                            <motion.div
-                              key={displayEntry.id}
-                              initial={{ opacity: 0, y: 6 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              className="mt-5 pt-5 border-t border-slate-100 space-y-1"
-                            >
-                              <p className="text-base font-mono font-bold text-slate-700">
-                                Bill {displayEntry.billNumber}
-                              </p>
-                              {displayEntry.startedAt && displayEntry.status === "in-progress" && (
-                                <p className="text-xs text-slate-400">
-                                  Serving for {formatRelativeTime(displayEntry.startedAt)}
-                                </p>
-                              )}
-                              {displayEntry.completedAt && displayEntry.status === "completed" && (
-                                <p className="text-xs text-slate-400">
-                                  Completed {formatRelativeTime(displayEntry.completedAt)}
-                                </p>
-                              )}
-                            </motion.div>
-                          ) : (
-                            <p className="text-sm text-slate-400 mt-6 pt-5 border-t border-slate-100">
-                              No active entry
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Queue navigation — hidden when viewing a searched entry */}
-                      {!csSelectedId && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <Button
-                            variant="outline"
-                            className="h-12 gap-2 rounded-xl border-slate-200 font-semibold text-slate-700 hover:bg-slate-50"
-                            onClick={() => callPrevious()}
-                          >
-                            <ArrowLeft className="size-4" /> Previous
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="h-12 gap-2 rounded-xl border-slate-200 font-semibold text-slate-700 hover:bg-slate-50"
-                            onClick={() => callNext()}
-                          >
-                            Next <ArrowRight className="size-4" />
-                          </Button>
-                        </div>
+                  {/* Header: search only */}
+                  <div className="bg-slate-900 px-4 py-2.5 shrink-0">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-500 pointer-events-none" />
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="Search queue # or bill…"
+                        value={csQuery}
+                        onChange={(e) => { setCsQuery(e.target.value); setCsSelectedId(null) }}
+                        className="w-full rounded-lg bg-white/10 border border-white/15 pl-9 pr-8 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-white/40 focus:bg-white/15 transition-all"
+                      />
+                      {(csQuery || csSelectedId) && (
+                        <button
+                          onClick={() => { setCsQuery(""); setCsSelectedId(null) }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                        >
+                          <X className="size-3.5" />
+                        </button>
                       )}
-
-                      {/* Actions */}
-                      {displayEntry ? (
-                        displayEntry.status === "completed" ? (
-                          <div className="h-11 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 text-sm text-emerald-600 font-semibold ring-1 ring-inset ring-emerald-100">
-                            <CheckCircle className="size-4" />
-                            Completed
-                          </div>
-                        ) : displayEntry.status === "cancelled" ? (
-                          <div className="h-11 flex items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-400 font-medium">
-                            Cancelled
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <div className="grid grid-cols-2 gap-3">
-                              <Button
-                                className="h-13 text-base rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
-                                onClick={async () => {
-                                  await callEntry(displayEntry.queueNumber)
-                                  toast.success(`Queue #${displayEntry.queueNumber} called!`)
-                                }}
-                              >
-                                <Radio className="size-5" />
-                                Call
-                              </Button>
-                              <Button
-                                className="h-13 text-base rounded-xl bg-amber-500 hover:bg-amber-600 text-white gap-2 font-semibold"
-                                onClick={async () => {
-                                  const next = (displayEntry.recallCount ?? 0) + 1
-                                  await recallEntry(displayEntry.queueNumber)
-                                  toast.success(`Queue #${displayEntry.queueNumber} recalled (×${next})`)
-                                }}
-                              >
-                                <Radio className="size-5" />
-                                Recall
-                              </Button>
-                            </div>
-                            {((displayEntry.callCount ?? 0) > 0 || (displayEntry.recallCount ?? 0) > 0) && (
-                              <p className="text-xs text-center text-slate-400">
-                                Called {displayEntry.callCount ?? 0}×
-                                {(displayEntry.recallCount ?? 0) > 0 && ` · Recalled ${displayEntry.recallCount}×`}
-                              </p>
-                            )}
-                            <Button
-                              className="w-full h-11 text-sm rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-semibold"
-                              onClick={handleCompleteDisplayed}
-                            >
-                              <CheckCircle className="size-4" />
-                              Mark Complete
-                            </Button>
-                          </div>
-                        )
-                      ) : (
-                        <div className="h-11 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
-                          No entry to act on
-                        </div>
-                      )}
-
                     </div>
                   </div>
+
+                  {/* Search results — animated, collapsed when not searching */}
+                  <AnimatePresence>
+                    {(isSearchMode || (csSelectedId && displayEntry)) && (
+                      <motion.div
+                        key="search-results"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.18 }}
+                        className="border-b border-slate-100 overflow-hidden shrink-0"
+                      >
+                        <div className="px-4 py-2 max-h-[32vh] overflow-y-auto space-y-1.5">
+                          {isSearchMode ? (
+                            csResults.length === 0 ? (
+                              <div className="py-3 text-center">
+                                <p className="text-sm text-slate-400">No matching entries</p>
+                              </div>
+                            ) : (
+                              csResults.map((entry) => {
+                                const cfg = STATUS_CONFIG[entry.status]
+                                return (
+                                  <button
+                                    key={entry.id}
+                                    onClick={() => handleCsSelect(entry)}
+                                    className="w-full flex items-center gap-3 rounded-xl border border-slate-200 hover:border-slate-900 hover:bg-slate-50 px-3 py-2 text-left transition-all group"
+                                  >
+                                    <span className="text-lg font-black text-slate-900 tabular-nums w-8 shrink-0 text-center">
+                                      {entry.queueNumber}
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-slate-800 truncate font-mono">
+                                        Bill {entry.billNumber}
+                                      </p>
+                                      <p className="text-[11px] text-slate-400 mt-0.5">
+                                        {formatTime(entry.joinedAt)}
+                                      </p>
+                                    </div>
+                                    {cfg && (
+                                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${cfg.pill}`}>
+                                        <span className={`size-1.5 rounded-full ${cfg.dot} shrink-0`} />
+                                        {cfg.label}
+                                      </span>
+                                    )}
+                                    <ChevronRight className="size-3.5 text-slate-300 group-hover:text-slate-600 shrink-0 transition-colors" />
+                                  </button>
+                                )
+                              })
+                            )
+                          ) : csSelectedId && displayEntry ? (
+                            (() => {
+                              const cfg = STATUS_CONFIG[displayEntry.status]
+                              return (
+                                <div className="flex items-center gap-3 rounded-xl border-2 border-slate-900 bg-slate-50 px-3 py-2">
+                                  <span className="text-lg font-black text-slate-900 tabular-nums w-8 shrink-0 text-center">
+                                    {displayEntry.queueNumber}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-slate-800 truncate font-mono">
+                                      Bill {displayEntry.billNumber}
+                                    </p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      {formatTime(displayEntry.joinedAt)}
+                                    </p>
+                                  </div>
+                                  {cfg && (
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${cfg.pill}`}>
+                                      <span className={`size-1.5 rounded-full ${cfg.dot} shrink-0`} />
+                                      {cfg.label}
+                                    </span>
+                                  )}
+                                </div>
+                              )
+                            })()
+                          ) : null}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Number display — flex-1 fills whatever height remains */}
+                  <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-6 py-4">
+                    <AnimatePresence mode="wait">
+                      <motion.p
+                        key={displayEntry?.queueNumber ?? currentServingNumber}
+                        variants={flipNumber}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        className="font-black text-slate-900 tabular-nums leading-none"
+                        style={{ fontSize: "clamp(4rem, 16vh, 8rem)" }}
+                      >
+                        #{displayEntry?.queueNumber ?? currentServingNumber}
+                      </motion.p>
+                    </AnimatePresence>
+
+                    {displayEntry ? (
+                      <motion.div
+                        key={displayEntry.id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-3 pt-3 border-t border-slate-100 space-y-1 text-center w-full"
+                      >
+                        <p className="text-base font-mono font-bold text-slate-700">
+                          Bill {displayEntry.billNumber}
+                        </p>
+                        {displayEntry.startedAt && displayEntry.status === "in-progress" && (
+                          <p className="text-xs text-slate-400">
+                            Serving for {formatRelativeTime(displayEntry.startedAt)}
+                          </p>
+                        )}
+                        {displayEntry.completedAt && displayEntry.status === "completed" && (
+                          <p className="text-xs text-slate-400">
+                            Completed {formatRelativeTime(displayEntry.completedAt)}
+                          </p>
+                        )}
+                      </motion.div>
+                    ) : (
+                      <p className="text-sm text-slate-400 mt-4 pt-4 border-t border-slate-100 w-full text-center">
+                        No active entry
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Controls — always pinned at the bottom */}
+                  <div className="shrink-0 px-4 pt-3 pb-4 border-t border-slate-100 space-y-2">
+                    {!csSelectedId && (
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <Button
+                          variant="outline"
+                          className="h-11 gap-2 rounded-xl border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 text-sm"
+                          onClick={() => callPrevious()}
+                        >
+                          <ArrowLeft className="size-4" /> Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="h-11 gap-2 rounded-xl border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 text-sm"
+                          onClick={() => callNext()}
+                        >
+                          Next <ArrowRight className="size-4" />
+                        </Button>
+                      </div>
+                    )}
+
+                    {displayEntry ? (
+                      displayEntry.status === "completed" ? (
+                        <div className="h-11 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 text-sm text-emerald-600 font-semibold ring-1 ring-inset ring-emerald-100">
+                          <CheckCircle className="size-4" />
+                          Completed
+                        </div>
+                      ) : displayEntry.status === "cancelled" ? (
+                        <div className="h-11 flex items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-400 font-medium">
+                          Cancelled
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <Button
+                              className="h-12 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
+                              onClick={async () => {
+                                await callEntry(displayEntry.queueNumber)
+                                toast.success(`Queue #${displayEntry.queueNumber} called!`)
+                              }}
+                            >
+                              <Radio className="size-4" />
+                              Call
+                            </Button>
+                            <Button
+                              className="h-12 text-sm rounded-xl bg-amber-500 hover:bg-amber-600 text-white gap-2 font-semibold"
+                              onClick={async () => {
+                                const next = (displayEntry.recallCount ?? 0) + 1
+                                await recallEntry(displayEntry.queueNumber)
+                                toast.success(`Queue #${displayEntry.queueNumber} recalled (×${next})`)
+                              }}
+                            >
+                              <Radio className="size-4" />
+                              Recall
+                            </Button>
+                          </div>
+                          {((displayEntry.callCount ?? 0) > 0 || (displayEntry.recallCount ?? 0) > 0) && (
+                            <p className="text-xs text-center text-slate-400">
+                              Called {displayEntry.callCount ?? 0}×
+                              {(displayEntry.recallCount ?? 0) > 0 && ` · Recalled ${displayEntry.recallCount}×`}
+                            </p>
+                          )}
+                          <Button
+                            className="w-full h-11 text-sm rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-semibold"
+                            onClick={handleCompleteDisplayed}
+                          >
+                            <CheckCircle className="size-4" />
+                            Mark Complete
+                          </Button>
+                        </div>
+                      )
+                    ) : (
+                      <div className="h-11 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
+                        No entry to act on
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               </motion.div>
             )}
