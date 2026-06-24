@@ -257,7 +257,7 @@ export function useSupabaseQueue() {
           call_count: newCount,
           ...(isAlreadyServing ? {} : { status: "in-progress", started_at: now }),
         })
-        .eq("id", entry.id),
+        .eq("id", entry.id) as unknown as Promise<unknown>,
     ]
 
     if (!isAlreadyServing) {
@@ -265,7 +265,7 @@ export function useSupabaseQueue() {
         supabase
           .from("queue_state")
           .update({ current_serving_number: queueNumber, updated_at: now })
-          .eq("id", 1)
+          .eq("id", 1) as unknown as Promise<unknown>
       )
 
       const prev = entries.find(
@@ -276,7 +276,7 @@ export function useSupabaseQueue() {
           supabase
             .from("queue_entries")
             .update({ status: "completed", completed_at: now })
-            .eq("id", prev.id)
+            .eq("id", prev.id) as unknown as Promise<unknown>
         )
       }
     }
