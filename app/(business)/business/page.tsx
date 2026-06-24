@@ -310,132 +310,168 @@ function BusinessPageInner() {
         </div>
 
         {/* ── Tab Content ── */}
-        <div className={`flex-1 min-h-0 flex flex-col ${tab === 'serving' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+        <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
           <AnimatePresence mode="wait">
 
             {/* ════ ADD TAB ════ */}
             {tab === "add" && (
-              <motion.div
-                key="add"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.18 }}
-                className="p-4 md:p-5"
-              >
-                <div className="max-w-sm mx-auto">
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="px-5 pt-5 pb-4 border-b border-slate-100">
-                      <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Quick Entry</p>
-                      <p className="text-sm font-semibold text-slate-700 mt-0.5">Add a customer to the queue</p>
-                    </div>
+              <AnimatePresence mode="wait">
 
-                    <div className="p-5">
-                      <AnimatePresence mode="wait">
-                        {addStep === "entry" ? (
-                          <motion.div
-                            key="entry"
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            transition={{ duration: 0.14 }}
-                            className="space-y-3"
-                          >
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                                Bill Number
-                              </label>
-                              <input
-                                ref={inputRef}
-                                type="text"
-                                inputMode="numeric"
-                                placeholder="0000"
-                                value={billNumber}
-                                onChange={(e) => setBillNumber(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && handleAddSubmit()}
-                                className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-5 text-center text-4xl font-black tracking-widest text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-slate-900 focus:bg-white transition-all"
-                              />
-                            </div>
-                            <Button
-                              onClick={handleAddSubmit}
-                              disabled={!billNumber.trim()}
-                              className="w-full h-12 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl gap-2"
+                {/* ── Entry step: bill display card + keypad side by side ── */}
+                {addStep === "entry" && (
+                  <motion.div
+                    key="add-entry"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.18 }}
+                    className="p-3 md:p-4"
+                  >
+                    <div className="max-w-2xl mx-auto flex flex-col landscape:flex-row gap-3">
+
+                      {/* Bill display card */}
+                      <div className="landscape:w-64 landscape:shrink-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="px-5 pt-5 pb-4 border-b border-slate-100">
+                          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Quick Entry</p>
+                          <p className="text-sm font-semibold text-slate-700 mt-0.5">Add a customer to the queue</p>
+                        </div>
+                        <div className="p-5">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                            Bill Number
+                          </label>
+                          {/* inputMode="none" suppresses the tablet soft keyboard; hardware keyboards still work */}
+                          <input
+                            ref={inputRef}
+                            type="text"
+                            inputMode="none"
+                            placeholder="0000"
+                            value={billNumber}
+                            onChange={(e) => setBillNumber(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleAddSubmit()}
+                            className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-5 text-center text-4xl font-black tracking-widest text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-slate-900 focus:bg-white transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Numeric keypad */}
+                      <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col gap-2">
+                        <div className="grid grid-cols-3 gap-2 flex-1">
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                            <button
+                              key={n}
+                              onClick={() => { setBillNumber((v) => v + String(n)); inputRef.current?.focus() }}
+                              className="h-14 landscape:h-16 rounded-xl bg-slate-50 hover:bg-slate-100 active:scale-95 active:bg-slate-200 text-slate-900 text-2xl font-bold border border-slate-200 transition-all select-none"
                             >
-                              <PlusCircle className="size-4" />
-                              Generate Queue Number
-                            </Button>
-                          </motion.div>
-                        ) : (
-                          <motion.div
-                            key="success"
-                            initial={{ opacity: 0, scale: 0.96 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.96 }}
-                            transition={{ duration: 0.18 }}
-                            className="space-y-4"
+                              {n}
+                            </button>
+                          ))}
+                          {/* Bottom row: CLR · 0 · ⌫ */}
+                          <button
+                            onClick={() => { setBillNumber(""); inputRef.current?.focus() }}
+                            className="h-14 landscape:h-16 rounded-xl bg-slate-50 hover:bg-red-50 hover:border-red-200 hover:text-red-500 active:scale-95 text-slate-400 text-sm font-bold border border-slate-200 transition-all select-none"
                           >
-                            {/* Ticket */}
-                            <div className="rounded-2xl bg-slate-900 overflow-hidden relative">
-                              <div className="absolute inset-0 opacity-[0.04] pointer-events-none">
-                                <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white" />
-                                <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white" />
-                              </div>
-                              <div className="relative p-6 text-center">
-                                <p className="text-slate-400 text-[10px] uppercase tracking-widest font-semibold mb-4">
-                                  Queue Number
-                                </p>
-                                <div className="flex items-center justify-center gap-1 mb-1">
-                                  <CheckCircle className="size-5 text-emerald-400" />
-                                  <span className="text-emerald-400 text-xs font-semibold">Added successfully</span>
-                                </div>
-                                <AnimatePresence mode="wait">
-                                  <motion.p
-                                    key={createdEntry?.queueNumber}
-                                    variants={flipNumber}
-                                    initial="initial"
-                                    animate="animate"
-                                    exit="exit"
-                                    className="text-8xl font-black text-white tabular-nums leading-none mt-2"
-                                  >
-                                    #{createdEntry?.queueNumber}
-                                  </motion.p>
-                                </AnimatePresence>
-                                <div className="border-t border-dashed border-white/15 my-5" />
-                                <p className="text-slate-300 text-sm font-mono font-semibold">
-                                  Bill {createdEntry?.billNumber}
-                                </p>
-                                <p className="text-slate-500 text-[11px] mt-1">
-                                  {createdEntry ? formatTime(createdEntry.joinedAt) : ""}
-                                </p>
-                              </div>
-                            </div>
+                            CLR
+                          </button>
+                          <button
+                            onClick={() => { setBillNumber((v) => v + "0"); inputRef.current?.focus() }}
+                            className="h-14 landscape:h-16 rounded-xl bg-slate-50 hover:bg-slate-100 active:scale-95 active:bg-slate-200 text-slate-900 text-2xl font-bold border border-slate-200 transition-all select-none"
+                          >
+                            0
+                          </button>
+                          <button
+                            onClick={() => { setBillNumber((v) => v.slice(0, -1)); inputRef.current?.focus() }}
+                            className="h-14 landscape:h-16 rounded-xl bg-slate-50 hover:bg-slate-100 active:scale-95 active:bg-slate-200 text-slate-500 text-2xl font-semibold border border-slate-200 transition-all select-none"
+                          >
+                            ⌫
+                          </button>
+                        </div>
 
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                className="flex-1 h-10 rounded-xl text-sm font-semibold border-slate-200 hover:bg-slate-50"
-                                onClick={handleAddAnother}
-                              >
-                                Add Another
-                              </Button>
-                              {createdEntry && (
-                                <Button
-                                  variant="outline"
-                                  className="h-10 px-3.5 rounded-xl border-slate-200 hover:bg-slate-50"
-                                  onClick={() => handlePrint(createdEntry)}
-                                  title="Print ticket"
-                                >
-                                  <Printer className="size-4 text-slate-600" />
-                                </Button>
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                        {/* Generate button — full width, prominent */}
+                        <Button
+                          onClick={handleAddSubmit}
+                          disabled={!billNumber.trim()}
+                          className="w-full h-14 text-base font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl gap-2"
+                        >
+                          <PlusCircle className="size-5" />
+                          Generate Queue Number
+                        </Button>
+                      </div>
+
                     </div>
-                  </div>
-                </div>
-              </motion.div>
+                  </motion.div>
+                )}
+
+                {/* ── Success step ── */}
+                {addStep === "success" && (
+                  <motion.div
+                    key="add-success"
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.18 }}
+                    className="p-3 md:p-4"
+                  >
+                    <div className="max-w-sm mx-auto space-y-4">
+                      {/* Ticket */}
+                      <div className="rounded-2xl bg-slate-900 overflow-hidden relative">
+                        <div className="absolute inset-0 opacity-[0.04] pointer-events-none">
+                          <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white" />
+                          <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white" />
+                        </div>
+                        <div className="relative p-6 text-center">
+                          <p className="text-slate-400 text-[10px] uppercase tracking-widest font-semibold mb-4">
+                            Queue Number
+                          </p>
+                          <div className="flex items-center justify-center gap-1 mb-1">
+                            <CheckCircle className="size-5 text-emerald-400" />
+                            <span className="text-emerald-400 text-xs font-semibold">Added successfully</span>
+                          </div>
+                          <AnimatePresence mode="wait">
+                            <motion.p
+                              key={createdEntry?.queueNumber}
+                              variants={flipNumber}
+                              initial="initial"
+                              animate="animate"
+                              exit="exit"
+                              className="text-8xl font-black text-white tabular-nums leading-none mt-2"
+                            >
+                              #{createdEntry?.queueNumber}
+                            </motion.p>
+                          </AnimatePresence>
+                          <div className="border-t border-dashed border-white/15 my-5" />
+                          <p className="text-slate-300 text-sm font-mono font-semibold">
+                            Bill {createdEntry?.billNumber}
+                          </p>
+                          <p className="text-slate-500 text-[11px] mt-1">
+                            {createdEntry ? formatTime(createdEntry.joinedAt) : ""}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="flex-1 h-10 rounded-xl text-sm font-semibold border-slate-200 hover:bg-slate-50"
+                          onClick={handleAddAnother}
+                        >
+                          Add Another
+                        </Button>
+                        {createdEntry && (
+                          <Button
+                            variant="outline"
+                            className="h-10 px-3.5 rounded-xl border-slate-200 hover:bg-slate-50"
+                            onClick={() => handlePrint(createdEntry)}
+                            title="Print ticket"
+                          >
+                            <Printer className="size-4 text-slate-600" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+              </AnimatePresence>
             )}
 
             {/* ════ SERVING TAB ════ */}
@@ -446,7 +482,7 @@ function BusinessPageInner() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.18 }}
-                className="flex-1 min-h-0 flex flex-col gap-2 p-3 md:p-4"
+                className="flex flex-col gap-2 p-3 md:p-4"
               >
 
                 {/* ── Search bar (always at top) ── */}
@@ -546,10 +582,10 @@ function BusinessPageInner() {
                       Portrait  → dark hero stacked above white action zone
                       Landscape → dark hero on LEFT, white action zone on RIGHT
                 ── */}
-                <div className="flex-1 min-h-0 flex flex-col landscape:flex-row rounded-2xl overflow-hidden shadow-sm border border-slate-200">
+                <div className="flex flex-col landscape:flex-row rounded-2xl overflow-hidden shadow-sm border border-slate-200">
 
-                  {/* Dark hero — fills left in landscape, top in portrait */}
-                  <div className="relative flex-1 min-h-0 flex flex-col items-center justify-center bg-slate-900 px-6 py-4">
+                  {/* Dark hero — 44% fixed width in landscape, auto-height in portrait */}
+                  <div className="relative landscape:flex-none landscape:w-[44%] flex flex-col items-center justify-center bg-slate-900 px-4 py-8 landscape:py-6">
 
                     {/* Waiting count badge */}
                     {waitingCount > 0 && (
@@ -634,22 +670,22 @@ function BusinessPageInner() {
                         Portrait  → shrink-0, sits below hero
                         Landscape → fixed width right column, vertically centered
                   ── */}
-                  <div className="shrink-0 landscape:w-60 bg-white px-4 pt-3 pb-4 space-y-2.5 landscape:flex landscape:flex-col landscape:justify-center landscape:py-5 landscape:border-l landscape:border-slate-100">
+                  <div className="shrink-0 landscape:flex-1 bg-white px-5 pt-3 pb-4 space-y-3 landscape:flex landscape:flex-col landscape:justify-center landscape:py-6 landscape:border-l landscape:border-slate-100">
 
                     {/* Nav row */}
                     {!csSelectedId && (
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => callPrevious()}
-                          className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 transition-all"
+                          className="flex items-center justify-center gap-2 h-11 landscape:h-12 rounded-xl border border-slate-200 text-sm font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 transition-all"
                         >
-                          <ArrowLeft className="size-3.5" /> Previous
+                          <ArrowLeft className="size-4" /> Previous
                         </button>
                         <button
                           onClick={() => callNext()}
-                          className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 transition-all"
+                          className="flex items-center justify-center gap-2 h-11 landscape:h-12 rounded-xl border border-slate-200 text-sm font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 transition-all"
                         >
-                          Next <ArrowRight className="size-3.5" />
+                          Next <ArrowRight className="size-4" />
                         </button>
                       </div>
                     )}
@@ -657,12 +693,12 @@ function BusinessPageInner() {
                     {/* Primary actions */}
                     {displayEntry ? (
                       displayEntry.status === "completed" ? (
-                        <div className="h-12 flex items-center justify-center gap-2 rounded-xl bg-slate-50 text-sm text-slate-500 font-medium ring-1 ring-inset ring-slate-200">
+                        <div className="h-14 landscape:h-16 flex items-center justify-center gap-2 rounded-xl bg-slate-50 text-sm text-slate-500 font-medium ring-1 ring-inset ring-slate-200">
                           <CheckCircle className="size-4 text-emerald-500" />
                           Completed
                         </div>
                       ) : displayEntry.status === "cancelled" ? (
-                        <div className="h-12 flex items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-400 font-medium">
+                        <div className="h-14 landscape:h-16 flex items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-400 font-medium">
                           Cancelled
                         </div>
                       ) : (
@@ -675,9 +711,9 @@ function BusinessPageInner() {
                                 await callEntry(displayEntry.queueNumber)
                                 toast.success(`Queue #${displayEntry.queueNumber} called!`)
                               }}
-                              className="flex items-center justify-center gap-2 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-bold transition-colors shadow-sm shadow-blue-200"
+                              className="flex items-center justify-center gap-2 h-14 landscape:h-16 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-base font-bold transition-colors shadow-sm shadow-blue-200"
                             >
-                              <Radio className="size-4" />
+                              <Radio className="size-5" />
                               Call
                             </button>
                             <button
@@ -686,9 +722,9 @@ function BusinessPageInner() {
                                 await recallEntry(displayEntry.queueNumber)
                                 toast.success(`Queue #${displayEntry.queueNumber} recalled (×${next})`)
                               }}
-                              className="flex items-center justify-center gap-2 h-12 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-bold transition-colors shadow-sm shadow-amber-200"
+                              className="flex items-center justify-center gap-2 h-14 landscape:h-16 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-base font-bold transition-colors shadow-sm shadow-amber-200"
                             >
-                              <Radio className="size-4" />
+                              <Radio className="size-5" />
                               Recall
                             </button>
                           </div>
@@ -705,7 +741,7 @@ function BusinessPageInner() {
                         </div>
                       )
                     ) : (
-                      <div className="h-12 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
+                      <div className="h-14 landscape:h-16 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
                         No entry selected
                       </div>
                     )}

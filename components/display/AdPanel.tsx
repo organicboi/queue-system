@@ -5,9 +5,9 @@ import { AnimatePresence, motion } from "framer-motion"
 import Image from "next/image"
 
 const ADS = [
-  { id: 1, src: "/ads/ad1.png" },
-  { id: 2, src: "/ads/ads2.png" },
-  { id: 3, src: "/ads/ads3.jpg" },
+  { id: 1, src: "/ads/ad1.jpg" },
+  { id: 2, src: "/ads/ads2.jpg" },
+  { id: 3, src: "/ads/ads3.png" },
 ]
 
 const SLIDE_DURATION = 8000

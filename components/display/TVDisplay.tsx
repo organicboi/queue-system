@@ -117,6 +117,15 @@ export function TVDisplay({ theme }: { theme: TVTheme }) {
         }))
         announce(payload.queueNumber as number)
       })
+      .on("broadcast", { event: "customer-recalled" }, ({ payload }) => {
+        setCalledInfo((prev) => ({
+          queueNumber: payload.queueNumber as number,
+          billNumber: payload.billNumber as string,
+          callCount: prev?.callCount ?? 0,
+          key: (prev?.key ?? 0) + 1,
+        }))
+        announce(payload.queueNumber as number)
+      })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [announce])
