@@ -19,10 +19,13 @@ interface SettingsState {
   smsEnabled: boolean
   emailEnabled: boolean
   soundEnabled: boolean
+  silentPrint: boolean
+  printerName: string
 
-  updateBusiness: (patch: Partial<Omit<SettingsState, "updateBusiness" | "updateQueue" | "updateNotifications" | "toggleDarkMode">>) => void
+  updateBusiness: (patch: Partial<Omit<SettingsState, "updateBusiness" | "updateQueue" | "updateNotifications" | "toggleDarkMode" | "updatePrinting">>) => void
   updateQueue: (patch: Partial<Pick<SettingsState, "queueLabel" | "maxCapacity" | "averageServiceTime" | "allowSelfJoin">>) => void
   updateNotifications: (patch: Partial<Pick<SettingsState, "smsEnabled" | "emailEnabled" | "soundEnabled">>) => void
+  updatePrinting: (patch: Partial<Pick<SettingsState, "silentPrint" | "printerName">>) => void
   toggleDarkMode: () => void
 }
 
@@ -44,10 +47,13 @@ export const useSettingsStore = create<SettingsState>()(
       smsEnabled: false,
       emailEnabled: true,
       soundEnabled: true,
+      silentPrint: true,
+      printerName: "",
 
       updateBusiness: (patch) => set((s) => ({ ...s, ...patch })),
       updateQueue: (patch) => set((s) => ({ ...s, ...patch })),
       updateNotifications: (patch) => set((s) => ({ ...s, ...patch })),
+      updatePrinting: (patch) => set((s) => ({ ...s, ...patch })),
       toggleDarkMode: () => set((s) => ({ isDarkMode: !s.isDarkMode })),
     }),
     {

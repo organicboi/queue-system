@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
+import { Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,6 +26,7 @@ export default function SettingsPage() {
     queueLabel: settings.queueLabel,
     maxCapacity: settings.maxCapacity,
     averageServiceTime: settings.averageServiceTime,
+    printerName: settings.printerName,
   })
 
   const handleSaveBusiness = () => {
@@ -49,6 +51,7 @@ export default function SettingsPage() {
             <TabsTrigger value="business">Business</TabsTrigger>
             <TabsTrigger value="queue">Queue Config</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="printing">Printing</TabsTrigger>
           </TabsList>
 
           <TabsContent value="business">
@@ -257,6 +260,113 @@ export default function SettingsPage() {
                   This is a demo — toggles are saved but messages are not sent.
                 </p>
               </div>
+            </motion.div>
+          </TabsContent>
+          <TabsContent value="printing">
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              animate="show"
+              className="bg-white border border-border rounded-md p-6 space-y-5"
+            >
+              <div>
+                <h3 className="font-semibold">Printing</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Configure how queue tickets are printed
+                </p>
+              </div>
+              <Separator />
+
+              {/* Silent Print toggle */}
+              <motion.div variants={staggerItem} className="space-y-3">
+                <div className="flex items-center justify-between rounded-sm border border-border p-4">
+                  <div>
+                    <p className="text-sm font-medium">Direct / Silent Print</p>
+                    <p className="text-xs text-muted-foreground">
+                      Skip the print dialog and send directly to the default printer
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.silentPrint}
+                    onCheckedChange={(v) => {
+                      settings.updatePrinting({ silentPrint: v })
+                      toast.success(`Silent print ${v ? "enabled" : "disabled"}`)
+                    }}
+                  />
+                </div>
+              </motion.div>
+
+              {/* Printer name (QZ Tray) */}
+              <motion.div variants={staggerItem} className="space-y-1.5">
+                <Label htmlFor="printerName">Printer Name (optional)</Label>
+                <Input
+                  id="printerName"
+                  value={localForm.printerName}
+                  onChange={(e) => setLocalForm((f) => ({ ...f, printerName: e.target.value }))}
+                  placeholder="e.g. EPSON TM-T88VI"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Leave blank to use the OS default printer. Required only when using QZ Tray.
+                </p>
+              </motion.div>
+
+              <Button
+                onClick={() => {
+                  settings.updatePrinting({ printerName: localForm.printerName })
+                  toast.success("Print settings saved")
+                }}
+                className="bg-primary hover:bg-primary/90"
+              >
+                Save Print Settings
+              </Button>
+
+              <Separator />
+
+              {/* Setup instructions */}
+              <motion.div variants={staggerItem} className="space-y-4">
+                <p className="text-sm font-medium">How to enable silent printing</p>
+
+                <div className="rounded-sm border border-border p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Printer className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <p className="text-sm font-medium">Windows PC &amp; Windows Tablet</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Right-click the Chrome shortcut → Properties → add{" "}
+                    <code className="bg-muted px-1 rounded text-[11px]">--kiosk-printing</code>{" "}
+                    to the end of the Target field. Chrome will then send tickets straight to
+                    the default printer with no dialog.
+                  </p>
+                  <p className="text-xs font-mono bg-muted rounded p-2 break-all">
+                    {`"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --kiosk-printing`}
+                  </p>
+                </div>
+
+                <div className="rounded-sm border border-border p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Printer className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <p className="text-sm font-medium">Android Tablet</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Install <strong>RawBT</strong> (Bluetooth/USB thermal printers) or{" "}
+                    <strong>PrintHand</strong> from the Play Store. Set it as the default
+                    print service in Android Settings → Connected devices → Print. Chrome
+                    will route print jobs to it automatically.
+                  </p>
+                </div>
+
+                <div className="rounded-sm border border-border p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Printer className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <p className="text-sm font-medium">QZ Tray (advanced — any OS)</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Install <strong>QZ Tray</strong> (requires Java) on the device and keep
+                    it running. When detected, tickets are sent directly to the printer set
+                    above with no browser dialog and no kiosk mode needed.
+                  </p>
+                </div>
+              </motion.div>
             </motion.div>
           </TabsContent>
         </Tabs>

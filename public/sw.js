@@ -22,17 +22,24 @@ self.addEventListener("fetch", (e) => {
   // Skip cross-origin, API routes, and Next.js internals
   if (url.origin !== location.origin) return
   if (url.pathname.startsWith("/_next/") || url.pathname.startsWith("/api/")) return
+  // Never cache HTML navigation requests — always fetch fresh to avoid stale-chunk loops
+  if (e.request.mode === "navigate") return
 
   e.respondWith(
     caches.match(e.request).then((cached) => {
-      const network = fetch(e.request).then((res) => {
+      const networkFetch = fetch(e.request).then((res) => {
         if (res.ok) {
-          const clone = res.clone()
-          caches.open(CACHE).then((c) => c.put(e.request, clone))
+          caches.open(CACHE).then((c) => c.put(e.request, res.clone()))
         }
         return res
       })
-      return cached ?? network
+
+      if (cached) {
+        // Background revalidation — swallow errors so they don't surface as unhandled rejections
+        networkFetch.catch(() => {})
+        return cached
+      }
+      return networkFetch
     })
   )
 })

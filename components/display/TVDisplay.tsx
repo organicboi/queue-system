@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { DisplayClock } from "@/components/display/DisplayClock"
 import { AdPanel } from "@/components/display/AdPanel"
@@ -18,32 +18,92 @@ interface CalledInfo {
   key: number
 }
 
-function announce(queueNumber: number) {
-  if (typeof window === "undefined") return
-  const text = `Queue number ${queueNumber}. Queue number ${queueNumber}. Please proceed to the counter.`
-
-  // Native TTS bridge injected by the Android WebView kiosk app — no user-gesture needed
-  if ("AndroidTTS" in window) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(window as any).AndroidTTS.speak(text)
-    return
-  }
-
-  // Web Speech API for desktop/Chrome browsers
-  if (!("speechSynthesis" in window)) return
-  window.speechSynthesis.cancel()
-  const utter = new SpeechSynthesisUtterance(text)
-  utter.rate = 0.82
-  utter.pitch = 1.0
-  utter.volume = 1.0
-  window.speechSynthesis.speak(utter)
-}
-
 export function TVDisplay({ theme }: { theme: TVTheme }) {
   const { entries, currentServingNumber } = useSupabaseQueue()
   const { businessName, businessType } = useSettingsStore()
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [calledInfo, setCalledInfo] = useState<CalledInfo | null>(null)
+  const [audioReady, setAudioReady] = useState(false)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+
+  // In kiosk mode the AndroidTTS bridge is already available — no tap needed
+  useEffect(() => {
+    if (typeof window !== "undefined" && "AndroidTTS" in window) {
+      setAudioReady(true)
+    }
+  }, [])
+
+  const unlockAudio = useCallback(() => {
+    // Create AudioContext during the user gesture so it's allowed to produce sound later
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const Ctx = window.AudioContext ?? (window as any).webkitAudioContext
+      if (Ctx) audioCtxRef.current = new Ctx()
+    } catch {}
+
+    // Prime speechSynthesis so it speaks immediately on the first real call
+    if ("speechSynthesis" in window) {
+      const silent = new SpeechSynthesisUtterance(" ")
+      silent.volume = 0
+      window.speechSynthesis.speak(silent)
+      setTimeout(() => window.speechSynthesis.cancel(), 200)
+    }
+
+    setAudioReady(true)
+  }, [])
+
+  const playChime = useCallback(() => {
+    const ctx = audioCtxRef.current
+    if (!ctx) return
+    try {
+      const t = ctx.currentTime
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = "sine"
+      osc.frequency.value = 880
+      gain.gain.setValueAtTime(0.55, t)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 1.4)
+      osc.start(t)
+      osc.stop(t + 1.4)
+    } catch {}
+  }, [])
+
+  const announce = useCallback((queueNumber: number) => {
+    if (typeof window === "undefined") return
+    const text = `Queue number ${queueNumber}. Queue number ${queueNumber}. Please proceed to the counter.`
+
+    // Android WebView kiosk — uses native TTS, no browser restrictions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ("AndroidTTS" in window) { ;(window as any).AndroidTTS.speak(text); return }
+
+    // Chime first — works on any browser where AudioContext was unlocked
+    playChime()
+
+    // Speech synthesis — desktop Chrome / Android TV Chrome after audio unlock
+    if (!("speechSynthesis" in window)) return
+
+    const doSpeak = () => {
+      window.speechSynthesis.cancel()
+      const utter = new SpeechSynthesisUtterance(text)
+      utter.rate = 0.82
+      utter.pitch = 1.0
+      utter.volume = 1.0
+      window.speechSynthesis.speak(utter)
+    }
+
+    // Voices may not be loaded yet on first render — wait for them
+    if (window.speechSynthesis.getVoices().length > 0) {
+      doSpeak()
+    } else {
+      const onReady = () => {
+        window.speechSynthesis.removeEventListener("voiceschanged", onReady)
+        doSpeak()
+      }
+      window.speechSynthesis.addEventListener("voiceschanged", onReady)
+    }
+  }, [playChime])
 
   useEffect(() => {
     const ch = supabase
@@ -59,7 +119,7 @@ export function TVDisplay({ theme }: { theme: TVTheme }) {
       })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
-  }, [])
+  }, [announce])
 
   useEffect(() => {
     if (!calledInfo) return
@@ -96,6 +156,47 @@ export function TVDisplay({ theme }: { theme: TVTheme }) {
       className="h-screen w-screen overflow-hidden flex flex-col select-none"
       style={{ backgroundColor: theme.pageBg }}
     >
+      {/* Audio unlock overlay — shown on TV/browser until staff taps once */}
+      <AnimatePresence>
+        {!audioReady && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="absolute inset-0 z-50 flex flex-col items-center justify-center cursor-pointer"
+            style={{ backgroundColor: "rgba(0,0,0,0.92)" }}
+            onClick={unlockAudio}
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") unlockAudio() }}
+          >
+            <p
+              className="font-black text-white text-center"
+              style={{ fontSize: "clamp(1.8rem, 4vw, 4rem)", letterSpacing: "-0.02em" }}
+            >
+              Tap anywhere to enable audio
+            </p>
+            <p
+              className="mt-4 text-slate-400 text-center"
+              style={{ fontSize: "clamp(0.9rem, 1.6vw, 1.4rem)" }}
+            >
+              One-time setup — browsers require a tap before playing sound
+            </p>
+            <div
+              className="mt-10 rounded-full font-black uppercase tracking-widest"
+              style={{
+                fontSize: "clamp(0.6rem, 1vw, 0.9rem)",
+                padding: "0.75em 2.5em",
+                backgroundColor: theme.tickerChipBg,
+                color: theme.tickerChipText,
+              }}
+            >
+              Enable Audio
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── NAVBAR ── */}
       <header
         className="flex items-center justify-between shrink-0 px-10"
