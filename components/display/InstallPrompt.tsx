@@ -1,38 +1,18 @@
 "use client"
 
-import { useEffect, useState } from "react"
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>
-}
+import { useState } from "react"
+import { usePWAInstall } from "@/hooks/usePWAInstall"
 
 export function InstallPrompt() {
-  const [prompt, setPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const { canInstall, install } = usePWAInstall()
   const [dismissed, setDismissed] = useState(false)
 
-  useEffect(() => {
-    // Already installed — don't show
-    if (window.matchMedia("(display-mode: fullscreen)").matches) return
-    if (window.matchMedia("(display-mode: standalone)").matches) return
-
-    const handler = (e: Event) => {
-      e.preventDefault()
-      setPrompt(e as BeforeInstallPromptEvent)
-    }
-    window.addEventListener("beforeinstallprompt", handler)
-    return () => window.removeEventListener("beforeinstallprompt", handler)
-  }, [])
-
   async function handleInstall() {
-    if (!prompt) return
-    await prompt.prompt()
-    const { outcome } = await prompt.userChoice
-    if (outcome === "accepted") setDismissed(true)
-    setPrompt(null)
+    const accepted = await install()
+    if (accepted) setDismissed(true)
   }
 
-  if (!prompt || dismissed) return null
+  if (!canInstall || dismissed) return null
 
   return (
     <div

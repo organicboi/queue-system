@@ -76,7 +76,7 @@ function BusinessPageInner() {
 
   const {
     entries, currentServingNumber, callNext, callPrevious,
-    completeCurrentEntry, addEntry, markEntryCompleted, callEntry,
+    completeCurrentEntry, addEntry, markEntryCompleted, callEntry, recallEntry,
   } = useSupabaseQueue()
   const { businessName } = useSettingsStore()
 
@@ -609,25 +609,34 @@ function BusinessPageInner() {
                                         Cancelled
                                       </div>
                                     ) : (
-                                      <Button
-                                        className="w-full h-11 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
-                                        onClick={async () => {
-                                          const count = (displayEntry.callCount ?? 0) + 1
-                                          await callEntry(displayEntry.queueNumber)
-                                          toast.success(
-                                            count === 1
-                                              ? `Queue #${displayEntry.queueNumber} called!`
-                                              : `Queue #${displayEntry.queueNumber} recalled (×${count})`
-                                          )
-                                        }}
-                                      >
-                                        <Radio className="size-4" />
-                                        {(displayEntry.callCount ?? 0) === 0 ? "Call Customer" : "Recall Customer"}
-                                      </Button>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <Button
+                                          className="h-11 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
+                                          onClick={async () => {
+                                            await callEntry(displayEntry.queueNumber)
+                                            toast.success(`Queue #${displayEntry.queueNumber} called!`)
+                                          }}
+                                        >
+                                          <Radio className="size-4" />
+                                          Call
+                                        </Button>
+                                        <Button
+                                          className="h-11 text-sm rounded-xl bg-amber-500 hover:bg-amber-600 text-white gap-2 font-semibold"
+                                          onClick={async () => {
+                                            const next = (displayEntry.recallCount ?? 0) + 1
+                                            await recallEntry(displayEntry.queueNumber)
+                                            toast.success(`Queue #${displayEntry.queueNumber} recalled (×${next})`)
+                                          }}
+                                        >
+                                          <Radio className="size-4" />
+                                          Recall
+                                        </Button>
+                                      </div>
                                     )}
-                                    {(displayEntry.callCount ?? 0) > 0 && (
+                                    {((displayEntry.callCount ?? 0) > 0 || (displayEntry.recallCount ?? 0) > 0) && (
                                       <p className="text-[11px] text-center text-slate-400">
-                                        Called {displayEntry.callCount}× so far
+                                        Called {displayEntry.callCount ?? 0}×
+                                        {(displayEntry.recallCount ?? 0) > 0 && ` · Recalled ${displayEntry.recallCount}×`}
                                       </p>
                                     )}
                                   </div>
@@ -858,24 +867,40 @@ function BusinessPageInner() {
                     </Button>
                   </div>
 
-                  {/* Recall */}
-                  <Button
-                    className="w-full h-13 text-base rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
-                    disabled={!currentEntry}
-                    onClick={async () => {
-                      if (!currentEntry) return
-                      const count = (currentEntry.callCount ?? 0) + 1
-                      await callEntry(currentServingNumber)
-                      toast.success(
-                        count === 1
-                          ? `Queue #${currentServingNumber} called!`
-                          : `Queue #${currentServingNumber} recalled (×${count})`
-                      )
-                    }}
-                  >
-                    <Radio className="size-5" />
-                    {(currentEntry?.callCount ?? 0) > 0 ? "Recall Customer" : "Call Customer"}
-                  </Button>
+                  {/* Call / Recall */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      className="h-13 text-base rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
+                      disabled={!currentEntry}
+                      onClick={async () => {
+                        if (!currentEntry) return
+                        await callEntry(currentServingNumber)
+                        toast.success(`Queue #${currentServingNumber} called!`)
+                      }}
+                    >
+                      <Radio className="size-5" />
+                      Call
+                    </Button>
+                    <Button
+                      className="h-13 text-base rounded-xl bg-amber-500 hover:bg-amber-600 text-white gap-2 font-semibold"
+                      disabled={!currentEntry}
+                      onClick={async () => {
+                        if (!currentEntry) return
+                        const next = (currentEntry.recallCount ?? 0) + 1
+                        await recallEntry(currentServingNumber)
+                        toast.success(`Queue #${currentServingNumber} recalled (×${next})`)
+                      }}
+                    >
+                      <Radio className="size-5" />
+                      Recall
+                    </Button>
+                  </div>
+                  {currentEntry && ((currentEntry.callCount ?? 0) > 0 || (currentEntry.recallCount ?? 0) > 0) && (
+                    <p className="text-xs text-center text-slate-400">
+                      Called {currentEntry.callCount ?? 0}×
+                      {(currentEntry.recallCount ?? 0) > 0 && ` · Recalled ${currentEntry.recallCount}×`}
+                    </p>
+                  )}
 
                 </div>
               </motion.div>

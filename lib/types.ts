@@ -9,6 +9,7 @@ export interface QueueEntry {
   startedAt?: string
   completedAt?: string
   callCount?: number
+  recallCount?: number
 }
 
 export interface ActivityLog {

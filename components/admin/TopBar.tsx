@@ -1,11 +1,12 @@
 "use client"
 
 import { usePathname, useRouter } from "next/navigation"
-import { Menu } from "lucide-react"
+import { Menu, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Sidebar } from "./Sidebar"
 import { useState } from "react"
+import { usePWAInstall } from "@/hooks/usePWAInstall"
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -18,6 +19,7 @@ export function TopBar() {
   const router = useRouter()
   const title = pageTitles[pathname] ?? "Dashboard"
   const [open, setOpen] = useState(false)
+  const { canInstall, install } = usePWAInstall()
 
   return (
     <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-4 border-b border-border bg-white px-4 md:px-6">
@@ -36,6 +38,18 @@ export function TopBar() {
       <div className="flex-1">
         <h1 className="text-base font-semibold text-gray-900">{title}</h1>
       </div>
+
+      {canInstall && (
+        <Button
+          onClick={install}
+          size="sm"
+          variant="outline"
+          className="gap-1.5 text-primary border-primary/30 hover:bg-primary/10"
+        >
+          <Download className="size-3.5" />
+          Install App
+        </Button>
+      )}
 
       {pathname !== "/add-customer" && (
         <Button

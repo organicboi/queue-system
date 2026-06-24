@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { Toaster } from "sonner"
 import { ThemeProvider } from "@/components/shared/ThemeProvider"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { PWARegister } from "@/components/shared/PWARegister"
+import { InstallPrompt } from "@/components/display/InstallPrompt"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -33,11 +35,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-background text-foreground antialiased">
+        <PWARegister />
         <ThemeProvider>
           <TooltipProvider delayDuration={200}>
             {children}
           </TooltipProvider>
         </ThemeProvider>
+        <InstallPrompt />
         <Toaster
           richColors
           position="top-right"

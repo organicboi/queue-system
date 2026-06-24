@@ -20,6 +20,7 @@ type DbRow = {
   started_at?: string | null
   completed_at?: string | null
   call_count?: number | null
+  recall_count?: number | null
 }
 
 function toEntry(row: DbRow): QueueEntry {
@@ -32,6 +33,7 @@ function toEntry(row: DbRow): QueueEntry {
     startedAt: row.started_at ?? undefined,
     completedAt: row.completed_at ?? undefined,
     callCount: row.call_count ?? 0,
+    recallCount: row.recall_count ?? 0,
   }
 }
 
@@ -290,6 +292,24 @@ export function useSupabaseQueue() {
     })
   }, [])
 
+  const recallEntry = useCallback(async (queueNumber: number) => {
+    const entry = ref.current.entries.find((e) => e.queueNumber === queueNumber)
+    if (!entry) return
+
+    const newRecallCount = (entry.recallCount ?? 0) + 1
+
+    await supabase
+      .from("queue_entries")
+      .update({ recall_count: newRecallCount })
+      .eq("id", entry.id)
+
+    supabase.channel("queue-display-signals").send({
+      type: "broadcast",
+      event: "customer-recalled",
+      payload: { queueNumber, billNumber: entry.billNumber, recallCount: newRecallCount },
+    })
+  }, [])
+
   return {
     entries: state.entries,
     currentServingNumber: state.currentServingNumber,
@@ -300,5 +320,6 @@ export function useSupabaseQueue() {
     completeCurrentEntry,
     markEntryCompleted,
     callEntry,
+    recallEntry,
   }
 }

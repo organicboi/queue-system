@@ -28,6 +28,7 @@ create table if not exists public.queue_entries (
   started_at      timestamptz,
   completed_at    timestamptz,
   call_count      int          not null default 0,
+  recall_count    int          not null default 0,
   created_at      timestamptz  not null default now()
 );
 
