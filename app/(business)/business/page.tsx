@@ -446,35 +446,32 @@ function BusinessPageInner() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.18 }}
-                className="flex-1 min-h-0 flex flex-col p-3 md:p-4"
+                className="flex-1 min-h-0 flex flex-col gap-3 p-3 md:p-4"
               >
-                {/* ── Single card: fills all available height ── */}
-                <div className="flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
-                  {/* Header: search only */}
-                  <div className="bg-slate-900 px-4 py-2.5 shrink-0">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-500 pointer-events-none" />
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="Search queue # or bill…"
-                        value={csQuery}
-                        onChange={(e) => { setCsQuery(e.target.value); setCsSelectedId(null) }}
-                        className="w-full rounded-lg bg-white/10 border border-white/15 pl-9 pr-8 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-white/40 focus:bg-white/15 transition-all"
-                      />
-                      {(csQuery || csSelectedId) && (
-                        <button
-                          onClick={() => { setCsQuery(""); setCsSelectedId(null) }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
-                        >
-                          <X className="size-3.5" />
-                        </button>
-                      )}
-                    </div>
+                {/* ── Search bar ── */}
+                <div className="shrink-0">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Search queue # or bill…"
+                      value={csQuery}
+                      onChange={(e) => { setCsQuery(e.target.value); setCsSelectedId(null) }}
+                      className="w-full rounded-xl bg-white border border-slate-200 shadow-sm pl-10 pr-9 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
+                    />
+                    {(csQuery || csSelectedId) && (
+                      <button
+                        onClick={() => { setCsQuery(""); setCsSelectedId(null) }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    )}
                   </div>
 
-                  {/* Search results — animated, collapsed when not searching */}
+                  {/* Search results */}
                   <AnimatePresence>
                     {(isSearchMode || (csSelectedId && displayEntry)) && (
                       <motion.div
@@ -483,14 +480,12 @@ function BusinessPageInner() {
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.18 }}
-                        className="border-b border-slate-100 overflow-hidden shrink-0"
+                        className="overflow-hidden"
                       >
-                        <div className="px-4 py-2 max-h-[32vh] overflow-y-auto space-y-1.5">
+                        <div className="mt-2 bg-white rounded-xl border border-slate-200 shadow-sm max-h-[30vh] overflow-y-auto divide-y divide-slate-100">
                           {isSearchMode ? (
                             csResults.length === 0 ? (
-                              <div className="py-3 text-center">
-                                <p className="text-sm text-slate-400">No matching entries</p>
-                              </div>
+                              <div className="py-4 text-center text-sm text-slate-400">No matching entries</div>
                             ) : (
                               csResults.map((entry) => {
                                 const cfg = STATUS_CONFIG[entry.status]
@@ -498,63 +493,99 @@ function BusinessPageInner() {
                                   <button
                                     key={entry.id}
                                     onClick={() => handleCsSelect(entry)}
-                                    className="w-full flex items-center gap-3 rounded-xl border border-slate-200 hover:border-slate-900 hover:bg-slate-50 px-3 py-2 text-left transition-all group"
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors group"
                                   >
-                                    <span className="text-lg font-black text-slate-900 tabular-nums w-8 shrink-0 text-center">
-                                      {entry.queueNumber}
+                                    <span className="text-base font-black text-slate-900 tabular-nums w-7 shrink-0">
+                                      #{entry.queueNumber}
                                     </span>
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-semibold text-slate-800 truncate font-mono">
-                                        Bill {entry.billNumber}
-                                      </p>
-                                      <p className="text-[11px] text-slate-400 mt-0.5">
-                                        {formatTime(entry.joinedAt)}
-                                      </p>
+                                      <p className="text-sm font-semibold text-slate-800 truncate">Bill {entry.billNumber}</p>
+                                      <p className="text-[11px] text-slate-400">{formatTime(entry.joinedAt)}</p>
                                     </div>
                                     {cfg && (
                                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${cfg.pill}`}>
-                                        <span className={`size-1.5 rounded-full ${cfg.dot} shrink-0`} />
+                                        <span className={`size-1.5 rounded-full ${cfg.dot}`} />
                                         {cfg.label}
                                       </span>
                                     )}
-                                    <ChevronRight className="size-3.5 text-slate-300 group-hover:text-slate-600 shrink-0 transition-colors" />
+                                    <ChevronRight className="size-3.5 text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
                                   </button>
                                 )
                               })
                             )
-                          ) : csSelectedId && displayEntry ? (
-                            (() => {
-                              const cfg = STATUS_CONFIG[displayEntry.status]
-                              return (
-                                <div className="flex items-center gap-3 rounded-xl border-2 border-slate-900 bg-slate-50 px-3 py-2">
-                                  <span className="text-lg font-black text-slate-900 tabular-nums w-8 shrink-0 text-center">
-                                    {displayEntry.queueNumber}
-                                  </span>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-slate-800 truncate font-mono">
-                                      Bill {displayEntry.billNumber}
-                                    </p>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">
-                                      {formatTime(displayEntry.joinedAt)}
-                                    </p>
-                                  </div>
-                                  {cfg && (
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${cfg.pill}`}>
-                                      <span className={`size-1.5 rounded-full ${cfg.dot} shrink-0`} />
-                                      {cfg.label}
-                                    </span>
-                                  )}
+                          ) : csSelectedId && displayEntry ? (() => {
+                            const cfg = STATUS_CONFIG[displayEntry.status]
+                            return (
+                              <div className="flex items-center gap-3 px-4 py-3 bg-slate-50">
+                                <span className="text-base font-black text-slate-900 tabular-nums w-7 shrink-0">
+                                  #{displayEntry.queueNumber}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-slate-800 truncate">Bill {displayEntry.billNumber}</p>
+                                  <p className="text-[11px] text-slate-400">{formatTime(displayEntry.joinedAt)}</p>
                                 </div>
-                              )
-                            })()
-                          ) : null}
+                                {cfg && (
+                                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${cfg.pill}`}>
+                                    <span className={`size-1.5 rounded-full ${cfg.dot}`} />
+                                    {cfg.label}
+                                  </span>
+                                )}
+                                <button onClick={() => { setCsQuery(""); setCsSelectedId(null) }} className="text-slate-400 hover:text-slate-700 transition-colors">
+                                  <X className="size-3.5" />
+                                </button>
+                              </div>
+                            )
+                          })() : null}
                         </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
+                </div>
 
-                  {/* Number display — flex-1 fills whatever height remains */}
-                  <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-6 py-4">
+                {/* ── Hero card ── */}
+                <div className="flex-1 min-h-0 flex flex-col rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-white">
+
+                  {/* Dark hero — queue number + status */}
+                  <div className="relative flex-1 min-h-0 flex flex-col items-center justify-center bg-slate-900 px-6 py-6">
+
+                    {/* Waiting count badge — top right */}
+                    {waitingCount > 0 && (
+                      <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-amber-400/15 border border-amber-400/25 rounded-full px-2.5 py-1">
+                        <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="text-[11px] font-bold text-amber-300 tabular-nums">{waitingCount} waiting</span>
+                      </div>
+                    )}
+
+                    {/* Status badge */}
+                    {displayEntry && (
+                      <motion.div
+                        key={displayEntry.status}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mb-3"
+                      >
+                        {displayEntry.status === "in-progress" && (
+                          <div className="flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/25 rounded-full px-3 py-1">
+                            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest">Now Serving</span>
+                          </div>
+                        )}
+                        {displayEntry.status === "waiting" && (
+                          <div className="flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/25 rounded-full px-3 py-1">
+                            <span className="size-1.5 rounded-full bg-amber-400" />
+                            <span className="text-[11px] font-bold text-amber-400 uppercase tracking-widest">Waiting</span>
+                          </div>
+                        )}
+                        {displayEntry.status === "completed" && (
+                          <div className="flex items-center gap-1.5 bg-slate-500/20 border border-slate-500/20 rounded-full px-3 py-1">
+                            <CheckCircle className="size-3 text-slate-400" />
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Completed</span>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* Queue number */}
                     <AnimatePresence mode="wait">
                       <motion.p
                         key={displayEntry?.queueNumber ?? currentServingNumber}
@@ -562,21 +593,22 @@ function BusinessPageInner() {
                         initial="initial"
                         animate="animate"
                         exit="exit"
-                        className="font-black text-slate-900 tabular-nums leading-none"
-                        style={{ fontSize: "clamp(4rem, 16vh, 8rem)" }}
+                        className="font-black text-white tabular-nums leading-none"
+                        style={{ fontSize: "clamp(4.5rem, 18vh, 9rem)" }}
                       >
                         #{displayEntry?.queueNumber ?? currentServingNumber}
                       </motion.p>
                     </AnimatePresence>
 
+                    {/* Bill + time */}
                     {displayEntry ? (
                       <motion.div
                         key={displayEntry.id}
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mt-3 pt-3 border-t border-slate-100 space-y-1 text-center w-full"
+                        className="mt-3 text-center space-y-0.5"
                       >
-                        <p className="text-base font-mono font-bold text-slate-700">
+                        <p className="text-base font-bold text-white/90 tracking-wide">
                           Bill {displayEntry.billNumber}
                         </p>
                         {displayEntry.startedAt && displayEntry.status === "in-progress" && (
@@ -591,86 +623,84 @@ function BusinessPageInner() {
                         )}
                       </motion.div>
                     ) : (
-                      <p className="text-sm text-slate-400 mt-4 pt-4 border-t border-slate-100 w-full text-center">
-                        No active entry
-                      </p>
+                      <p className="mt-3 text-sm text-slate-500">No active entry</p>
                     )}
                   </div>
 
-                  {/* Controls — always pinned at the bottom */}
-                  <div className="shrink-0 px-4 pt-3 pb-4 border-t border-slate-100 space-y-2">
+                  {/* ── Action zone ── */}
+                  <div className="shrink-0 bg-white px-4 pt-3 pb-4 space-y-2.5">
+
+                    {/* Nav row — secondary utility, small */}
                     {!csSelectedId && (
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <Button
-                          variant="outline"
-                          className="h-11 gap-2 rounded-xl border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 text-sm"
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
                           onClick={() => callPrevious()}
+                          className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 transition-all"
                         >
-                          <ArrowLeft className="size-4" /> Previous
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="h-11 gap-2 rounded-xl border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 text-sm"
+                          <ArrowLeft className="size-3.5" /> Previous
+                        </button>
+                        <button
                           onClick={() => callNext()}
+                          className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 transition-all"
                         >
-                          Next <ArrowRight className="size-4" />
-                        </Button>
+                          Next <ArrowRight className="size-3.5" />
+                        </button>
                       </div>
                     )}
 
+                    {/* Primary actions */}
                     {displayEntry ? (
                       displayEntry.status === "completed" ? (
-                        <div className="h-11 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 text-sm text-emerald-600 font-semibold ring-1 ring-inset ring-emerald-100">
-                          <CheckCircle className="size-4" />
+                        <div className="h-12 flex items-center justify-center gap-2 rounded-xl bg-slate-50 text-sm text-slate-500 font-medium ring-1 ring-inset ring-slate-200">
+                          <CheckCircle className="size-4 text-emerald-500" />
                           Completed
                         </div>
                       ) : displayEntry.status === "cancelled" ? (
-                        <div className="h-11 flex items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-400 font-medium">
+                        <div className="h-12 flex items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-400 font-medium">
                           Cancelled
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <div className="grid grid-cols-2 gap-2.5">
-                            <Button
-                              className="h-12 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
+
+                          {/* Call / Recall */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
                               onClick={async () => {
                                 await callEntry(displayEntry.queueNumber)
                                 toast.success(`Queue #${displayEntry.queueNumber} called!`)
                               }}
+                              className="flex items-center justify-center gap-2 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-bold transition-colors shadow-sm shadow-blue-200"
                             >
                               <Radio className="size-4" />
                               Call
-                            </Button>
-                            <Button
-                              className="h-12 text-sm rounded-xl bg-amber-500 hover:bg-amber-600 text-white gap-2 font-semibold"
+                            </button>
+                            <button
                               onClick={async () => {
                                 const next = (displayEntry.recallCount ?? 0) + 1
                                 await recallEntry(displayEntry.queueNumber)
                                 toast.success(`Queue #${displayEntry.queueNumber} recalled (×${next})`)
                               }}
+                              className="flex items-center justify-center gap-2 h-12 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-bold transition-colors shadow-sm shadow-amber-200"
                             >
                               <Radio className="size-4" />
                               Recall
-                            </Button>
+                            </button>
                           </div>
+
+                          {/* Call metadata */}
                           {((displayEntry.callCount ?? 0) > 0 || (displayEntry.recallCount ?? 0) > 0) && (
-                            <p className="text-xs text-center text-slate-400">
-                              Called {displayEntry.callCount ?? 0}×
-                              {(displayEntry.recallCount ?? 0) > 0 && ` · Recalled ${displayEntry.recallCount}×`}
+                            <p className="text-[11px] text-center text-slate-400 font-medium">
+                              Called <span className="text-slate-600 font-bold">{displayEntry.callCount ?? 0}×</span>
+                              {(displayEntry.recallCount ?? 0) > 0 && (
+                                <> · Recalled <span className="text-amber-600 font-bold">{displayEntry.recallCount}×</span></>
+                              )}
                             </p>
                           )}
-                          <Button
-                            className="w-full h-11 text-sm rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-semibold"
-                            onClick={handleCompleteDisplayed}
-                          >
-                            <CheckCircle className="size-4" />
-                            Mark Complete
-                          </Button>
                         </div>
                       )
                     ) : (
-                      <div className="h-11 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
-                        No entry to act on
+                      <div className="h-12 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
+                        No entry selected
                       </div>
                     )}
                   </div>
