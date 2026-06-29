@@ -9,46 +9,72 @@ import { onboardAction } from '@/lib/actions/auth'
 import type { AuthResult } from '@/lib/actions/auth'
 const INIT: AuthResult = {}
 
+const inputClass = "h-10 rounded-lg border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:border-teal-500 focus-visible:ring-0 focus-visible:shadow-none"
+const labelClass = "text-[13px] font-medium text-gray-700"
+
 export function OnboardForm() {
   const [state, formAction, pending] = useActionState(onboardAction, INIT)
 
   return (
     <form action={formAction} className="space-y-4">
       <div className="space-y-1.5">
-        <Label htmlFor="licenseKey">License Key</Label>
+        <Label htmlFor="licenseKey" className={labelClass}>License Key</Label>
         <Input
           id="licenseKey"
           name="licenseKey"
           placeholder="XXXX-XXXX-XXXX-XXXX"
-          className="font-mono uppercase tracking-widest"
+          className={`${inputClass} font-mono uppercase tracking-widest`}
           required
         />
-        <p className="text-xs text-muted-foreground">Provided by your distributor</p>
+        <p className="text-[12px] text-gray-400">Provided by your distributor</p>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="fullName">Your Full Name</Label>
-        <Input id="fullName" name="fullName" placeholder="John Smith" required />
+        <Label htmlFor="fullName" className={labelClass}>Full Name</Label>
+        <Input
+          id="fullName"
+          name="fullName"
+          placeholder="John Smith"
+          className={inputClass}
+          required
+        />
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="email">Email Address</Label>
-        <Input id="email" name="email" type="email" placeholder="you@example.com" required />
+        <Label htmlFor="email" className={labelClass}>Email</Label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="you@example.com"
+          className={inputClass}
+          required
+        />
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="password">Password</Label>
-        <Input id="password" name="password" type="password" minLength={8} placeholder="Min. 8 characters" required />
+        <Label htmlFor="password" className={labelClass}>Password</Label>
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          minLength={8}
+          placeholder="Min. 8 characters"
+          className={inputClass}
+          required
+        />
       </div>
 
       {state.error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-3">
-          <p className="text-sm text-red-700">{state.error}</p>
-        </div>
+        <p className="text-[13px] text-red-600">{state.error}</p>
       )}
 
-      <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? 'Activating…' : 'Activate & Create Account'}
+      <Button
+        type="submit"
+        disabled={pending}
+        className="w-full h-10 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[15px] font-medium border-0 shadow-none mt-1"
+      >
+        {pending ? 'Activating…' : 'Activate Account'}
       </Button>
     </form>
   )

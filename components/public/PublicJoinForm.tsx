@@ -27,33 +27,33 @@ export function PublicJoinForm({ branchId, branchName, queueLabel, allowSelfJoin
     const entry = state.entry
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.97 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="space-y-6 text-center"
+        className="space-y-4 text-center"
       >
-        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-8 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+        <div className="bg-white border border-gray-200 rounded-2xl p-8 space-y-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
             Your {queueLabel}
           </p>
-          <p className="text-8xl font-black text-white tabular-nums leading-none">
+          <p className="text-8xl font-black text-teal-600 tabular-nums leading-none">
             #{entry.queueNumber}
           </p>
-          <p className="text-sm font-mono text-slate-400">Bill {entry.billNumber}</p>
+          <p className="text-sm font-mono text-gray-500">Bill {entry.billNumber}</p>
           {entry.customerName && (
-            <p className="text-sm text-slate-300">{entry.customerName}</p>
+            <p className="text-sm text-gray-600">{entry.customerName}</p>
           )}
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-1">
-          <p className="text-sm text-slate-300">
-            You are <span className="font-bold text-white">in the queue</span> at {branchName}.
+        <div className="bg-teal-50 border border-teal-100 rounded-xl p-4 space-y-1">
+          <p className="text-sm text-gray-700">
+            You are <span className="font-semibold text-gray-900">in the queue</span> at {branchName}.
           </p>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-gray-500">
             Watch the display screen for your number to be called.
           </p>
         </div>
 
-        <p className="text-xs text-slate-600">
+        <p className="text-xs text-gray-400">
           Please keep this number. Do not leave the premises.
         </p>
       </motion.div>
@@ -64,14 +64,14 @@ export function PublicJoinForm({ branchId, branchName, queueLabel, allowSelfJoin
     <AnimatePresence mode="wait">
       <motion.div
         key="form"
-        initial={{ opacity: 0, y: 16 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         className="space-y-4"
       >
-        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-6 space-y-4">
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
           <div className="text-center space-y-1 mb-2">
-            <h2 className="text-lg font-bold text-white">Join the Queue</h2>
-            <p className="text-sm text-slate-400">Enter your bill or order number</p>
+            <h2 className="text-base font-semibold text-gray-900">Join the Queue</h2>
+            <p className="text-sm text-gray-500">Enter your bill or order number</p>
           </div>
 
           <form action={action} className="space-y-3">
@@ -83,22 +83,22 @@ export function PublicJoinForm({ branchId, branchName, queueLabel, allowSelfJoin
               placeholder="Bill / Order No."
               autoComplete="off"
               required
-              className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-4 text-center text-2xl font-black tracking-widest text-white placeholder:text-slate-600 focus:outline-none focus:border-primary transition-colors"
+              className="w-full rounded-lg border border-gray-200 bg-white px-4 py-4 text-center text-2xl font-black tracking-widest text-gray-900 placeholder:text-gray-300 focus:outline-none focus:border-teal-500 transition-colors"
             />
             <Input
               name="customerName"
               placeholder="Your name (optional)"
-              className="bg-white/10 border-white/10 text-white placeholder:text-slate-600 focus:border-primary"
+              className="h-10 rounded-lg border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:border-teal-500 focus-visible:ring-0"
             />
 
             {state.error && (
-              <p className="text-sm text-red-400 text-center">{state.error}</p>
+              <p className="text-sm text-red-600 text-center">{state.error}</p>
             )}
 
             <Button
               type="submit"
               disabled={pending || !allowSelfJoin}
-              className="w-full h-12 text-base bg-primary hover:bg-primary/90 font-bold"
+              className="w-full h-11 text-base bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg border-0 shadow-none"
             >
               {pending ? 'Joining…' : 'Get My Number'}
             </Button>
@@ -106,7 +106,7 @@ export function PublicJoinForm({ branchId, branchName, queueLabel, allowSelfJoin
         </div>
 
         {!allowSelfJoin && (
-          <p className="text-center text-sm text-slate-500">
+          <p className="text-center text-sm text-gray-500">
             Self-join is currently disabled. Please see the counter staff.
           </p>
         )}

@@ -39,7 +39,7 @@ export function getStatusColor(status: QueueStatus): string {
     case "waiting":
       return "text-blue-700"
     case "in-progress":
-      return "text-indigo-700"
+      return "text-teal-700"
     case "completed":
       return "text-emerald-700"
     case "cancelled":
@@ -54,7 +54,7 @@ export function getStatusBg(status: QueueStatus): string {
     case "waiting":
       return "bg-blue-50 border-blue-200"
     case "in-progress":
-      return "bg-indigo-50 border-indigo-200"
+      return "bg-teal-50 border-teal-200"
     case "completed":
       return "bg-emerald-50 border-emerald-200"
     case "cancelled":

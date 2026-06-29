@@ -11,10 +11,10 @@ interface Props {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  waiting:     '#6366F1',
-  'in-progress': '#3B82F6',
-  completed:   '#10B981',
-  cancelled:   '#EF4444',
+  waiting:       '#D97706',
+  'in-progress': '#0D9488',
+  completed:     '#16A34A',
+  cancelled:     '#DC2626',
 }
 
 export function AnalyticsView({ entries, stats }: Props) {
@@ -69,7 +69,7 @@ export function AnalyticsView({ entries, stats }: Props) {
                 contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #E5E7EB' }}
                 cursor={{ fill: '#F9FAFB' }}
               />
-              <Bar dataKey="count" fill="#6366F1" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" fill="#0D9488" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

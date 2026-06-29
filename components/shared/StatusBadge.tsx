@@ -22,7 +22,7 @@ export function StatusBadge({ status, pulse, className }: StatusBadgeProps) {
         className={cn(
           "size-1.5 rounded-full",
           status === "waiting" && "bg-blue-500",
-          status === "in-progress" && "bg-indigo-500",
+          status === "in-progress" && "bg-teal-500",
           status === "completed" && "bg-emerald-500",
           status === "cancelled" && "bg-red-400",
           status === "no-show" && "bg-orange-400",

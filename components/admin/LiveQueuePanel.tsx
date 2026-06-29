@@ -90,13 +90,13 @@ export function LiveQueuePanel({ branchId, initialEntries, initialServingNumber,
       </div>
 
       {/* Now serving */}
-      <div className="px-4 py-4 border-b border-border bg-indigo-50/50">
+      <div className="px-4 py-4 border-b border-border bg-teal-50/50">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5">
           Now Serving
         </p>
         {inProgress ? (
           <div className="flex items-center gap-3">
-            <span className="text-4xl font-black text-indigo-700 tabular-nums">
+            <span className="text-4xl font-black text-teal-700 tabular-nums">
               #{inProgress.queueNumber}
             </span>
             <div>
@@ -130,7 +130,7 @@ export function LiveQueuePanel({ branchId, initialEntries, initialServingNumber,
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 text-xs px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              className="h-7 text-xs px-2 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
               onClick={() => handleCallEntry(entry)}
               disabled={pending || isPaused}
             >

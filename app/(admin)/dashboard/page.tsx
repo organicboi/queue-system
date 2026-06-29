@@ -87,19 +87,19 @@ export default async function DashboardPage() {
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
-              { label: 'Total Today', value: stats.totalToday, icon: Users, accent: 'blue' },
+              { label: 'Total Today', value: stats.totalToday, icon: Users, accent: 'teal' },
               { label: 'Waiting', value: stats.waiting, icon: Clock, accent: 'amber' },
-              { label: 'In Progress', value: stats.inProgress, icon: TrendingUp, accent: 'indigo' },
+              { label: 'In Progress', value: stats.inProgress, icon: TrendingUp, accent: 'teal' },
               { label: 'Completed', value: stats.completed, icon: CheckCircle2, accent: 'emerald' },
             ].map(({ label, value, icon: Icon, accent }) => (
               <div key={label} className="rounded-xl border border-border bg-white p-5 flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">{label}</span>
                   <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg border ${
-                    accent === 'blue' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                    accent === 'amber' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                    accent === 'indigo' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
-                    'bg-emerald-50 text-emerald-600 border-emerald-100'
+                    accent === 'teal'   ? 'bg-teal-50 text-teal-600 border-teal-100' :
+                    accent === 'amber'  ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                    accent === 'emerald' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                    'bg-gray-100 text-gray-500 border-gray-200'
                   }`}>
                     <Icon className="size-4" />
                   </span>

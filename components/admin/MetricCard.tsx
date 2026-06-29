@@ -26,7 +26,7 @@ export function MetricCard({ title, value, trend, trendUp, subtitle, accent = "d
     <motion.div
       variants={staggerItem}
       className={cn(
-        "bg-white border border-border rounded-md p-5 border-l-4",
+        "bg-white border border-border rounded-xl p-5 border-l-4",
         accentMap[accent]
       )}
     >

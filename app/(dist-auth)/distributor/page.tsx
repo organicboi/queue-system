@@ -21,7 +21,7 @@ export default async function DistributorOverviewPage() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { label: 'Total Customers', value: customers.length, icon: Building2, color: 'blue' },
+          { label: 'Total Customers', value: customers.length, icon: Building2, color: 'teal' },
           { label: 'Active', value: active, icon: Activity, color: 'emerald' },
           { label: 'Inactive', value: inactive, icon: Users, color: 'red' },
           { label: 'License Keys', value: '—', icon: Key, color: 'amber' },
@@ -30,9 +30,9 @@ export default async function DistributorOverviewPage() {
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">{label}</span>
               <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg border ${
-                color === 'blue' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                color === 'teal'    ? 'bg-teal-50 text-teal-600 border-teal-100' :
                 color === 'emerald' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                color === 'red' ? 'bg-red-50 text-red-500 border-red-100' :
+                color === 'red'     ? 'bg-red-50 text-red-500 border-red-100' :
                 'bg-amber-50 text-amber-600 border-amber-100'
               }`}>
                 <Icon className="size-4" />

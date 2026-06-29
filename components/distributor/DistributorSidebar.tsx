@@ -18,8 +18,8 @@ export function DistributorSidebar() {
   return (
     <div className="flex h-full flex-col bg-sidebar">
       <div className="flex h-16 items-center border-b border-sidebar-border px-5 gap-3">
-        <div className="size-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
-          <Shield className="size-4 text-amber-600" />
+        <div className="size-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+          <Shield className="size-4 text-primary" />
         </div>
         <div className="min-w-0">
           <p className="text-sm font-bold text-sidebar-foreground">Distributor</p>
@@ -37,7 +37,7 @@ export function DistributorSidebar() {
               className={cn(
                 'flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors',
                 isActive
-                  ? 'bg-amber-500/20 text-amber-700'
+                  ? 'bg-primary text-primary-foreground'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
               )}
             >

@@ -93,6 +93,14 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
     playChime()
     if (!("speechSynthesis" in window)) return
 
+    const findVoice = (lang: string): SpeechSynthesisVoice | null => {
+      const voices = window.speechSynthesis.getVoices()
+      const prefix = lang.split('-')[0]
+      return voices.find(v => v.lang === lang)
+        ?? voices.find(v => v.lang.startsWith(prefix))
+        ?? null
+    }
+
     const speakOne = (text: string, lang: string): Promise<void> =>
       new Promise((resolve) => {
         window.speechSynthesis.cancel()
@@ -101,17 +109,22 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
         u.rate = 0.82
         u.pitch = 1.0
         u.volume = 1.0
+        const voice = findVoice(lang)
+        if (voice) u.voice = voice
         u.onend = () => resolve()
         u.onerror = () => resolve()
         window.speechSynthesis.speak(u)
       })
 
     const doSpeak = async () => {
+      const hasArabicVoice = !!findVoice('ar-SA')
+
       if (announcementLang === 'ar') {
-        await speakOne(arText, 'ar-SA')
+        // Fall back to English if no Arabic voice is installed on this device
+        await speakOne(hasArabicVoice ? arText : enText, hasArabicVoice ? 'ar-SA' : 'en-US')
       } else if (announcementLang === 'both') {
         await speakOne(enText, 'en-US')
-        await speakOne(arText, 'ar-SA')
+        if (hasArabicVoice) await speakOne(arText, 'ar-SA')
       } else {
         await speakOne(enText, 'en-US')
       }

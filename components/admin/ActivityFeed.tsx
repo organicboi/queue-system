@@ -7,8 +7,8 @@ import type { ActivityLogDTO } from "@/lib/db/types"
 
 const logDot: Record<string, string> = {
   completed: "bg-emerald-500",
-  called:    "bg-blue-500",
-  recalled:  "bg-indigo-500",
+  called:    "bg-teal-500",
+  recalled:  "bg-teal-400",
   joined:    "bg-gray-400",
   cancelled: "bg-red-400",
   reset:     "bg-orange-400",

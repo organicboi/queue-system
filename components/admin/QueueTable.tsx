@@ -107,11 +107,11 @@ export function QueueTable({ branchId, initialEntries, compact }: QueueTableProp
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.15 }}
                   className={`border-b border-border transition-colors hover:bg-muted/20 ${
-                    entry.status === "in-progress" ? "bg-indigo-50/50" : ""
+                    entry.status === "in-progress" ? "bg-teal-50/50" : ""
                   }`}
                 >
                   <TableCell className="font-mono font-black text-base py-3">
-                    <span className={entry.queueNumber === currentServingNumber ? "text-indigo-600" : ""}>
+                    <span className={entry.queueNumber === currentServingNumber ? "text-teal-600" : ""}>
                       #{entry.queueNumber}
                     </span>
                   </TableCell>
@@ -137,7 +137,7 @@ export function QueueTable({ branchId, initialEntries, compact }: QueueTableProp
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 text-xs px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          className="h-7 text-xs px-2 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
                           onClick={() => act(
                             () => callEntryAction(entry.id, branchId),
                             `Queue #${entry.queueNumber} called`
