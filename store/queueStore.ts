@@ -25,13 +25,20 @@ interface QueueState {
 function makeLog(
   type: ActivityLog["type"],
   queueNumber: number,
-  message: string
+  message: string,
+  billNumber = ""
 ): ActivityLog {
   return {
     id: `log-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    timestamp: new Date().toISOString(),
+    customerId: '',
+    branchId: '',
+    entryId: null,
+    performedBy: null,
+    source: 'admin',
+    createdAt: new Date().toISOString(),
     type,
     queueNumber,
+    billNumber,
     message,
   }
 }
@@ -162,10 +169,21 @@ export const useQueueStore = create<QueueState>()(
 
         const newEntry: QueueEntry = {
           id: `entry-${queueNumber}`,
+          customerId: '',
+          branchId: '',
           queueNumber,
           billNumber,
+          customerName: '',
+          phone: '',
           status: "waiting",
+          source: 'admin',
           joinedAt: now,
+          startedAt: undefined,
+          completedAt: undefined,
+          callCount: 0,
+          recallCount: 0,
+          notes: "",
+          createdAt: now,
         }
 
         set((s) => ({

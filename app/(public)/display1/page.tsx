@@ -1,6 +1,5 @@
-import { TVDisplay } from "@/components/display/TVDisplay"
-import { GOLD_THEME } from "@/components/display/displayThemes"
+import { redirect } from 'next/navigation'
 
 export default function Display1Page() {
-  return <TVDisplay theme={GOLD_THEME} />
+  redirect('/branches')
 }

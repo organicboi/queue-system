@@ -1,0 +1,92 @@
+import 'server-only'
+import { cache } from 'react'
+import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/db/server'
+import { toProfileDTO, type ProfileDTO } from '@/lib/db/types'
+
+export const getSession = cache(async () => {
+  const supabase = await createSupabaseServerClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  return session
+})
+
+export const requireSession = cache(async () => {
+  const session = await getSession()
+  if (!session) throw new Error('unauthenticated')
+  return session
+})
+
+export const getProfile = cache(async (): Promise<ProfileDTO | null> => {
+  const session = await getSession()
+  if (!session) return null
+
+  // Use service client to bypass recursive RLS on profiles → customers join
+  const service = createSupabaseServiceClient()
+  const { data, error } = await service
+    .from('profiles')
+    .select(`
+      *,
+      customers (
+        name,
+        business_name,
+        primary_color,
+        logo_url,
+        plan_id,
+        plan_expires_at,
+        is_active
+      )
+    `)
+    .eq('id', session.user.id)
+    .single()
+
+  if (error) {
+    console.error('[getProfile] query error:', error.message, '| user:', session.user.id)
+    return null
+  }
+  if (!data) return null
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row = data as any
+
+  return toProfileDTO({
+    id: row.id,
+    customer_id: row.customer_id,
+    email: row.email,
+    full_name: row.full_name,
+    role: row.role,
+    is_active: row.is_active,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    customer_name: row.customers?.name,
+    business_name: row.customers?.business_name,
+    primary_color: row.customers?.primary_color,
+    logo_url: row.customers?.logo_url,
+    plan_id: row.customers?.plan_id,
+    plan_expires_at: row.customers?.plan_expires_at,
+    customer_active: row.customers?.is_active,
+  })
+})
+
+export const requireProfile = cache(async (): Promise<ProfileDTO> => {
+  const profile = await getProfile()
+  if (!profile) throw new Error('No profile found')
+  if (!profile.isActive) throw new Error('Account is deactivated')
+  return profile
+})
+
+export const requireAdmin = cache(async (): Promise<ProfileDTO> => {
+  const profile = await requireProfile()
+  if (profile.role !== 'admin') throw new Error('Admin access required')
+  return profile
+})
+
+export async function verifyDistributor(): Promise<boolean> {
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  const session = cookieStore.get('dist_session')?.value
+  return session === process.env.DISTRIBUTOR_SECRET
+}
+
+export async function requireDistributor(): Promise<void> {
+  const ok = await verifyDistributor()
+  if (!ok) throw new Error('Distributor access required')
+}

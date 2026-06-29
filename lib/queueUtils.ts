@@ -44,6 +44,8 @@ export function getStatusColor(status: QueueStatus): string {
       return "text-emerald-700"
     case "cancelled":
       return "text-red-600"
+    case "no-show":
+      return "text-orange-600"
   }
 }
 
@@ -57,6 +59,8 @@ export function getStatusBg(status: QueueStatus): string {
       return "bg-emerald-50 border-emerald-200"
     case "cancelled":
       return "bg-red-50 border-red-200"
+    case "no-show":
+      return "bg-orange-50 border-orange-200"
   }
 }
 
@@ -70,6 +74,8 @@ export function getStatusLabel(status: QueueStatus): string {
       return "Completed"
     case "cancelled":
       return "Cancelled"
+    case "no-show":
+      return "No Show"
   }
 }
 

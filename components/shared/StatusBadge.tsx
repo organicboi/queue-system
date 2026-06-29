@@ -25,6 +25,7 @@ export function StatusBadge({ status, pulse, className }: StatusBadgeProps) {
           status === "in-progress" && "bg-indigo-500",
           status === "completed" && "bg-emerald-500",
           status === "cancelled" && "bg-red-400",
+          status === "no-show" && "bg-orange-400",
           pulse && status === "in-progress" && "animate-pulse"
         )}
       />

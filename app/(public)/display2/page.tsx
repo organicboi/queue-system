@@ -1,6 +1,5 @@
-import { TVDisplay } from "@/components/display/TVDisplay"
-import { BLUE_THEME } from "@/components/display/displayThemes"
+import { redirect } from 'next/navigation'
 
 export default function Display2Page() {
-  return <TVDisplay theme={BLUE_THEME} />
+  redirect('/branches')
 }

@@ -1,6 +1,5 @@
-import { TVDisplay } from "@/components/display/TVDisplay"
-import { STANDARD_THEME } from "@/components/display/displayThemes"
+import { redirect } from 'next/navigation'
 
 export default function DisplayStandardPage() {
-  return <TVDisplay theme={STANDARD_THEME} />
+  redirect('/branches')
 }

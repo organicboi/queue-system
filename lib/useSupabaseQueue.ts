@@ -1,67 +1,53 @@
-"use client"
+'use client'
 
-import { useState, useEffect, useCallback, useRef } from "react"
-import { supabase } from "@/lib/supabase"
-import type { QueueEntry, QueueStatus } from "@/lib/types"
+import { useState, useEffect, useRef } from 'react'
+import { createSupabaseBrowserClient } from '@/lib/db/browser'
+import type { QueueEntryDTO, DbQueueEntry, DbQueueState } from '@/lib/db/types'
+import { toQueueEntryDTO } from '@/lib/db/types'
 
 interface State {
-  entries: QueueEntry[]
+  entries: QueueEntryDTO[]
   currentServingNumber: number
-  nextQueueNumber: number
+  isPaused: boolean
   isLoading: boolean
 }
 
-type DbRow = {
-  id: string
-  queue_number: number
-  bill_number: string
-  status: string
-  joined_at: string
-  started_at?: string | null
-  completed_at?: string | null
-  call_count?: number | null
-  recall_count?: number | null
-}
-
-function toEntry(row: DbRow): QueueEntry {
-  return {
-    id: row.id,
-    queueNumber: row.queue_number,
-    billNumber: row.bill_number,
-    status: row.status as QueueStatus,
-    joinedAt: row.joined_at,
-    startedAt: row.started_at ?? undefined,
-    completedAt: row.completed_at ?? undefined,
-    callCount: row.call_count ?? 0,
-    recallCount: row.recall_count ?? 0,
-  }
-}
-
-export function useSupabaseQueue() {
+export function useSupabaseQueue(branchId: string) {
   const [state, setState] = useState<State>({
     entries: [],
     currentServingNumber: 0,
-    nextQueueNumber: 1,
+    isPaused: false,
     isLoading: true,
   })
 
-  // Always-fresh ref so async callbacks don't close over stale state
   const ref = useRef(state)
   ref.current = state
 
   useEffect(() => {
+    if (!branchId) return
+    const supabase = createSupabaseBrowserClient()
     let alive = true
 
     async function load() {
       const [{ data: qs }, { data: rows }] = await Promise.all([
-        supabase.from("queue_state").select("*").eq("id", 1).single(),
-        supabase.from("queue_entries").select("*").order("queue_number"),
+        supabase
+          .from('queue_state')
+          .select('current_serving_number, next_queue_number, is_paused')
+          .eq('branch_id', branchId)
+          .single(),
+        supabase
+          .from('queue_entries')
+          .select('*')
+          .eq('branch_id', branchId)
+          .order('queue_number', { ascending: true }),
       ])
       if (!alive) return
+
+      const stateRow = qs as DbQueueState | null
       setState({
-        entries: ((rows as DbRow[]) ?? []).map(toEntry),
-        currentServingNumber: qs?.current_serving_number ?? 0,
-        nextQueueNumber: qs?.next_queue_number ?? 1,
+        entries: ((rows ?? []) as DbQueueEntry[]).map(toQueueEntryDTO),
+        currentServingNumber: stateRow?.current_serving_number ?? 0,
+        isPaused: stateRow?.is_paused ?? false,
         isLoading: false,
       })
     }
@@ -69,32 +55,30 @@ export function useSupabaseQueue() {
     load()
 
     const channel = supabase
-      .channel("queue-realtime")
+      .channel(`queue-display-${branchId}`)
       .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "queue_entries" },
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'queue_entries', filter: `branch_id=eq.${branchId}` },
         (payload) => {
           if (!alive) return
           setState((prev) => {
-            if (payload.eventType === "INSERT") {
-              const entry = toEntry(payload.new as DbRow)
+            if (payload.eventType === 'INSERT') {
+              const entry = toQueueEntryDTO(payload.new as DbQueueEntry)
               if (prev.entries.some((e) => e.id === entry.id)) return prev
               return {
                 ...prev,
-                entries: [...prev.entries, entry].sort(
-                  (a, b) => a.queueNumber - b.queueNumber
-                ),
+                entries: [...prev.entries, entry].sort((a, b) => a.queueNumber - b.queueNumber),
               }
             }
-            if (payload.eventType === "UPDATE") {
+            if (payload.eventType === 'UPDATE') {
               return {
                 ...prev,
                 entries: prev.entries.map((e) =>
-                  e.id === payload.new.id ? toEntry(payload.new as DbRow) : e
+                  e.id === payload.new.id ? toQueueEntryDTO(payload.new as DbQueueEntry) : e
                 ),
               }
             }
-            if (payload.eventType === "DELETE") {
+            if (payload.eventType === 'DELETE') {
               return {
                 ...prev,
                 entries: prev.entries.filter((e) => e.id !== payload.old.id),
@@ -105,14 +89,15 @@ export function useSupabaseQueue() {
         }
       )
       .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "queue_state" },
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'queue_state', filter: `branch_id=eq.${branchId}` },
         (payload) => {
           if (!alive) return
+          const row = payload.new as DbQueueState
           setState((prev) => ({
             ...prev,
-            currentServingNumber: payload.new.current_serving_number,
-            nextQueueNumber: payload.new.next_queue_number,
+            currentServingNumber: row.current_serving_number,
+            isPaused: row.is_paused ?? false,
           }))
         }
       )
@@ -122,204 +107,7 @@ export function useSupabaseQueue() {
       alive = false
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [branchId])
 
-  const addEntry = useCallback(async (billNumber: string): Promise<QueueEntry> => {
-    const queueNumber = ref.current.nextQueueNumber
-    const now = new Date().toISOString()
-
-    // Optimistically bump nextQueueNumber so back-to-back adds don't collide
-    setState((prev) => ({ ...prev, nextQueueNumber: prev.nextQueueNumber + 1 }))
-
-    const newEntry: QueueEntry = {
-      id: `entry-${queueNumber}`,
-      queueNumber,
-      billNumber,
-      status: "waiting",
-      joinedAt: now,
-    }
-
-    await Promise.all([
-      supabase.from("queue_entries").insert({
-        id: newEntry.id,
-        queue_number: queueNumber,
-        bill_number: billNumber,
-        status: "waiting",
-        joined_at: now,
-        call_count: 0,
-      }),
-      supabase
-        .from("queue_state")
-        .update({ next_queue_number: queueNumber + 1, updated_at: now })
-        .eq("id", 1),
-    ])
-
-    return newEntry
-  }, [])
-
-  const callNext = useCallback(async () => {
-    const { entries, currentServingNumber } = ref.current
-    const current = entries.find(
-      (e) => e.queueNumber === currentServingNumber && e.status === "in-progress"
-    )
-    const next = entries
-      .filter((e) => e.status === "waiting")
-      .sort((a, b) => a.queueNumber - b.queueNumber)[0]
-
-    if (!next) return
-    const now = new Date().toISOString()
-
-    await Promise.all([
-      supabase
-        .from("queue_entries")
-        .update({ status: "in-progress", started_at: now })
-        .eq("id", next.id),
-      supabase
-        .from("queue_state")
-        .update({ current_serving_number: next.queueNumber, updated_at: now })
-        .eq("id", 1),
-      ...(current
-        ? [
-            supabase
-              .from("queue_entries")
-              .update({ status: "completed", completed_at: now })
-              .eq("id", current.id),
-          ]
-        : []),
-    ])
-  }, [])
-
-  const callPrevious = useCallback(async () => {
-    const { entries, currentServingNumber } = ref.current
-    const current = entries.find(
-      (e) => e.queueNumber === currentServingNumber && e.status === "in-progress"
-    )
-    const prev = entries
-      .filter(
-        (e) => e.status === "completed" && e.queueNumber < currentServingNumber
-      )
-      .sort((a, b) => b.queueNumber - a.queueNumber)[0]
-
-    if (!prev) return
-    const now = new Date().toISOString()
-
-    await Promise.all([
-      supabase
-        .from("queue_entries")
-        .update({ status: "in-progress", started_at: now, completed_at: null })
-        .eq("id", prev.id),
-      supabase
-        .from("queue_state")
-        .update({ current_serving_number: prev.queueNumber, updated_at: now })
-        .eq("id", 1),
-      ...(current
-        ? [
-            supabase
-              .from("queue_entries")
-              .update({ status: "waiting", started_at: null })
-              .eq("id", current.id),
-          ]
-        : []),
-    ])
-  }, [])
-
-  const completeCurrentEntry = useCallback(() => callNext(), [callNext])
-
-  const markEntryCompleted = useCallback(
-    async (queueNumber: number) => {
-      const entry = ref.current.entries.find((e) => e.queueNumber === queueNumber)
-      if (!entry || entry.status === "completed" || entry.status === "cancelled") return
-
-      const wasInProgress = entry.status === "in-progress"
-      const now = new Date().toISOString()
-
-      await supabase
-        .from("queue_entries")
-        .update({ status: "completed", completed_at: now })
-        .eq("id", entry.id)
-
-      if (wasInProgress) await callNext()
-    },
-    [callNext]
-  )
-
-  const callEntry = useCallback(async (queueNumber: number) => {
-    const { entries, currentServingNumber } = ref.current
-    const entry = entries.find((e) => e.queueNumber === queueNumber)
-    if (!entry) return
-
-    const newCount = (entry.callCount ?? 0) + 1
-    const now = new Date().toISOString()
-    const isAlreadyServing = entry.status === "in-progress"
-
-    const ops: Promise<unknown>[] = [
-      supabase
-        .from("queue_entries")
-        .update({
-          call_count: newCount,
-          ...(isAlreadyServing ? {} : { status: "in-progress", started_at: now }),
-        })
-        .eq("id", entry.id) as unknown as Promise<unknown>,
-    ]
-
-    if (!isAlreadyServing) {
-      ops.push(
-        supabase
-          .from("queue_state")
-          .update({ current_serving_number: queueNumber, updated_at: now })
-          .eq("id", 1) as unknown as Promise<unknown>
-      )
-
-      const prev = entries.find(
-        (e) => e.queueNumber === currentServingNumber && e.status === "in-progress"
-      )
-      if (prev) {
-        ops.push(
-          supabase
-            .from("queue_entries")
-            .update({ status: "completed", completed_at: now })
-            .eq("id", prev.id) as unknown as Promise<unknown>
-        )
-      }
-    }
-
-    await Promise.all(ops)
-
-    supabase.channel("queue-display-signals").send({
-      type: "broadcast",
-      event: "customer-called",
-      payload: { queueNumber, billNumber: entry.billNumber, callCount: newCount },
-    })
-  }, [])
-
-  const recallEntry = useCallback(async (queueNumber: number) => {
-    const entry = ref.current.entries.find((e) => e.queueNumber === queueNumber)
-    if (!entry) return
-
-    const newRecallCount = (entry.recallCount ?? 0) + 1
-
-    await supabase
-      .from("queue_entries")
-      .update({ recall_count: newRecallCount })
-      .eq("id", entry.id)
-
-    supabase.channel("queue-display-signals").send({
-      type: "broadcast",
-      event: "customer-recalled",
-      payload: { queueNumber, billNumber: entry.billNumber, recallCount: newRecallCount },
-    })
-  }, [])
-
-  return {
-    entries: state.entries,
-    currentServingNumber: state.currentServingNumber,
-    isLoading: state.isLoading,
-    addEntry,
-    callNext,
-    callPrevious,
-    completeCurrentEntry,
-    markEntryCompleted,
-    callEntry,
-    recallEntry,
-  }
+  return state
 }

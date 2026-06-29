@@ -221,3 +221,10 @@ export const THEME_ROUTES: Record<string, string> = {
   blue: "/display2",
   espresso: "/display3",
 }
+
+export const THEMES: Record<string, TVTheme> = {
+  standard: STANDARD_THEME,
+  dark: ESPRESSO_THEME,
+  vibrant: GOLD_THEME,
+  minimal: BLUE_THEME,
+}
