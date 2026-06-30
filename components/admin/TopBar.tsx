@@ -1,7 +1,7 @@
 'use client'
 
-import { usePathname, useRouter } from 'next/navigation'
-import { Menu, Plus, Download } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { Menu, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Sidebar } from './Sidebar'
@@ -28,9 +28,6 @@ export function TopBar() {
   const [open, setOpen] = useState(false)
   const { canInstall, install } = usePWAInstall()
 
-  const isOnBranch = pathname.startsWith('/branches/') && !pathname.endsWith('/settings') &&
-    !pathname.endsWith('/screens') && !pathname.endsWith('/ads') && pathname !== '/branches'
-
   return (
     <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-white px-4 md:px-6">
       <Sheet open={open} onOpenChange={setOpen}>
@@ -55,16 +52,6 @@ export function TopBar() {
         </Button>
       )}
 
-      {pathname === '/branches' && (
-        <Button
-          onClick={() => router.push('/branches')}
-          size="sm"
-          className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shrink-0"
-        >
-          <Plus className="size-3.5" />
-          <span className="hidden sm:inline">New Branch</span>
-        </Button>
-      )}
     </header>
   )
 }
