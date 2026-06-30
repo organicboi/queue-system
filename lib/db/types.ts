@@ -1,6 +1,8 @@
 // ── Primitive types ───────────────────────────────────────────
 export type UserRole = 'admin' | 'branch_user'
+export type CounterType = 'billing' | 'kitchen' | 'delivery'
 export type QueueStatus = 'waiting' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
+export type KitchenStatus = 'pending' | 'preparing' | 'ready'
 export type QueueSource = 'admin' | 'self-join' | 'kiosk' | 'api'
 export type ActivityType = 'joined' | 'called' | 'recalled' | 'completed' | 'cancelled' | 'no-show' | 'reset' | 'paused' | 'resumed'
 export type AdMergeMode = 'replace' | 'prepend' | 'append'
@@ -120,6 +122,18 @@ export interface DbScreen {
   updated_at: string
 }
 
+export interface DbCounter {
+  id: string
+  customer_id: string
+  branch_id: string
+  name: string
+  type: CounterType
+  counter_token: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface DbQueueState {
   id: string
   customer_id: string
@@ -139,6 +153,7 @@ export interface DbQueueEntry {
   customer_name: string
   phone: string
   status: QueueStatus
+  kitchen_status: KitchenStatus
   source: QueueSource
   joined_at: string
   started_at: string | null
@@ -303,6 +318,17 @@ export interface ScreenDTO {
   createdAt: string
 }
 
+export interface CounterDTO {
+  id: string
+  customerId: string
+  branchId: string
+  name: string
+  type: CounterType
+  token: string
+  isActive: boolean
+  createdAt: string
+}
+
 export interface QueueStateDTO {
   id: string
   customerId: string
@@ -322,6 +348,7 @@ export interface QueueEntryDTO {
   customerName: string
   phone: string
   status: QueueStatus
+  kitchenStatus: KitchenStatus
   source: QueueSource
   joinedAt: string
   startedAt: string | undefined
@@ -466,6 +493,7 @@ export function toQueueEntryDTO(row: DbQueueEntry): QueueEntryDTO {
     customerName: row.customer_name,
     phone: row.phone,
     status: row.status,
+    kitchenStatus: row.kitchen_status ?? 'pending',
     source: row.source,
     joinedAt: row.joined_at,
     startedAt: row.started_at ?? undefined,
@@ -531,6 +559,19 @@ export function toScreenDTO(row: DbScreen): ScreenDTO {
     announcementLang: row.announcement_lang ?? 'en',
     isActive: row.is_active,
     lastSeenAt: row.last_seen_at,
+    createdAt: row.created_at,
+  }
+}
+
+export function toCounterDTO(row: DbCounter): CounterDTO {
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    branchId: row.branch_id,
+    name: row.name,
+    type: row.type,
+    token: row.counter_token,
+    isActive: row.is_active,
     createdAt: row.created_at,
   }
 }

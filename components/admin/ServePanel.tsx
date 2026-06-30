@@ -16,8 +16,6 @@ import { flipNumber } from '@/lib/animations'
 import { silentPrint, buildReceiptHtml } from '@/lib/silentPrint'
 import {
   addEntryDirectAction,
-  callNextAction,
-  callPreviousAction,
   callEntryAction,
   completeEntryAction,
 } from '@/lib/actions/queue'
@@ -34,18 +32,18 @@ const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
 const STATUS_CONFIG: Record<string, { label: string; dot: string; pill: string }> = {
   waiting: {
     label: 'Waiting',
-    dot: 'bg-amber-400',
+    dot: 'bg-amber-500',
     pill: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200',
   },
   'in-progress': {
     label: 'Serving',
-    dot: 'bg-emerald-500',
-    pill: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200',
+    dot: 'bg-teal-500 animate-pulse',
+    pill: 'bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-200',
   },
   completed: {
     label: 'Done',
-    dot: 'bg-slate-400',
-    pill: 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200',
+    dot: 'bg-green-500',
+    pill: 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200',
   },
 }
 
@@ -89,6 +87,7 @@ export function ServePanel({
   const [csSelectedId, setCsSelectedId] = useState<string | null>(null)
 
   const [printEntry, setPrintEntry] = useState<QueueEntryDTO | null>(null)
+  const [navNumber, setNavNumber] = useState<number | null>(null)
 
   const { entries, currentServingNumber, isPaused } = useRealtimeQueue(branchId, {
     entries: initialEntries,
@@ -105,7 +104,11 @@ export function ServePanel({
     ? entries.find((e) => e.id === csSelectedId) ?? null
     : null
 
-  const displayEntry = csSearchedEntry ?? currentEntry
+  const navEntry = !csSelectedId && navNumber !== null
+    ? entries.find((e) => e.queueNumber === navNumber) ?? null
+    : null
+
+  const displayEntry = csSearchedEntry ?? navEntry ?? currentEntry
   const isSearchMode = csQuery.trim().length > 0 && !csSelectedId
 
   const csResults = isSearchMode
@@ -166,6 +169,8 @@ export function ServePanel({
     return () => window.removeEventListener('afterprint', handler)
   }, [])
 
+  useEffect(() => { setNavNumber(null) }, [currentServingNumber])
+
   const handleAddSubmit = async () => {
     const trimmed = billNumber.trim()
     if (!trimmed) return
@@ -188,20 +193,6 @@ export function ServePanel({
     setBillNumber('')
     setCreatedEntry(null)
     setAddStep('entry')
-  }
-
-  const handleCallNext = () => {
-    startTransition(async () => {
-      const result = await callNextAction(branchId)
-      if (result.error) toast.error(result.error)
-    })
-  }
-
-  const handleCallPrevious = () => {
-    startTransition(async () => {
-      const result = await callPreviousAction(branchId)
-      if (result.error) toast.error(result.error)
-    })
   }
 
   const handleCallEntry = (entry: QueueEntryDTO) => {
@@ -271,38 +262,39 @@ export function ServePanel({
       </div>
 
       {/* Main UI */}
-      <div className="no-print flex flex-col h-full bg-slate-50">
+      <div className="no-print h-full bg-background">
+      <div className="max-w-lg mx-auto h-full flex flex-col bg-white md:border-x md:border-gray-200 md:shadow-sm">
 
         {/* Header */}
-        <header className="shrink-0 bg-slate-900 px-4 py-2.5 flex items-center justify-between gap-2">
+        <header className="shrink-0 bg-white border-b border-gray-200 px-4 py-2.5 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-              <Radio className="size-3.5 text-white/70" />
+            <div className="size-8 rounded-lg bg-teal-50 flex items-center justify-center shrink-0">
+              <Radio className="size-4 text-teal-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-white font-semibold text-sm leading-tight truncate">{businessName}</p>
+              <p className="text-gray-900 font-semibold text-sm leading-tight truncate">{businessName}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <p className="text-slate-400 text-[10px] leading-tight font-medium truncate">{branchName}</p>
+                <span className="size-1.5 rounded-full bg-teal-500 animate-pulse shrink-0" />
+                <p className="text-gray-500 text-[10px] leading-tight font-medium truncate">{branchName}</p>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
             {waitingCount > 0 && (
-              <div className="flex items-center gap-1 bg-amber-500/15 border border-amber-500/20 text-amber-300 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums">
-                <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-700 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums">
+                <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
                 {waitingCount}
               </div>
             )}
             {isPaused && (
-              <div className="bg-red-500/15 border border-red-500/20 text-red-300 rounded-full px-2 py-0.5 text-[10px] font-bold">
+              <div className="bg-red-50 border border-red-200 text-red-600 rounded-full px-2 py-0.5 text-[10px] font-bold">
                 Paused
               </div>
             )}
             <button
               onClick={() => router.push(`/branches/${branchId}`)}
-              className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors text-[11px] font-medium ml-1"
+              className="flex items-center gap-1 text-gray-500 hover:text-gray-900 transition-colors text-[11px] font-medium ml-1"
             >
               <LogOut className="size-3.5" />
               <span className="hidden xs:inline">Exit</span>
@@ -311,8 +303,8 @@ export function ServePanel({
         </header>
 
         {/* Tab Bar */}
-        <div className="shrink-0 bg-white border-b border-slate-200 px-3 py-2">
-          <div className="bg-slate-100 rounded-xl p-0.5 flex gap-0.5">
+        <div className="shrink-0 bg-white border-b border-gray-200 px-3 py-2">
+          <div className="bg-gray-100 rounded-xl p-0.5 flex gap-0.5">
             {TABS.map(({ id, label, Icon }) => (
               <button
                 key={id}
@@ -327,8 +319,8 @@ export function ServePanel({
                     transition={{ type: 'spring', bounce: 0.2, duration: 0.35 }}
                   />
                 )}
-                <Icon className={['size-3.5 relative z-10 transition-colors', tab === id ? 'text-slate-900' : 'text-slate-400'].join(' ')} />
-                <span className={['relative z-10 transition-colors', tab === id ? 'text-slate-900' : 'text-slate-400'].join(' ')}>
+                <Icon className={['size-3.5 relative z-10 transition-colors', tab === id ? 'text-gray-900' : 'text-gray-400'].join(' ')} />
+                <span className={['relative z-10 transition-colors', tab === id ? 'text-gray-900' : 'text-gray-400'].join(' ')}>
                   {label}
                 </span>
               </button>
@@ -351,10 +343,10 @@ export function ServePanel({
                 className="p-3 sm:p-4"
               >
                 <div className="max-w-sm mx-auto">
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="px-4 pt-4 pb-3 border-b border-slate-100">
-                      <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Quick Entry</p>
-                      <p className="text-sm font-semibold text-slate-700 mt-0.5">Add customer to queue</p>
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 pt-4 pb-3 border-b border-gray-100">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Quick Entry</p>
+                      <p className="text-sm font-semibold text-gray-900 mt-0.5">Add customer to queue</p>
                     </div>
 
                     <div className="p-4">
@@ -369,7 +361,7 @@ export function ServePanel({
                             className="space-y-3"
                           >
                             <div>
-                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
                                 Bill Number
                               </label>
                               <input
@@ -380,13 +372,13 @@ export function ServePanel({
                                 value={billNumber}
                                 onChange={(e) => setBillNumber(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleAddSubmit()}
-                                className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3 text-center text-3xl font-black tracking-widest text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-slate-900 focus:bg-white transition-all"
+                                className="w-full rounded-lg border border-gray-200 bg-white px-4 py-4 text-center text-2xl font-black tracking-widest text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-teal-500 transition-colors"
                               />
                             </div>
                             <Button
                               onClick={handleAddSubmit}
                               disabled={!billNumber.trim()}
-                              className="w-full h-11 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl gap-2"
+                              className="w-full h-11 text-sm font-semibold bg-teal-600 hover:bg-teal-700 text-white rounded-lg gap-2"
                             >
                               <PlusCircle className="size-4" />
                               Generate Queue Number
@@ -401,13 +393,13 @@ export function ServePanel({
                             transition={{ duration: 0.18 }}
                             className="space-y-3"
                           >
-                            <div className="rounded-2xl bg-slate-900 overflow-hidden">
-                              <div className="relative p-5 text-center">
-                                <div className="flex items-center justify-center gap-1 mb-2">
-                                  <CheckCircle className="size-3.5 text-emerald-400" />
-                                  <span className="text-emerald-400 text-[11px] font-semibold">Added successfully</span>
+                            <div className="rounded-xl bg-teal-50 border border-teal-100 overflow-hidden">
+                              <div className="p-5 text-center">
+                                <div className="flex items-center justify-center gap-1.5 mb-3">
+                                  <CheckCircle className="size-3.5 text-teal-600" />
+                                  <span className="text-teal-700 text-[11px] font-semibold">Added successfully</span>
                                 </div>
-                                <p className="text-slate-400 text-[10px] uppercase tracking-widest font-semibold mb-1">Queue Number</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-teal-600 mb-1">Queue Number</p>
                                 <AnimatePresence mode="wait">
                                   <motion.p
                                     key={createdEntry?.queueNumber}
@@ -415,21 +407,21 @@ export function ServePanel({
                                     initial="initial"
                                     animate="animate"
                                     exit="exit"
-                                    className="text-7xl font-black text-white tabular-nums leading-none"
+                                    className="text-7xl font-black text-teal-600 tabular-nums leading-none"
                                   >
                                     #{createdEntry?.queueNumber}
                                   </motion.p>
                                 </AnimatePresence>
-                                <div className="border-t border-dashed border-white/15 my-4" />
-                                <p className="text-slate-300 text-sm font-mono font-semibold">Bill {createdEntry?.billNumber}</p>
-                                <p className="text-slate-500 text-[11px] mt-0.5">{createdEntry ? formatTime(createdEntry.joinedAt) : ''}</p>
+                                <div className="border-t border-teal-100 my-4" />
+                                <p className="text-gray-700 text-sm font-mono font-semibold">Bill {createdEntry?.billNumber}</p>
+                                <p className="text-gray-500 text-xs mt-0.5">{createdEntry ? formatTime(createdEntry.joinedAt) : ''}</p>
                               </div>
                             </div>
 
                             <div className="flex gap-2">
                               <Button
                                 variant="outline"
-                                className="flex-1 h-10 rounded-xl text-sm font-semibold border-slate-200 hover:bg-slate-50"
+                                className="flex-1 h-10 rounded-lg text-sm font-semibold border-gray-200 hover:bg-gray-50"
                                 onClick={handleAddAnother}
                               >
                                 Add Another
@@ -437,11 +429,11 @@ export function ServePanel({
                               {createdEntry && (
                                 <Button
                                   variant="outline"
-                                  className="h-10 px-3.5 rounded-xl border-slate-200 hover:bg-slate-50"
+                                  className="h-10 px-3.5 rounded-lg border-gray-200 hover:bg-gray-50"
                                   onClick={() => handlePrint(createdEntry)}
                                   title="Print ticket"
                                 >
-                                  <Printer className="size-4 text-slate-600" />
+                                  <Printer className="size-4 text-gray-600" />
                                 </Button>
                               )}
                             </div>
@@ -467,19 +459,19 @@ export function ServePanel({
                 {/* Search */}
                 <div>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400 pointer-events-none" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400 pointer-events-none" />
                     <input
                       type="text"
                       inputMode="numeric"
                       placeholder="Search queue # or bill…"
                       value={csQuery}
                       onChange={(e) => { setCsQuery(e.target.value); setCsSelectedId(null) }}
-                      className="w-full rounded-xl bg-white border border-slate-200 shadow-sm pl-10 pr-9 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
+                      className="w-full h-10 rounded-lg bg-white border border-gray-200 pl-10 pr-9 text-sm text-gray-900 placeholder:text-gray-400 focus-visible:outline-none focus-visible:border-teal-500 focus-visible:ring-0 transition-colors"
                     />
                     {(csQuery || csSelectedId) && (
                       <button
                         onClick={() => { setCsQuery(''); setCsSelectedId(null) }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
                       >
                         <X className="size-4" />
                       </button>
@@ -496,10 +488,10 @@ export function ServePanel({
                         transition={{ duration: 0.18 }}
                         className="overflow-hidden"
                       >
-                        <div className="mt-1.5 bg-white rounded-xl border border-slate-200 shadow-sm max-h-44 overflow-y-auto divide-y divide-slate-100">
+                        <div className="mt-1.5 bg-white rounded-xl border border-gray-200 max-h-44 overflow-y-auto divide-y divide-gray-100">
                           {isSearchMode ? (
                             csResults.length === 0 ? (
-                              <div className="py-3 text-center text-sm text-slate-400">No matching entries</div>
+                              <div className="py-3 text-center text-sm text-gray-500">No matching entries</div>
                             ) : (
                               csResults.map((entry) => {
                                 const cfg = STATUS_CONFIG[entry.status]
@@ -507,14 +499,14 @@ export function ServePanel({
                                   <button
                                     key={entry.id}
                                     onClick={() => { setCsSelectedId(entry.id); setCsQuery('') }}
-                                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-50 transition-colors group"
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors group"
                                   >
-                                    <span className="text-sm font-black text-slate-900 tabular-nums w-7 shrink-0">
+                                    <span className="font-mono font-black text-sm text-gray-900 tabular-nums w-7 shrink-0">
                                       #{entry.queueNumber}
                                     </span>
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-semibold text-slate-800 truncate">Bill {entry.billNumber}</p>
-                                      <p className="text-[11px] text-slate-400">{formatTime(entry.joinedAt)}</p>
+                                      <p className="text-sm font-semibold text-gray-800 truncate">Bill {entry.billNumber}</p>
+                                      <p className="text-xs text-gray-500">{formatTime(entry.joinedAt)}</p>
                                     </div>
                                     {cfg && (
                                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${cfg.pill}`}>
@@ -522,7 +514,7 @@ export function ServePanel({
                                         {cfg.label}
                                       </span>
                                     )}
-                                    <ChevronRight className="size-3.5 text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
+                                    <ChevronRight className="size-3.5 text-gray-300 group-hover:text-gray-500 shrink-0 transition-colors" />
                                   </button>
                                 )
                               })
@@ -531,13 +523,13 @@ export function ServePanel({
                             (() => {
                               const cfg = STATUS_CONFIG[displayEntry.status]
                               return (
-                                <div className="flex items-center gap-3 px-3 py-2.5 bg-slate-50">
-                                  <span className="text-sm font-black text-slate-900 tabular-nums w-7 shrink-0">
+                                <div className="flex items-center gap-3 px-3 py-2.5 bg-gray-50">
+                                  <span className="font-mono font-black text-sm text-gray-900 tabular-nums w-7 shrink-0">
                                     #{displayEntry.queueNumber}
                                   </span>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-slate-800 truncate">Bill {displayEntry.billNumber}</p>
-                                    <p className="text-[11px] text-slate-400">{formatTime(displayEntry.joinedAt)}</p>
+                                    <p className="text-sm font-semibold text-gray-800 truncate">Bill {displayEntry.billNumber}</p>
+                                    <p className="text-xs text-gray-500">{formatTime(displayEntry.joinedAt)}</p>
                                   </div>
                                   {cfg && (
                                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${cfg.pill}`}>
@@ -547,7 +539,7 @@ export function ServePanel({
                                   )}
                                   <button
                                     onClick={() => { setCsQuery(''); setCsSelectedId(null) }}
-                                    className="text-slate-400 hover:text-slate-700 transition-colors"
+                                    className="text-gray-400 hover:text-gray-700 transition-colors"
                                   >
                                     <X className="size-3.5" />
                                   </button>
@@ -561,16 +553,22 @@ export function ServePanel({
                   </AnimatePresence>
                 </div>
 
-                {/* Serving card — fixed height dark hero, no flex-grow */}
-                <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-white">
+                {/* Serving card */}
+                <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
 
-                  {/* Dark hero — fixed min-height, not flex-1 */}
-                  <div className="relative bg-slate-900 px-4 py-7 flex flex-col items-center justify-center min-h-[190px]">
+                  {/* Hero — semantic background based on status */}
+                  <div className={[
+                    'relative px-4 py-7 flex flex-col items-center justify-center min-h-47.5 transition-colors',
+                    displayEntry?.status === 'in-progress' ? 'bg-teal-50' :
+                    displayEntry?.status === 'waiting'     ? 'bg-amber-50' :
+                    displayEntry?.status === 'completed'   ? 'bg-green-50' :
+                    'bg-gray-50',
+                  ].join(' ')}>
 
                     {waitingCount > 0 && !csSelectedId && (
-                      <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-amber-400/15 border border-amber-400/25 rounded-full px-2.5 py-1">
-                        <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        <span className="text-[10px] font-bold text-amber-300 tabular-nums">{waitingCount} waiting</span>
+                      <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">
+                        <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        <span className="text-[10px] font-bold text-amber-700 tabular-nums">{waitingCount} waiting</span>
                       </div>
                     )}
 
@@ -582,21 +580,21 @@ export function ServePanel({
                         className="mb-2"
                       >
                         {displayEntry.status === 'in-progress' && (
-                          <div className="flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/25 rounded-full px-3 py-1">
-                            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Now Serving</span>
+                          <div className="flex items-center gap-1.5 bg-teal-100 border border-teal-200 rounded-full px-3 py-1">
+                            <span className="size-1.5 rounded-full bg-teal-500 animate-pulse" />
+                            <span className="text-[10px] font-semibold text-teal-700 uppercase tracking-widest">Now Serving</span>
                           </div>
                         )}
                         {displayEntry.status === 'waiting' && (
-                          <div className="flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/25 rounded-full px-3 py-1">
-                            <span className="size-1.5 rounded-full bg-amber-400" />
-                            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">Waiting</span>
+                          <div className="flex items-center gap-1.5 bg-amber-100 border border-amber-200 rounded-full px-3 py-1">
+                            <span className="size-1.5 rounded-full bg-amber-500" />
+                            <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-widest">Waiting</span>
                           </div>
                         )}
                         {displayEntry.status === 'completed' && (
-                          <div className="flex items-center gap-1.5 bg-slate-500/20 border border-slate-500/20 rounded-full px-3 py-1">
-                            <CheckCircle className="size-3 text-slate-400" />
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Completed</span>
+                          <div className="flex items-center gap-1.5 bg-green-100 border border-green-200 rounded-full px-3 py-1">
+                            <CheckCircle className="size-3 text-green-600" />
+                            <span className="text-[10px] font-semibold text-green-700 uppercase tracking-widest">Completed</span>
                           </div>
                         )}
                       </motion.div>
@@ -604,14 +602,20 @@ export function ServePanel({
 
                     <AnimatePresence mode="wait">
                       <motion.p
-                        key={displayEntry?.queueNumber ?? currentServingNumber}
+                        key={!csSelectedId && navNumber !== null ? navNumber : (displayEntry?.queueNumber ?? currentServingNumber)}
                         variants={flipNumber}
                         initial="initial"
                         animate="animate"
                         exit="exit"
-                        className="text-7xl sm:text-8xl font-black text-white tabular-nums leading-none"
+                        className={[
+                          'text-7xl sm:text-8xl font-black tabular-nums leading-none',
+                          displayEntry?.status === 'in-progress' ? 'text-teal-600' :
+                          displayEntry?.status === 'waiting'     ? 'text-amber-600' :
+                          displayEntry?.status === 'completed'   ? 'text-green-700' :
+                          'text-gray-300',
+                        ].join(' ')}
                       >
-                        #{displayEntry?.queueNumber ?? currentServingNumber}
+                        #{!csSelectedId && navNumber !== null ? navNumber : (displayEntry?.queueNumber ?? currentServingNumber)}
                       </motion.p>
                     </AnimatePresence>
 
@@ -622,39 +626,39 @@ export function ServePanel({
                         animate={{ opacity: 1, y: 0 }}
                         className="mt-2 text-center"
                       >
-                        <p className="text-sm font-bold text-white/90 tracking-wide">
+                        <p className="text-sm font-bold text-gray-700 tracking-wide">
                           Bill {displayEntry.billNumber}
                         </p>
                         {displayEntry.startedAt && displayEntry.status === 'in-progress' && (
-                          <p className="text-[11px] text-slate-400 mt-0.5">
+                          <p className="text-xs text-gray-500 mt-0.5">
                             Serving for {formatRelativeTime(displayEntry.startedAt)}
                           </p>
                         )}
                         {displayEntry.completedAt && displayEntry.status === 'completed' && (
-                          <p className="text-[11px] text-slate-400 mt-0.5">
+                          <p className="text-xs text-gray-500 mt-0.5">
                             Completed {formatRelativeTime(displayEntry.completedAt)}
                           </p>
                         )}
                       </motion.div>
                     ) : (
-                      <p className="mt-2 text-sm text-slate-500">No active entry</p>
+                      <p className="mt-2 text-sm text-gray-400">No active entry</p>
                     )}
                   </div>
 
                   {/* Action zone */}
-                  <div className="bg-white px-3 pt-3 pb-3.5 space-y-2">
+                  <div className="bg-white px-3 pt-3 pb-3.5 space-y-2 border-t border-gray-100">
 
                     {!csSelectedId && (
                       <div className="grid grid-cols-2 gap-2">
                         <button
-                          onClick={handleCallPrevious}
-                          className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 transition-all"
+                          onClick={() => setNavNumber(n => Math.max(1, (n ?? currentServingNumber) - 1))}
+                          className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
                         >
                           <ArrowLeft className="size-3.5" /> Previous
                         </button>
                         <button
-                          onClick={handleCallNext}
-                          className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 transition-all"
+                          onClick={() => setNavNumber(n => (n ?? currentServingNumber) + 1)}
+                          className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
                         >
                           Next <ArrowRight className="size-3.5" />
                         </button>
@@ -663,12 +667,12 @@ export function ServePanel({
 
                     {displayEntry ? (
                       displayEntry.status === 'completed' ? (
-                        <div className="h-10 flex items-center justify-center gap-2 rounded-xl bg-slate-50 text-sm text-slate-500 font-medium ring-1 ring-inset ring-slate-200">
-                          <CheckCircle className="size-4 text-emerald-500" />
+                        <div className="h-10 flex items-center justify-center gap-2 rounded-lg bg-green-50 border border-green-200 text-sm text-green-700 font-medium">
+                          <CheckCircle className="size-4 text-green-500" />
                           Completed
                         </div>
                       ) : displayEntry.status === 'cancelled' || displayEntry.status === 'no-show' ? (
-                        <div className="h-10 flex items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-400 font-medium capitalize">
+                        <div className="h-10 flex items-center justify-center rounded-lg bg-gray-100 text-sm text-gray-500 font-medium capitalize">
                           {displayEntry.status}
                         </div>
                       ) : (
@@ -676,14 +680,14 @@ export function ServePanel({
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               onClick={() => handleCallEntry(displayEntry)}
-                              className="flex items-center justify-center gap-1.5 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-bold transition-colors shadow-sm shadow-blue-200"
+                              className="flex items-center justify-center gap-1.5 h-11 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold transition-colors"
                             >
                               <Radio className="size-4" />
                               Call
                             </button>
                             <button
                               onClick={() => handleRecallEntry(displayEntry)}
-                              className="flex items-center justify-center gap-1.5 h-11 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-bold transition-colors shadow-sm shadow-amber-200"
+                              className="flex items-center justify-center gap-1.5 h-11 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 text-sm font-semibold transition-colors"
                             >
                               <Radio className="size-4" />
                               Recall
@@ -691,8 +695,8 @@ export function ServePanel({
                           </div>
 
                           {((displayEntry.callCount ?? 0) > 0 || (displayEntry.recallCount ?? 0) > 0) && (
-                            <p className="text-[11px] text-center text-slate-400 font-medium">
-                              Called <span className="text-slate-600 font-bold">{displayEntry.callCount ?? 0}×</span>
+                            <p className="text-xs text-center text-gray-500 font-medium">
+                              Called <span className="text-gray-700 font-bold">{displayEntry.callCount ?? 0}×</span>
                               {(displayEntry.recallCount ?? 0) > 0 && (
                                 <> · Recalled <span className="text-amber-600 font-bold">{displayEntry.recallCount}×</span></>
                               )}
@@ -701,7 +705,7 @@ export function ServePanel({
 
                           <button
                             onClick={handleCompleteDisplayed}
-                            className="w-full flex items-center justify-center gap-2 h-9 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition-colors"
+                            className="w-full flex items-center justify-center gap-2 h-9 rounded-lg text-green-600 hover:text-green-700 hover:bg-green-50 text-xs font-semibold transition-colors"
                           >
                             <CheckCircle className="size-3.5" />
                             Mark Complete
@@ -709,7 +713,7 @@ export function ServePanel({
                         </div>
                       )
                     ) : (
-                      <div className="h-10 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
+                      <div className="h-10 flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-xs text-gray-400">
                         No entry selected
                       </div>
                     )}
@@ -734,45 +738,45 @@ export function ServePanel({
                     {
                       label: 'In Service',
                       count: entries.filter((e) => e.status === 'in-progress').length,
-                      color: 'text-emerald-600',
-                      bg: 'bg-emerald-50 border-emerald-200',
-                      dot: 'bg-emerald-500',
+                      color: 'text-teal-700',
+                      bg: 'bg-teal-50 border-teal-200',
+                      dot: 'bg-teal-500',
                     },
                     {
                       label: 'Waiting',
                       count: waitingCount,
                       color: 'text-amber-600',
                       bg: 'bg-amber-50 border-amber-200',
-                      dot: 'bg-amber-400',
+                      dot: 'bg-amber-500',
                     },
                     {
                       label: 'Done',
                       count: entries.filter((e) => e.status === 'completed').length,
-                      color: 'text-slate-500',
-                      bg: 'bg-white border-slate-200',
-                      dot: 'bg-slate-400',
+                      color: 'text-green-700',
+                      bg: 'bg-green-50 border-green-200',
+                      dot: 'bg-green-500',
                     },
                   ].map(({ label, count, color, bg, dot }) => (
                     <div key={label} className={`rounded-xl border ${bg} p-2.5 text-center`}>
                       <p className={`text-xl font-black tabular-nums ${color}`}>{count}</p>
                       <div className="flex items-center justify-center gap-1 mt-0.5">
                         <span className={`size-1.5 rounded-full ${dot}`} />
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">{label}</p>
+                        <p className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
                       </div>
                     </div>
                   ))}
                 </div>
 
                 {customerList.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <p className="text-sm text-slate-400">No customers yet</p>
+                  <div className="py-12 text-center border border-dashed border-gray-300 rounded-xl">
+                    <p className="text-sm text-gray-500">No customers yet</p>
                   </div>
                 ) : (
                   <div className="space-y-1.5">
                     <div className="grid grid-cols-[2rem_1fr_4.5rem_1.75rem] gap-2 px-3 pb-1">
-                      <span className="text-[9px] uppercase tracking-widest font-bold text-slate-400">#</span>
-                      <span className="text-[9px] uppercase tracking-widest font-bold text-slate-400">Bill</span>
-                      <span className="text-[9px] uppercase tracking-widest font-bold text-slate-400">Status</span>
+                      <span className="text-[11px] uppercase tracking-wider font-semibold text-gray-500">#</span>
+                      <span className="text-[11px] uppercase tracking-wider font-semibold text-gray-500">Bill</span>
+                      <span className="text-[11px] uppercase tracking-wider font-semibold text-gray-500">Status</span>
                       <span />
                     </div>
 
@@ -790,18 +794,18 @@ export function ServePanel({
                             className={[
                               'grid grid-cols-[2rem_1fr_4.5rem_1.75rem] items-center gap-2 rounded-xl border px-3 py-2.5 transition-colors',
                               isActive
-                                ? 'bg-emerald-50/60 border-emerald-200'
-                                : 'bg-white border-slate-200',
+                                ? 'bg-teal-50 border-teal-100'
+                                : 'bg-white border-gray-200',
                             ].join(' ')}
                           >
-                            <span className={`text-base font-black tabular-nums leading-none ${isActive ? 'text-emerald-700' : 'text-slate-900'}`}>
+                            <span className={`font-mono font-black text-base tabular-nums leading-none ${isActive ? 'text-teal-700' : 'text-gray-900'}`}>
                               {entry.queueNumber}
                             </span>
                             <div className="min-w-0">
-                              <p className={`font-mono font-semibold text-sm truncate ${isActive ? 'text-emerald-800' : 'text-slate-800'}`}>
+                              <p className={`font-mono font-semibold text-sm truncate ${isActive ? 'text-teal-800' : 'text-gray-800'}`}>
                                 Bill {entry.billNumber}
                               </p>
-                              <p className="text-[10px] text-slate-400 mt-0.5">
+                              <p className="text-xs text-gray-500 mt-0.5">
                                 {formatTime(entry.joinedAt)}
                               </p>
                             </div>
@@ -813,7 +817,7 @@ export function ServePanel({
                             ) : null}
                             <button
                               onClick={() => handlePrint(entry)}
-                              className="flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
+                              className="flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors"
                               title="Print ticket"
                             >
                               <Printer className="size-3.5" />
@@ -829,6 +833,7 @@ export function ServePanel({
 
           </AnimatePresence>
         </div>
+      </div>
       </div>
     </>
   )

@@ -8,8 +8,8 @@ import { LiveQueuePanel } from '@/components/admin/LiveQueuePanel'
 import { ActivityFeedServer } from '@/components/admin/ActivityFeedServer'
 import { DashboardMetrics } from '@/components/admin/DashboardMetrics'
 import { QueueTable } from '@/components/admin/QueueTable'
-import { ChevronLeft, Settings, Tv, Image, MonitorSmartphone } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ChevronLeft } from 'lucide-react'
+import { BranchNav } from '@/components/admin/BranchNav'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,33 +47,9 @@ export default async function BranchPage({ params }: Props) {
             <p className="text-sm text-muted-foreground mt-0.5">{branch.locationNote}</p>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Link href={`/serve/${branchId}`} target="_blank">
-            <Button variant="default" size="sm" className="gap-1.5 bg-slate-900 hover:bg-slate-800">
-              <MonitorSmartphone className="size-3.5" />
-              Serve
-            </Button>
-          </Link>
-          <Link href={`/branches/${branchId}/ads`}>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Image className="size-3.5" />
-              Ads
-            </Button>
-          </Link>
-          <Link href={`/branches/${branchId}/screens`}>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Tv className="size-3.5" />
-              Screens
-            </Button>
-          </Link>
-          <Link href={`/branches/${branchId}/settings`}>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Settings className="size-3.5" />
-              Settings
-            </Button>
-          </Link>
-        </div>
       </div>
+
+      <BranchNav branchId={branchId} active="overview" />
 
       {/* Metrics */}
       <DashboardMetrics stats={stats} avgServiceTime={branch.avgServiceTime} />

@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { requireProfile } from '@/lib/dal/session'
+import { requireAdmin } from '@/lib/dal/session'
 import { getBranch } from '@/lib/dal/branches'
-import { getScreens } from '@/lib/dal/screens'
-import { ScreensManager } from '@/components/admin/ScreensManager'
-import { ChevronLeft } from 'lucide-react'
+import { getCounters } from '@/lib/dal/counters'
+import { CountersManager } from '@/components/admin/CountersManager'
 import { BranchNav } from '@/components/admin/BranchNav'
+import { ChevronLeft } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,12 +13,12 @@ interface Props {
   params: Promise<{ branchId: string }>
 }
 
-export default async function BranchScreensPage({ params }: Props) {
+export default async function BranchCountersPage({ params }: Props) {
   const { branchId } = await params
-  const profile = await requireProfile()
-  const [branch, screens] = await Promise.all([
+  const profile = await requireAdmin()
+  const [branch, counters] = await Promise.all([
     getBranch(branchId, profile.customerId),
-    getScreens(branchId, profile.customerId),
+    getCounters(profile.customerId, branchId),
   ])
 
   if (!branch) notFound()
@@ -33,9 +33,9 @@ export default async function BranchScreensPage({ params }: Props) {
           </Link>
           <h1 className="text-xl font-semibold text-gray-900">{branch.name}</h1>
         </div>
-        <BranchNav branchId={branchId} active="screens" />
+        <BranchNav branchId={branchId} active="counters" />
       </div>
-      <ScreensManager branchId={branchId} initialScreens={screens} />
+      <CountersManager branchId={branchId} initialCounters={counters} />
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { requireProfile } from '@/lib/dal/session'
 import { getBranch } from '@/lib/dal/branches'
 import { BranchSettingsForm } from '@/components/admin/BranchSettingsForm'
 import { ChevronLeft } from 'lucide-react'
+import { BranchNav } from '@/components/admin/BranchNav'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,19 +20,20 @@ export default async function BranchSettingsPage({ params }: Props) {
   if (!branch) notFound()
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <Link
-          href={`/branches/${branchId}`}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-gray-700 mb-2"
-        >
-          <ChevronLeft className="size-3.5" />
-          Back to {branch.name}
-        </Link>
-        <h1 className="text-xl font-bold text-gray-900">Branch Settings</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">{branch.name}</p>
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div>
+          <Link href="/branches" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-gray-700 mb-1 w-fit">
+            <ChevronLeft className="size-3.5" />
+            Branches
+          </Link>
+          <h1 className="text-xl font-semibold text-gray-900">{branch.name}</h1>
+        </div>
+        <BranchNav branchId={branchId} active="settings" />
       </div>
-      <BranchSettingsForm branch={branch} />
+      <div className="max-w-2xl">
+        <BranchSettingsForm branch={branch} />
+      </div>
     </div>
   )
 }

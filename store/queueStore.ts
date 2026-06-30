@@ -183,6 +183,7 @@ export const useQueueStore = create<QueueState>()(
           callCount: 0,
           recallCount: 0,
           notes: "",
+          kitchenStatus: 'pending',
           createdAt: now,
         }
 
