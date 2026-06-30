@@ -23,7 +23,6 @@ function getTitle(pathname: string): string {
 
 export function TopBar() {
   const pathname = usePathname()
-  const router = useRouter()
   const title = getTitle(pathname)
   const [open, setOpen] = useState(false)
   const { canInstall, install } = usePWAInstall()
