@@ -130,6 +130,7 @@ export interface DbCounter {
   type: CounterType
   counter_token: string
   is_active: boolean
+  last_seen_at: string | null
   created_at: string
   updated_at: string
 }
@@ -326,7 +327,18 @@ export interface CounterDTO {
   type: CounterType
   token: string
   isActive: boolean
+  lastSeenAt: string | null
   createdAt: string
+}
+
+// Sanitized shape returned by the get_branch_counter_presence RPC —
+// deliberately excludes counter_token/customer_id (see migration).
+export interface CounterPresenceEntry {
+  id: string
+  name: string
+  type: CounterType
+  isActive: boolean
+  lastSeenAt: string | null
 }
 
 export interface QueueStateDTO {
@@ -572,6 +584,7 @@ export function toCounterDTO(row: DbCounter): CounterDTO {
     type: row.type,
     token: row.counter_token,
     isActive: row.is_active,
+    lastSeenAt: row.last_seen_at,
     createdAt: row.created_at,
   }
 }

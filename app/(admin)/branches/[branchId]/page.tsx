@@ -67,9 +67,9 @@ export default async function BranchPage({ params }: Props) {
           </Suspense>
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 h-96">
           <Suspense fallback={<div className="h-64 rounded-xl bg-muted animate-pulse" />}>
-            <ActivityFeedServer logs={logs} />
+            <ActivityFeedServer logs={logs} viewAllHref={`/branches/${branchId}/logs`} />
           </Suspense>
         </div>
       </div>

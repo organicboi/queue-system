@@ -109,8 +109,8 @@ export default async function DashboardPage() {
             ))}
           </div>
 
-          <div className="h-72">
-            <ActivityFeedServer logs={recentLogs} />
+          <div className="h-96">
+            <ActivityFeedServer logs={recentLogs} viewAllHref={`/branches/${firstBranch.id}/logs`} />
           </div>
         </>
       )}

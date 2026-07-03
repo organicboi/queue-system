@@ -41,6 +41,23 @@ async function broadcastDisplaySignal(
   } catch { /* non-critical */ }
 }
 
+// ── Presence heartbeat ──────────────────────────────────────────
+// Called periodically by the counter page while it's open in a browser
+// tab, so admins/other counters can tell whether staff are actually
+// looking at it right now vs. it being left open-but-unattended.
+export async function counterHeartbeatAction(counterToken: string): Promise<{ error?: string }> {
+  const counter = await verifyCounterToken(counterToken)
+  if (!counter) return { error: 'Invalid or inactive counter' }
+
+  const supabase = createSupabaseServiceClient()
+  await supabase
+    .from('counters')
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq('id', counter.id)
+
+  return {}
+}
+
 // ── Counter Queue Actions (authenticated by counter token) ─────
 
 // Kitchen counter updates its own kitchen_status lifecycle
@@ -169,6 +186,100 @@ export async function counterCallNextAction(
     queue_number: next.queue_number,
     bill_number: next.bill_number,
     message: `Queue #${next.queue_number} called via ${counter.type} counter`,
+  })
+
+  return {}
+}
+
+// Call or recall a specific entry (billing/delivery counters).
+// First call on a waiting, kitchen-ready entry brings it "to the counter";
+// calling the same in-progress entry again counts as a recall.
+export async function counterCallEntryAction(
+  entryId: string,
+  branchId: string,
+  counterToken: string
+): Promise<{ error?: string }> {
+  const counter = await verifyCounterToken(counterToken)
+  if (!counter || counter.branch_id !== branchId) return { error: 'Invalid or inactive counter' }
+  if (counter.type === 'kitchen') return { error: 'Kitchen counter does not use call/recall' }
+
+  const supabase = createSupabaseServiceClient()
+  const now = new Date().toISOString()
+
+  const { data: entryRow } = await supabase
+    .from('queue_entries')
+    .select('*')
+    .eq('id', entryId)
+    .eq('branch_id', branchId)
+    .single()
+
+  if (!entryRow) return { error: 'Entry not found' }
+  const entry = entryRow as DbQueueEntry
+
+  if (entry.status !== 'waiting' && entry.status !== 'in-progress') {
+    return { error: 'Order is no longer in queue' }
+  }
+  if (entry.status === 'waiting' && entry.kitchen_status !== 'ready') {
+    return { error: 'Order is not ready yet' }
+  }
+
+  const newCallCount = (entry.call_count ?? 0) + 1
+  const isRecall = entry.status === 'in-progress'
+
+  const { data: stateRow } = await supabase
+    .from('queue_state')
+    .select('current_serving_number')
+    .eq('branch_id', branchId)
+    .single()
+
+  const currentNumber = (stateRow as DbQueueState | null)?.current_serving_number ?? 0
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ops: PromiseLike<any>[] = [
+    supabase.from('queue_entries').update({
+      call_count: newCallCount,
+      ...(isRecall
+        ? { recall_count: (entry.recall_count ?? 0) + 1 }
+        : { status: 'in-progress', started_at: now }),
+    }).eq('id', entry.id),
+  ]
+
+  if (!isRecall) {
+    if (currentNumber > 0 && currentNumber !== entry.queue_number) {
+      ops.push(
+        supabase.from('queue_entries')
+          .update({ status: 'completed', completed_at: now })
+          .eq('branch_id', branchId)
+          .eq('queue_number', currentNumber)
+          .eq('status', 'in-progress')
+      )
+    }
+    ops.push(
+      supabase.from('queue_state')
+        .update({ current_serving_number: entry.queue_number, updated_at: now })
+        .eq('branch_id', branchId)
+    )
+  }
+
+  await Promise.all(ops)
+
+  await broadcastDisplaySignal(branchId, isRecall ? 'customer-recalled' : 'customer-called', {
+    queueNumber: entry.queue_number,
+    billNumber: entry.bill_number,
+    callCount: newCallCount,
+  })
+
+  await supabase.from('activity_logs').insert({
+    customer_id: counter.customer_id,
+    branch_id: branchId,
+    entry_id: entry.id,
+    source: 'admin',
+    type: isRecall ? 'recalled' : 'called',
+    queue_number: entry.queue_number,
+    bill_number: entry.bill_number,
+    message: isRecall
+      ? `Queue #${entry.queue_number} recalled via ${counter.type} counter (×${newCallCount})`
+      : `Queue #${entry.queue_number} called via ${counter.type} counter`,
   })
 
   return {}

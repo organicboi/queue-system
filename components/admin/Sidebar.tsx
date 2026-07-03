@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
 import { logoutAction } from '@/lib/actions/auth'
 import {
-  LayoutDashboard, GitBranch, Users, BarChart2, Settings, LogOut, ListOrdered, MonitorSmartphone,
+  LayoutDashboard, GitBranch, Users, BarChart2, Settings, LogOut, ListOrdered, MonitorSmartphone, Eye,
 } from 'lucide-react'
 
 const navItems = [
@@ -78,6 +78,15 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         >
           <MonitorSmartphone className="size-4 shrink-0" />
           Business Mode
+        </Link>
+        <Link
+          href="/owner"
+          target="_blank"
+          onClick={onNavigate}
+          className="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+        >
+          <Eye className="size-4 shrink-0" />
+          Owner Mode
         </Link>
         <form action={logoutAction}>
           <button

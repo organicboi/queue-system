@@ -1,5 +1,5 @@
 import { requireAdmin } from '@/lib/dal/session'
-import { getUsers } from '@/lib/dal/users'
+import { getUsers, getUserBranchMap } from '@/lib/dal/users'
 import { getBranches } from '@/lib/dal/branches'
 import { UsersManager } from '@/components/admin/UsersManager'
 
@@ -7,9 +7,10 @@ export const dynamic = 'force-dynamic'
 
 export default async function UsersPage() {
   const profile = await requireAdmin()
-  const [users, branches] = await Promise.all([
+  const [users, branches, userBranchMap] = await Promise.all([
     getUsers(profile.customerId),
     getBranches(profile.customerId),
+    getUserBranchMap(profile.customerId),
   ])
 
   return (
@@ -20,7 +21,7 @@ export default async function UsersPage() {
           <p className="text-sm text-muted-foreground mt-0.5">{users.length} team member{users.length !== 1 ? 's' : ''}</p>
         </div>
       </div>
-      <UsersManager users={users} branches={branches} currentUserId={profile.id} />
+      <UsersManager users={users} branches={branches} currentUserId={profile.id} userBranchMap={userBranchMap} />
     </div>
   )
 }

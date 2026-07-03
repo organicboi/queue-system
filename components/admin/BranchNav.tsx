@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { LayoutDashboard, MonitorCheck, Image, Tv, Settings } from 'lucide-react'
+import { LayoutDashboard, MonitorCheck, Image, Tv, ScrollText, Settings } from 'lucide-react'
 
-type Tab = 'overview' | 'counters' | 'ads' | 'screens' | 'settings'
+type Tab = 'overview' | 'counters' | 'ads' | 'screens' | 'logs' | 'settings'
 
 interface Props {
   branchId: string
@@ -13,6 +13,7 @@ const tabs: { id: Tab; label: string; icon: React.ElementType; segment: string }
   { id: 'counters',  label: 'Counters',  icon: MonitorCheck,    segment: '/counters' },
   { id: 'ads',       label: 'Ads',       icon: Image,           segment: '/ads'      },
   { id: 'screens',   label: 'Screens',   icon: Tv,              segment: '/screens'  },
+  { id: 'logs',      label: 'Logs',      icon: ScrollText,      segment: '/logs'     },
   { id: 'settings',  label: 'Settings',  icon: Settings,        segment: '/settings' },
 ]
 

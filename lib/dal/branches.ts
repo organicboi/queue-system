@@ -78,7 +78,7 @@ export const getCustomerBranchStats = cache(async (customerId: string) => {
   const [{ data: entries }, { data: states }, { data: screens }] = await Promise.all([
     supabase
       .from('queue_entries')
-      .select('branch_id, status')
+      .select('branch_id, status, started_at, completed_at')
       .eq('customer_id', customerId)
       .in('branch_id', branchIds)
       .gte('created_at', `${today}T00:00:00`),
@@ -100,6 +100,19 @@ export const getCustomerBranchStats = cache(async (customerId: string) => {
     const state = (states ?? []).find(s => s.branch_id === b.id)
     const screensCount = (screens ?? []).filter(s => s.branch_id === b.id).length
 
+    const completedWithTimes = bEntries.filter(
+      (e): e is typeof e & { started_at: string; completed_at: string } =>
+        e.status === 'completed' && !!e.started_at && !!e.completed_at
+    )
+    const avgWaitMinutes = completedWithTimes.length > 0
+      ? Math.round(
+          completedWithTimes.reduce((sum, e) => {
+            const wait = (new Date(e.completed_at).getTime() - new Date(e.started_at).getTime()) / 60000
+            return sum + wait
+          }, 0) / completedWithTimes.length
+        )
+      : 0
+
     return {
       branchId: b.id,
       branchName: b.name,
@@ -112,6 +125,7 @@ export const getCustomerBranchStats = cache(async (customerId: string) => {
       currentServingNumber: state?.current_serving_number ?? 0,
       isPaused: state?.is_paused ?? false,
       screensCount,
+      avgWaitMinutes,
     }
   })
 })

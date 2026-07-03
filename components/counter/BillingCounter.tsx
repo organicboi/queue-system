@@ -2,25 +2,30 @@
 
 import { useTransition } from 'react'
 import { useRealtimeQueue } from '@/lib/hooks/useRealtimeQueue'
+import { useCounterHeartbeat } from '@/lib/hooks/useCounterPresence'
 import {
   counterCallNextAction,
+  counterCallEntryAction,
   counterCompleteEntryAction,
   counterCancelEntryAction,
 } from '@/lib/actions/counters'
-import { Receipt, SkipForward, CheckCircle2, XCircle, Clock, ChefHat } from 'lucide-react'
+import { Receipt, SkipForward, CheckCircle2, XCircle, Clock, ChefHat, BellRing } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatTime } from '@/lib/queueUtils'
+import { CounterPresenceAlert } from '@/components/counter/CounterPresenceAlert'
 import type { QueueEntryDTO } from '@/lib/db/types'
 
 interface Props {
   branchId: string
+  counterId: string
   counterName: string
   counterToken: string
 }
 
-export function BillingCounter({ branchId, counterName, counterToken }: Props) {
+export function BillingCounter({ branchId, counterId, counterName, counterToken }: Props) {
   const { entries, isPaused, isLoading } = useRealtimeQueue(branchId)
   const [pending, startTransition] = useTransition()
+  useCounterHeartbeat(counterToken)
 
   const readyForBilling = entries
     .filter(e => e.status === 'waiting' && e.kitchenStatus === 'ready')
@@ -38,6 +43,14 @@ export function BillingCounter({ branchId, counterName, counterToken }: Props) {
     startTransition(async () => {
       const result = await counterCallNextAction(branchId, counterToken)
       if (result.error) toast.error(result.error)
+    })
+  }
+
+  function handleRecall(entry: QueueEntryDTO) {
+    startTransition(async () => {
+      const result = await counterCallEntryAction(entry.id, branchId, counterToken)
+      if (result.error) toast.error(result.error)
+      else toast.success(`#${entry.queueNumber} recalled`)
     })
   }
 
@@ -107,6 +120,8 @@ export function BillingCounter({ branchId, counterName, counterToken }: Props) {
           </div>
         ) : (
           <>
+            <CounterPresenceAlert branchId={branchId} selfCounterId={counterId} />
+
             {/* At Counter */}
             {atCounter && (
               <div className="bg-white border border-teal-200 rounded-xl overflow-hidden">
@@ -149,6 +164,25 @@ export function BillingCounter({ branchId, counterName, counterToken }: Props) {
                       <p className="text-sm text-amber-700">{atCounter.notes}</p>
                     </div>
                   )}
+
+                  <button
+                    onClick={() => handleRecall(atCounter)}
+                    disabled={pending}
+                    className="w-full h-11 mb-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all select-none disabled:opacity-40"
+                  >
+                    <BellRing className="size-4" />
+                    Recall
+                  </button>
+
+                  {((atCounter.callCount ?? 0) > 0 || (atCounter.recallCount ?? 0) > 0) && (
+                    <p className="text-xs text-center text-gray-500 font-medium mb-3">
+                      Called <span className="text-gray-700 font-bold">{atCounter.callCount ?? 0}×</span>
+                      {(atCounter.recallCount ?? 0) > 0 && (
+                        <> · Recalled <span className="text-amber-600 font-bold">{atCounter.recallCount}×</span></>
+                      )}
+                    </p>
+                  )}
+
                   <div className="grid grid-cols-4 gap-2">
                     <button
                       onClick={() => handleComplete(atCounter)}

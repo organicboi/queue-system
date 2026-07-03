@@ -26,6 +26,24 @@ export const getUserBranches = cache(async (userId: string, customerId: string):
   return (data ?? []).map(r => r.branch_id as string)
 })
 
+export const getUserBranchMap = cache(async (customerId: string): Promise<Record<string, BranchDTO[]>> => {
+  const supabase = createSupabaseServiceClient()
+  const { data } = await supabase
+    .from('user_branches')
+    .select('user_id, branches(*)')
+    .eq('customer_id', customerId)
+
+  const map: Record<string, BranchDTO[]> = {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (data as any[] ?? [])) {
+    if (!row.branches) continue
+    const branch = toBranchDTO(row.branches as DbBranch)
+    if (!map[row.user_id]) map[row.user_id] = []
+    map[row.user_id].push(branch)
+  }
+  return map
+})
+
 export const getAccessibleBranches = cache(async (profile: ProfileDTO): Promise<BranchDTO[]> => {
   const supabase = createSupabaseServiceClient()
 

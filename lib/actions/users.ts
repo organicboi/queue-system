@@ -10,14 +10,15 @@ import type { UserRole } from '@/lib/db/types'
 const InviteSchema = z.object({
   email: z.string().email(),
   fullName: z.string().min(1).max(100),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
   role: z.enum(['admin', 'branch_user']),
   branchIds: z.array(z.string().uuid()).optional(),
 })
 
 export async function inviteUserAction(
-  _prev: { error?: string },
+  _prev: { error?: string; password?: string; email?: string },
   formData: FormData
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; password?: string; email?: string }> {
   const profile = await requireAdmin()
 
   const branchIdsRaw = formData.get('branchIds')
@@ -28,6 +29,7 @@ export async function inviteUserAction(
   const parsed = InviteSchema.safeParse({
     email: formData.get('email'),
     fullName: formData.get('fullName'),
+    password: formData.get('password'),
     role: formData.get('role'),
     branchIds,
   })
@@ -35,12 +37,9 @@ export async function inviteUserAction(
 
   const service = createSupabaseServiceClient()
 
-  // Generate temp password
-  const tempPassword = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2).toUpperCase() + '!1'
-
   const { data: authUser, error: authErr } = await service.auth.admin.createUser({
     email: parsed.data.email,
-    password: tempPassword,
+    password: parsed.data.password,
     email_confirm: true,
   })
 
@@ -75,7 +74,7 @@ export async function inviteUserAction(
   }
 
   revalidatePath('/users')
-  return {}
+  return { password: parsed.data.password, email: parsed.data.email }
 }
 
 // ── Update user role ──────────────────────────────────────────
@@ -128,6 +127,34 @@ export async function assignUserBranchesAction(
   return {}
 }
 
+// ── Reset user password ─────────────────────────────────────────
+const ResetPasswordSchema = z.object({
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+})
+
+export async function resetUserPasswordAction(userId: string, password: string): Promise<{ error?: string; password?: string }> {
+  const profile = await requireAdmin()
+
+  const parsed = ResetPasswordSchema.safeParse({ password })
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  const service = createSupabaseServiceClient()
+
+  const { data: target } = await service
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .eq('customer_id', profile.customerId)
+    .single()
+
+  if (!target) return { error: 'User not found' }
+
+  const { error } = await service.auth.admin.updateUserById(userId, { password: parsed.data.password })
+  if (error) return { error: 'Failed to reset password' }
+
+  return { password: parsed.data.password }
+}
+
 // ── Deactivate user ───────────────────────────────────────────
 export async function deactivateUserAction(userId: string): Promise<{ error?: string }> {
   const profile = await requireAdmin()
@@ -157,6 +184,40 @@ export async function reactivateUserAction(userId: string): Promise<{ error?: st
     .eq('customer_id', profile.customerId)
 
   if (error) return { error: 'Failed to reactivate user' }
+
+  revalidatePath('/users')
+  return {}
+}
+
+// ── Delete user ────────────────────────────────────────────────
+export async function deleteUserAction(userId: string): Promise<{ error?: string }> {
+  const profile = await requireAdmin()
+
+  if (userId === profile.id) return { error: 'You cannot delete your own account' }
+
+  const service = createSupabaseServiceClient()
+
+  const { data: target } = await service
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .eq('customer_id', profile.customerId)
+    .single()
+
+  if (!target) return { error: 'User not found' }
+
+  await service.from('user_branches').delete().eq('user_id', userId).eq('customer_id', profile.customerId)
+
+  const { error: profileErr } = await service
+    .from('profiles')
+    .delete()
+    .eq('id', userId)
+    .eq('customer_id', profile.customerId)
+
+  if (profileErr) return { error: 'Failed to delete user' }
+
+  const { error: authErr } = await service.auth.admin.deleteUser(userId)
+  if (authErr) return { error: 'User profile deleted, but failed to remove auth account' }
 
   revalidatePath('/users')
   return {}

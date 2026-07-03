@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/db/server'
+import { getProfile } from '@/lib/dal/session'
 
 export interface AuthResult {
   error?: string
@@ -29,7 +30,8 @@ export async function loginAction(_prev: AuthResult, formData: FormData): Promis
   const { error } = await supabase.auth.signInWithPassword(parsed.data)
   if (error) return { error: 'Invalid email or password' }
 
-  redirect('/dashboard')
+  const profile = await getProfile()
+  redirect(profile?.role === 'branch_user' ? '/branch' : '/dashboard')
 }
 
 // ── Logout ────────────────────────────────────────────────────

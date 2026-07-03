@@ -16,9 +16,9 @@ export default async function CounterPage({ params }: Props) {
 
   if (!counter || !counter.isActive) notFound()
 
-  if (counter.type === 'billing')  return <BillingCounter branchId={counter.branchId} counterName={counter.name} counterToken={token} />
-  if (counter.type === 'kitchen')  return <KitchenCounter branchId={counter.branchId} counterName={counter.name} counterToken={token} />
-  if (counter.type === 'delivery') return <DeliveryCounter branchId={counter.branchId} counterName={counter.name} counterToken={token} />
+  if (counter.type === 'billing')  return <BillingCounter branchId={counter.branchId} counterId={counter.id} counterName={counter.name} counterToken={token} />
+  if (counter.type === 'kitchen')  return <KitchenCounter branchId={counter.branchId} counterId={counter.id} counterName={counter.name} counterToken={token} />
+  if (counter.type === 'delivery') return <DeliveryCounter branchId={counter.branchId} counterId={counter.id} counterName={counter.name} counterToken={token} />
 
   notFound()
 }

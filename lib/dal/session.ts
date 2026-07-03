@@ -79,6 +79,12 @@ export const requireAdmin = cache(async (): Promise<ProfileDTO> => {
   return profile
 })
 
+export const requireBranchUser = cache(async (): Promise<ProfileDTO> => {
+  const profile = await requireProfile()
+  if (profile.role !== 'branch_user') throw new Error('Branch user access required')
+  return profile
+})
+
 export async function verifyDistributor(): Promise<boolean> {
   const { cookies } = await import('next/headers')
   const cookieStore = await cookies()

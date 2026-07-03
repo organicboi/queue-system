@@ -34,7 +34,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/branches') ||
     pathname.startsWith('/settings') ||
     pathname.startsWith('/users') ||
-    pathname.startsWith('/analytics')
+    pathname.startsWith('/analytics') ||
+    pathname.startsWith('/branch')
 
   if (isAdminRoute && !session) {
     return NextResponse.redirect(new URL('/login', request.url))

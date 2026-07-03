@@ -4,7 +4,12 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createSupabaseServiceClient } from '@/lib/db/server'
 import { requireProfile } from '@/lib/dal/session'
-import { toQueueEntryDTO, type QueueEntryDTO, type DbQueueEntry, type DbQueueState } from '@/lib/db/types'
+import { getBranches } from '@/lib/dal/branches'
+import {
+  getActivityLogsForExport, getActivityLogsForExportByCustomer,
+  type ActivityLogFilters,
+} from '@/lib/dal/queue'
+import { toQueueEntryDTO, type QueueEntryDTO, type ActivityLogDTO, type DbQueueEntry, type DbQueueState } from '@/lib/db/types'
 
 export interface QueueActionResult {
   error?: string
@@ -663,4 +668,49 @@ export async function toggleQueuePauseAction(branchId: string): Promise<{ error?
   revalidatePath('/dashboard')
   revalidatePath(`/branches/${branchId}`)
   return {}
+}
+
+// ── Export activity logs (CSV) ────────────────────────────────
+export interface ExportLogsResult {
+  error?: string
+  csv?: string
+}
+
+function activityLogsToCsv(logs: ActivityLogDTO[]): string {
+  const escape = (v: string | number) => {
+    const s = String(v)
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const header = ['Time', 'Type', 'Queue #', 'Bill #', 'Source', 'Message']
+  const rows = logs.map((l) =>
+    [l.createdAt, l.type, l.queueNumber, l.billNumber, l.source, l.message].map(escape).join(',')
+  )
+  return [header.join(','), ...rows].join('\n')
+}
+
+export async function exportActivityLogsAction(
+  branchId: string,
+  filters: ActivityLogFilters
+): Promise<ExportLogsResult> {
+  const profile = await requireProfile()
+  const supabase = createSupabaseServiceClient()
+
+  const branch = await verifyBranchAccess(supabase, branchId, profile.customerId)
+  if (!branch) return { error: 'Access denied' }
+
+  const logs = await getActivityLogsForExport(branchId, filters)
+  return { csv: activityLogsToCsv(logs) }
+}
+
+export async function exportActivityLogsForCustomerAction(
+  filters: ActivityLogFilters & { branchId?: string }
+): Promise<ExportLogsResult> {
+  const profile = await requireProfile()
+  const branches = await getBranches(profile.customerId)
+  const branchIds = branches.filter((b) => b.isActive).map((b) => b.id)
+
+  if (filters.branchId && !branchIds.includes(filters.branchId)) return { error: 'Access denied' }
+
+  const logs = await getActivityLogsForExportByCustomer(profile.customerId, branchIds, filters)
+  return { csv: activityLogsToCsv(logs) }
 }

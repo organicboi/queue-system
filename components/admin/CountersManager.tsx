@@ -15,6 +15,8 @@ import type { CounterActionResult } from '@/lib/actions/counters'
 import { Receipt, ChefHat, Truck, Plus, Copy, RefreshCw, Trash2, ExternalLink, Power, PowerOff } from 'lucide-react'
 import { toast } from 'sonner'
 import type { CounterDTO, CounterType } from '@/lib/db/types'
+import { useCounterPresence } from '@/lib/hooks/useCounterPresence'
+import { formatRelativeTime } from '@/lib/queueUtils'
 
 interface Props {
   branchId: string
@@ -31,6 +33,7 @@ const INIT_CREATE: CounterActionResult = {}
 
 export function CountersManager({ branchId, initialCounters }: Props) {
   const [counters, setCounters] = useState(initialCounters)
+  const presence = useCounterPresence(branchId)
   const [open, setOpen] = useState(false)
   const [createState, createAction, createPending] = useActionState(createCounterAction, INIT_CREATE)
   const [, startTransition] = useTransition()
@@ -143,6 +146,8 @@ export function CountersManager({ branchId, initialCounters }: Props) {
         <div className="space-y-3">
           {counters.map((counter) => {
             const meta = COUNTER_META[counter.type]
+            const live = presence.find(p => p.id === counter.id)
+            const isOnline = counter.isActive && (live?.isOnline ?? false)
             return (
               <div
                 key={counter.id}
@@ -164,10 +169,26 @@ export function CountersManager({ branchId, initialCounters }: Props) {
                             Inactive
                           </span>
                         )}
+                        {counter.isActive && (
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                              isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'
+                            }`}
+                            title={isOnline ? 'Someone has this counter open right now' : 'No one appears to have this counter open'}
+                          >
+                            <span className={`size-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+                            {isOnline ? 'Online' : 'Offline'}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 font-mono truncate max-w-xs">
                         /counter/{counter.token}
                       </p>
+                      {counter.isActive && !isOnline && live?.lastSeenAt && (
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          Last seen {formatRelativeTime(live.lastSeenAt)}
+                        </p>
+                      )}
                     </div>
                   </div>
 

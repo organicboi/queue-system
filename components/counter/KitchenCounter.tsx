@@ -2,13 +2,16 @@
 
 import { useTransition } from 'react'
 import { useRealtimeQueue } from '@/lib/hooks/useRealtimeQueue'
+import { useCounterHeartbeat } from '@/lib/hooks/useCounterPresence'
 import { counterUpdateKitchenStatusAction } from '@/lib/actions/counters'
 import { ChefHat, Flame, CheckCircle2, Clock } from 'lucide-react'
 import { toast } from 'sonner'
+import { CounterPresenceAlert } from '@/components/counter/CounterPresenceAlert'
 import type { QueueEntryDTO } from '@/lib/db/types'
 
 interface Props {
   branchId: string
+  counterId: string
   counterName: string
   counterToken: string
 }
@@ -128,9 +131,10 @@ function PreparingCard({ entry, onReady, pending }: {
   )
 }
 
-export function KitchenCounter({ branchId, counterName, counterToken }: Props) {
+export function KitchenCounter({ branchId, counterId, counterName, counterToken }: Props) {
   const { entries, isLoading } = useRealtimeQueue(branchId)
   const [pending, startTransition] = useTransition()
+  useCounterHeartbeat(counterToken)
 
   const newOrders = entries
     .filter(e => e.status === 'waiting' && e.kitchenStatus === 'pending')
@@ -198,7 +202,9 @@ export function KitchenCounter({ branchId, counterName, counterToken }: Props) {
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-3 md:px-4 lg:px-6 py-4 md:py-5">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-3 md:px-4 lg:px-6 py-4 md:py-5 space-y-4">
+        {!isLoading && <CounterPresenceAlert branchId={branchId} selfCounterId={counterId} />}
+
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24">
             <ChefHat className="size-10 mb-3 animate-pulse text-gray-300" />

@@ -9,6 +9,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const profile = await getProfile()
   if (!profile) redirect('/onboard')
+  if (profile.role !== 'admin') redirect('/branch')
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

@@ -93,3 +93,23 @@ export function generateTrackingUrl(token: string): string {
   }
   return `http://localhost:3000/track/${token}`
 }
+
+// ── Activity log explorer ──────────────────────────────────────
+export const ACTIVITY_LOG_PAGE_SIZE = 50
+
+export function rangeToDates(range: string): { from?: string; to?: string } {
+  const now = new Date()
+  switch (range) {
+    case "today": {
+      const start = new Date(now)
+      start.setHours(0, 0, 0, 0)
+      return { from: start.toISOString() }
+    }
+    case "7d":
+      return { from: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString() }
+    case "30d":
+      return { from: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString() }
+    default:
+      return {}
+  }
+}
