@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { requireBranchUser } from '@/lib/dal/session'
-import { getAccessibleBranches } from '@/lib/dal/users'
+import { getAssignedBranch } from '@/lib/dal/users'
 import { getDashboardStats, getTodayEntries, getRecentActivity, getQueueState } from '@/lib/dal/queue'
 import { DashboardMetrics } from '@/components/admin/DashboardMetrics'
 import { LiveQueuePanel } from '@/components/admin/LiveQueuePanel'
@@ -12,8 +12,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function BranchOverviewPage() {
   const profile = await requireBranchUser()
-  const branches = await getAccessibleBranches(profile)
-  const branch = branches[0]
+  const branch = await getAssignedBranch(profile)
   if (!branch) notFound()
 
   const [stats, queueState, entries, logs] = await Promise.all([

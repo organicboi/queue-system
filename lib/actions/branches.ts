@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createSupabaseServiceClient } from '@/lib/db/server'
-import { requireAdmin } from '@/lib/dal/session'
+import { requireAdmin, requireBranchManager } from '@/lib/dal/session'
+import { ACTIVE_BRANCH_COOKIE } from '@/lib/dal/branches'
 import { toBranchDTO, toScreenDTO, type BranchDTO, type ScreenDTO, type DbBranch, type DbScreen, type AnnouncementLang } from '@/lib/db/types'
 
 export interface BranchActionResult {
@@ -72,6 +73,33 @@ export async function createBranchAction(
   return { branch }
 }
 
+// ── Set the admin's active branch (drives /dashboard + the TopBar switcher) ──
+export async function setActiveBranchAction(branchId: string): Promise<{ error?: string }> {
+  const profile = await requireAdmin()
+  const supabase = createSupabaseServiceClient()
+
+  const { data: branch } = await supabase
+    .from('branches')
+    .select('id')
+    .eq('id', branchId)
+    .eq('customer_id', profile.customerId)
+    .single()
+
+  if (!branch) return { error: 'Branch not found' }
+
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  cookieStore.set(ACTIVE_BRANCH_COOKIE, branchId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+  })
+
+  return {}
+}
+
 // ── Update branch ─────────────────────────────────────────────
 const UpdateBranchSchema = z.object({
   branchId: z.string().uuid(),
@@ -128,8 +156,6 @@ export async function updateBranchSettingsAction(
   _prev: { error?: string },
   formData: FormData
 ): Promise<{ error?: string }> {
-  const profile = await requireAdmin()
-
   const parsed = BranchSettingsSchema.safeParse({
     branchId: formData.get('branchId'),
     queueLabel: formData.get('queueLabel') || undefined,
@@ -142,6 +168,13 @@ export async function updateBranchSettingsAction(
     tickerText: formData.get('tickerText') || undefined,
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  let profile
+  try {
+    profile = await requireBranchManager(parsed.data.branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
 
   const supabase = createSupabaseServiceClient()
   const { branchId, ...updates } = parsed.data
@@ -198,13 +231,19 @@ export async function createScreenAction(
   _prev: { error?: string; screen?: ScreenDTO },
   formData: FormData
 ): Promise<{ error?: string; screen?: ScreenDTO }> {
-  const profile = await requireAdmin()
   const parsed = CreateScreenSchema.safeParse({
     branchId: formData.get('branchId'),
     name: formData.get('name'),
     orientation: formData.get('orientation') || undefined,
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  let profile
+  try {
+    profile = await requireBranchManager(parsed.data.branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
 
   const supabase = createSupabaseServiceClient()
 
@@ -273,7 +312,6 @@ export async function updateScreenAction(
   _prev: { error?: string },
   formData: FormData
 ): Promise<{ error?: string }> {
-  const profile = await requireAdmin()
   const parsed = UpdateScreenSchema.safeParse({
     screenId: formData.get('screenId'),
     branchId: formData.get('branchId'),
@@ -288,6 +326,13 @@ export async function updateScreenAction(
     orientation: formData.get('orientation') || undefined,
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  let profile
+  try {
+    profile = await requireBranchManager(parsed.data.branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
 
   const supabase = createSupabaseServiceClient()
   const { screenId, branchId, ...updates } = parsed.data
@@ -320,7 +365,12 @@ export async function regenerateScreenTokenAction(
   screenId: string,
   branchId: string
 ): Promise<{ error?: string; token?: string }> {
-  const profile = await requireAdmin()
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
   const supabase = createSupabaseServiceClient()
 
   const { data, error } = await supabase.rpc('regenerate_screen_token', { p_screen_id: screenId })
@@ -353,7 +403,12 @@ export async function updateScreenAnnouncementLangAction(
   branchId: string,
   lang: AnnouncementLang
 ): Promise<{ error?: string }> {
-  const profile = await requireAdmin()
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
   const supabase = createSupabaseServiceClient()
 
   const { error } = await supabase
@@ -370,7 +425,12 @@ export async function updateScreenAnnouncementLangAction(
 
 // ── Delete screen ─────────────────────────────────────────────
 export async function deleteScreenAction(screenId: string, branchId: string): Promise<{ error?: string }> {
-  const profile = await requireAdmin()
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
   const supabase = createSupabaseServiceClient()
 
   const { error } = await supabase

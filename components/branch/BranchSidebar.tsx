@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { logoutAction } from '@/lib/actions/auth'
 import {
-  LayoutDashboard, MonitorCheck, Image, Tv, ScrollText, LogOut, ListOrdered,
+  LayoutDashboard, MonitorCheck, Image, Tv, ScrollText, LogOut, ListOrdered, MonitorSmartphone,
 } from 'lucide-react'
 
 const navItems = [
@@ -61,7 +61,16 @@ export function BranchSidebar({ branchName, onNavigate }: BranchSidebarProps) {
         })}
       </nav>
 
-      <div className="border-t border-sidebar-border p-3">
+      <div className="border-t border-sidebar-border p-3 space-y-1">
+        <Link
+          href="/business"
+          target="_blank"
+          onClick={onNavigate}
+          className="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+        >
+          <MonitorSmartphone className="size-4 shrink-0" />
+          Business
+        </Link>
         <form action={logoutAction}>
           <button
             type="submit"

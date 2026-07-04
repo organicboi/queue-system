@@ -9,7 +9,7 @@ import { useSupabaseQueue } from "@/lib/useSupabaseQueue"
 import { flipNumber } from "@/lib/animations"
 import { createSupabaseBrowserClient } from "@/lib/db/browser"
 import type { TVTheme } from "@/components/display/displayThemes"
-import type { AnnouncementLang } from "@/lib/db/types"
+import type { AnnouncementLang, AdDTO, TickerMessageDTO } from "@/lib/db/types"
 
 interface CalledInfo {
   queueNumber: number
@@ -25,9 +25,11 @@ interface Props {
   tickerText?: string
   branchId: string
   announcementLang?: AnnouncementLang
+  ads?: AdDTO[]
+  tickers?: TickerMessageDTO[]
 }
 
-export function TVDisplay({ theme, businessName, businessType, tickerText, branchId, announcementLang = 'en' }: Props) {
+export function TVDisplay({ theme, businessName, businessType, tickerText, branchId, announcementLang = 'en', ads, tickers }: Props) {
   const { entries, currentServingNumber } = useSupabaseQueue(branchId)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [calledInfo, setCalledInfo] = useState<CalledInfo | null>(null)
@@ -424,7 +426,7 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
 
         {/* RIGHT — 60% AD PANEL */}
         <div className="overflow-hidden" style={{ flex: 1 }}>
-          <AdPanel />
+          <AdPanel ads={ads} />
         </div>
       </div>
 
@@ -436,6 +438,7 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
         chipText={theme.tickerChipText}
         textColor={theme.tickerText}
         customText={tickerText}
+        tickers={tickers}
       />
     </div>
   )

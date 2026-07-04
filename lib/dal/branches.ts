@@ -16,6 +16,23 @@ export const getBranches = cache(async (customerId: string): Promise<BranchDTO[]
   return (data as DbBranch[] ?? []).map(toBranchDTO)
 })
 
+export const ACTIVE_BRANCH_COOKIE = 'active_branch_id'
+
+// The admin's "currently active" branch — drives the /dashboard redirect and
+// the TopBar branch switcher. Falls back to the first branch if the cookie is
+// missing, stale (deleted branch), or points at a branch from another tenant.
+export async function getActiveBranchId(customerId: string): Promise<string | null> {
+  const branches = await getBranches(customerId)
+  if (branches.length === 0) return null
+
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  const fromCookie = cookieStore.get(ACTIVE_BRANCH_COOKIE)?.value
+
+  if (fromCookie && branches.some((b) => b.id === fromCookie)) return fromCookie
+  return branches[0].id
+}
+
 export const getBranch = cache(async (branchId: string, customerId: string): Promise<BranchDTO> => {
   const supabase = createSupabaseServiceClient()
   const { data, error } = await supabase

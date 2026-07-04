@@ -12,21 +12,16 @@ import {
   deleteCounterAction,
 } from '@/lib/actions/counters'
 import type { CounterActionResult } from '@/lib/actions/counters'
-import { Receipt, ChefHat, Truck, Plus, Copy, RefreshCw, Trash2, ExternalLink, Power, PowerOff } from 'lucide-react'
+import { Receipt, Plus, Copy, RefreshCw, Trash2, ExternalLink, Power, PowerOff } from 'lucide-react'
 import { toast } from 'sonner'
-import type { CounterDTO, CounterType } from '@/lib/db/types'
+import type { CounterDTO } from '@/lib/db/types'
 import { useCounterPresence } from '@/lib/hooks/useCounterPresence'
 import { formatRelativeTime } from '@/lib/queueUtils'
+import { COUNTER_META } from '@/lib/counterMeta'
 
 interface Props {
   branchId: string
   initialCounters: CounterDTO[]
-}
-
-const COUNTER_META: Record<CounterType, { label: string; icon: React.ReactNode; color: string; bg: string }> = {
-  billing:  { label: 'Billing',  icon: <Receipt className="size-4" />,  color: 'text-emerald-600', bg: 'bg-emerald-50' },
-  kitchen:  { label: 'Kitchen',  icon: <ChefHat className="size-4" />,  color: 'text-orange-600',  bg: 'bg-orange-50'  },
-  delivery: { label: 'Delivery', icon: <Truck className="size-4" />,    color: 'text-blue-600',    bg: 'bg-blue-50'    },
 }
 
 const INIT_CREATE: CounterActionResult = {}
@@ -114,12 +109,13 @@ export function CountersManager({ branchId, initialCounters }: Props) {
                 <select
                   id="type"
                   name="type"
-                  defaultValue="billing"
+                  defaultValue="order"
                   className="w-full h-9 rounded-md border border-border bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
                 >
+                  <option value="order">Order — take orders &amp; issue queue numbers</option>
                   <option value="billing">Billing — payment &amp; billing</option>
-                  <option value="kitchen">Kitchen — food preparation</option>
-                  <option value="delivery">Delivery — pickup &amp; delivery</option>
+                  <option value="kitchen">Kitchen — food preparation (optional)</option>
+                  <option value="delivery">Delivery — pickup &amp; delivery (optional)</option>
                 </select>
               </div>
               {createState.error && <p className="text-sm text-red-600">{createState.error}</p>}

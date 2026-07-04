@@ -6,15 +6,16 @@ import { cn } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
 import { logoutAction } from '@/lib/actions/auth'
 import {
-  LayoutDashboard, GitBranch, Users, BarChart2, Settings, LogOut, ListOrdered, MonitorSmartphone, Eye,
+  LayoutDashboard, GitBranch, Users, BarChart2, Settings, LogOut, ListOrdered, MonitorSmartphone, Eye, Image,
 } from 'lucide-react'
 
 const navItems = [
-  { href: '/dashboard',  label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/branches',   label: 'Branches',  icon: GitBranch },
-  { href: '/users',      label: 'Users',     icon: Users },
-  { href: '/analytics',  label: 'Analytics', icon: BarChart2 },
-  { href: '/settings',   label: 'Settings',  icon: Settings },
+  { href: '/dashboard',  label: 'Dashboard',   icon: LayoutDashboard },
+  { href: '/branches',   label: 'Branches',    icon: GitBranch },
+  { href: '/ads',        label: 'Common Ads',  icon: Image },
+  { href: '/users',      label: 'Users',       icon: Users },
+  { href: '/analytics',  label: 'Analytics',   icon: BarChart2 },
+  { href: '/settings',   label: 'Settings',    icon: Settings },
 ]
 
 interface SidebarProps {
@@ -25,7 +26,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const pathname = usePathname()
 
   const branchMatch = pathname.match(/^\/branches\/([^/]+)/)
-  const businessModeHref = branchMatch ? `/serve/${branchMatch[1]}` : '/branches'
+  const businessModeHref = branchMatch ? `/business/${branchMatch[1]}` : '/business'
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
@@ -77,7 +78,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           className="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
         >
           <MonitorSmartphone className="size-4 shrink-0" />
-          Business Mode
+          Business
         </Link>
         <Link
           href="/owner"

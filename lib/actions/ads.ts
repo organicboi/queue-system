@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createSupabaseServiceClient } from '@/lib/db/server'
-import { requireAdmin } from '@/lib/dal/session'
+import { requireAdmin, requireBranchManager } from '@/lib/dal/session'
 
 // ── Create ad ─────────────────────────────────────────────────
 const AdSchema = z.object({
@@ -18,7 +18,6 @@ export async function createAdAction(
   _prev: { error?: string },
   formData: FormData
 ): Promise<{ error?: string }> {
-  const profile = await requireAdmin()
   const parsed = AdSchema.safeParse({
     branchId: formData.get('branchId'),
     name: formData.get('name'),
@@ -27,6 +26,13 @@ export async function createAdAction(
     durationSeconds: formData.get('durationSeconds') || undefined,
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  let profile
+  try {
+    profile = await requireBranchManager(parsed.data.branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
 
   const supabase = createSupabaseServiceClient()
 
@@ -67,7 +73,12 @@ export async function createAdAction(
 
 // ── Toggle ad active ──────────────────────────────────────────
 export async function toggleAdActiveAction(adId: string, branchId: string): Promise<{ error?: string }> {
-  const profile = await requireAdmin()
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
   const supabase = createSupabaseServiceClient()
 
   const { data: ad } = await supabase
@@ -93,7 +104,12 @@ export async function toggleAdActiveAction(adId: string, branchId: string): Prom
 
 // ── Delete ad ─────────────────────────────────────────────────
 export async function deleteAdAction(adId: string, branchId: string): Promise<{ error?: string }> {
-  const profile = await requireAdmin()
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
   const supabase = createSupabaseServiceClient()
 
   const { error } = await supabase
@@ -110,7 +126,12 @@ export async function deleteAdAction(adId: string, branchId: string): Promise<{ 
 
 // ── Reorder ads ───────────────────────────────────────────────
 export async function reorderAdsAction(branchId: string, orderedIds: string[]): Promise<{ error?: string }> {
-  const profile = await requireAdmin()
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
   const supabase = createSupabaseServiceClient()
 
   await Promise.all(
@@ -137,12 +158,18 @@ export async function createTickerAction(
   _prev: { error?: string },
   formData: FormData
 ): Promise<{ error?: string }> {
-  const profile = await requireAdmin()
   const parsed = TickerSchema.safeParse({
     branchId: formData.get('branchId'),
     message: formData.get('message'),
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  let profile
+  try {
+    profile = await requireBranchManager(parsed.data.branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
 
   const supabase = createSupabaseServiceClient()
 
@@ -172,7 +199,12 @@ export async function createTickerAction(
 
 // ── Toggle ticker active ──────────────────────────────────────
 export async function toggleTickerActiveAction(tickerId: string, branchId: string): Promise<{ error?: string }> {
-  const profile = await requireAdmin()
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
   const supabase = createSupabaseServiceClient()
 
   const { data: ticker } = await supabase
@@ -198,7 +230,12 @@ export async function toggleTickerActiveAction(tickerId: string, branchId: strin
 
 // ── Delete ticker message ──────────────────────────────────────
 export async function deleteTickerAction(tickerId: string, branchId: string): Promise<{ error?: string }> {
-  const profile = await requireAdmin()
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
   const supabase = createSupabaseServiceClient()
 
   const { error } = await supabase
@@ -210,5 +247,145 @@ export async function deleteTickerAction(tickerId: string, branchId: string): Pr
   if (error) return { error: 'Failed to delete ticker message' }
 
   revalidatePath(`/branches/${branchId}/ads`)
+  return {}
+}
+
+// ── Create common (customer-wide) ad ───────────────────────────
+// Unlike branch-scoped ads, a common ad shows up on every branch's screens
+// (unless a screen has its own explicit picks), so this stays admin-only.
+const CommonAdSchema = z.object({
+  name: z.string().min(1).max(100),
+  fileUrl: z.string().url(),
+  fileType: z.enum(['image', 'video']),
+  durationSeconds: z.coerce.number().int().min(3).max(120).optional(),
+})
+
+export async function createCommonAdAction(
+  _prev: { error?: string },
+  formData: FormData
+): Promise<{ error?: string }> {
+  const profile = await requireAdmin()
+  const parsed = CommonAdSchema.safeParse({
+    name: formData.get('name'),
+    fileUrl: formData.get('fileUrl'),
+    fileType: formData.get('fileType'),
+    durationSeconds: formData.get('durationSeconds') || undefined,
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  const supabase = createSupabaseServiceClient()
+
+  const { data: last } = await supabase
+    .from('ads')
+    .select('display_order')
+    .eq('customer_id', profile.customerId)
+    .is('branch_id', null)
+    .order('display_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const displayOrder = ((last?.display_order ?? 0) as number) + 1
+
+  const { error } = await supabase.from('ads').insert({
+    customer_id: profile.customerId,
+    branch_id: null,
+    name: parsed.data.name,
+    file_url: parsed.data.fileUrl,
+    file_type: parsed.data.fileType,
+    duration_seconds: parsed.data.durationSeconds ?? 8,
+    display_order: displayOrder,
+  })
+
+  if (error) return { error: 'Failed to create ad' }
+
+  revalidatePath('/ads')
+  return {}
+}
+
+export async function toggleCommonAdActiveAction(adId: string): Promise<{ error?: string }> {
+  const profile = await requireAdmin()
+  const supabase = createSupabaseServiceClient()
+
+  const { data: ad } = await supabase
+    .from('ads')
+    .select('is_active')
+    .eq('id', adId)
+    .eq('customer_id', profile.customerId)
+    .is('branch_id', null)
+    .single()
+
+  if (!ad) return { error: 'Ad not found' }
+
+  const { error } = await supabase
+    .from('ads')
+    .update({ is_active: !ad.is_active, updated_at: new Date().toISOString() })
+    .eq('id', adId)
+    .eq('customer_id', profile.customerId)
+
+  if (error) return { error: 'Failed to update ad' }
+
+  revalidatePath('/ads')
+  return {}
+}
+
+export async function deleteCommonAdAction(adId: string): Promise<{ error?: string }> {
+  const profile = await requireAdmin()
+  const supabase = createSupabaseServiceClient()
+
+  const { error } = await supabase
+    .from('ads')
+    .delete()
+    .eq('id', adId)
+    .eq('customer_id', profile.customerId)
+    .is('branch_id', null)
+
+  if (error) return { error: 'Failed to delete ad' }
+
+  revalidatePath('/ads')
+  return {}
+}
+
+// ── Pick which ads show on a specific screen ───────────────────
+// Leaving a screen with zero explicit picks means it falls back to the
+// automatic branch_ad_mode merge (branch + common ads) — see get_screen_data.
+export async function setScreenAdsAction(
+  screenId: string,
+  branchId: string,
+  adIds: string[]
+): Promise<{ error?: string }> {
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
+
+  const supabase = createSupabaseServiceClient()
+
+  const { data: screen } = await supabase
+    .from('screens')
+    .select('id')
+    .eq('id', screenId)
+    .eq('branch_id', branchId)
+    .eq('customer_id', profile.customerId)
+    .single()
+
+  if (!screen) return { error: 'Screen not found' }
+
+  await supabase.from('screen_ads').delete().eq('screen_id', screenId)
+
+  if (adIds.length > 0) {
+    const { error } = await supabase.from('screen_ads').insert(
+      adIds.map((adId, idx) => ({
+        customer_id: profile.customerId,
+        screen_id: screenId,
+        ad_id: adId,
+        display_order: idx,
+      }))
+    )
+    if (error) return { error: 'Failed to update this screen’s ads' }
+  }
+
+  revalidatePath(`/branches/${branchId}/screens`)
   return {}
 }

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getSession, getProfile } from '@/lib/dal/session'
+import { getBranches, getActiveBranchId } from '@/lib/dal/branches'
 import { Sidebar } from '@/components/admin/Sidebar'
 import { TopBar } from '@/components/admin/TopBar'
 
@@ -11,6 +12,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!profile) redirect('/onboard')
   if (profile.role !== 'admin') redirect('/branch')
 
+  const [branches, activeBranchId] = await Promise.all([
+    getBranches(profile.customerId),
+    getActiveBranchId(profile.customerId),
+  ])
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <aside className="hidden w-60 shrink-0 border-r border-border md:flex md:flex-col">
@@ -18,7 +24,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar />
+        <TopBar branches={branches} activeBranchId={activeBranchId} />
         <main className="flex-1 overflow-y-auto">
           <div className="p-4 md:p-6">
             {children}

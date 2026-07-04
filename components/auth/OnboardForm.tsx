@@ -30,6 +30,17 @@ export function OnboardForm() {
       </div>
 
       <div className="space-y-1.5">
+        <Label htmlFor="businessName" className={labelClass}>Business Name</Label>
+        <Input
+          id="businessName"
+          name="businessName"
+          placeholder="Acme Restaurant"
+          className={inputClass}
+        />
+        <p className="text-[12px] text-gray-400">Only needed for some license keys</p>
+      </div>
+
+      <div className="space-y-1.5">
         <Label htmlFor="fullName" className={labelClass}>Full Name</Label>
         <Input
           id="fullName"

@@ -2,11 +2,10 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { requireProfile } from '@/lib/dal/session'
 import { getBranch } from '@/lib/dal/branches'
+import { getAds, getTickers } from '@/lib/dal/ads'
 import { AdsManager } from '@/components/admin/AdsManager'
-import { createSupabaseServerClient } from '@/lib/db/server'
 import { ChevronLeft } from 'lucide-react'
 import { BranchNav } from '@/components/admin/BranchNav'
-import type { AdDTO, TickerMessageDTO } from '@/lib/db/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,46 +20,10 @@ export default async function BranchAdsPage({ params }: Props) {
 
   if (!branch) notFound()
 
-  const supabase = await createSupabaseServerClient()
-
-  const [{ data: rawAds }, { data: rawTickers }] = await Promise.all([
-    supabase
-      .from('ads')
-      .select('*')
-      .eq('branch_id', branchId)
-      .eq('customer_id', profile.customerId)
-      .order('display_order', { ascending: true }),
-    supabase
-      .from('ticker_messages')
-      .select('*')
-      .eq('branch_id', branchId)
-      .eq('customer_id', profile.customerId)
-      .order('display_order', { ascending: true }),
+  const [ads, tickers] = await Promise.all([
+    getAds(profile.customerId, branchId),
+    getTickers(profile.customerId, branchId),
   ])
-
-  const ads: AdDTO[] = (rawAds ?? []).map(r => ({
-    id: r.id,
-    customerId: r.customer_id,
-    branchId: r.branch_id,
-    name: r.name,
-    fileUrl: r.file_url,
-    fileType: r.file_type,
-    fileSizeBytes: r.file_size_bytes,
-    durationSeconds: r.duration_seconds,
-    displayOrder: r.display_order,
-    isActive: r.is_active,
-    createdAt: r.created_at,
-  }))
-
-  const tickers: TickerMessageDTO[] = (rawTickers ?? []).map(r => ({
-    id: r.id,
-    customerId: r.customer_id,
-    branchId: r.branch_id,
-    message: r.message,
-    displayOrder: r.display_order,
-    isActive: r.is_active,
-    createdAt: r.created_at,
-  }))
 
   return (
     <div className="space-y-6">

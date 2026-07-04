@@ -5,7 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   PlusCircle, Radio, Users, ArrowLeft, ArrowRight,
-  CheckCircle, Printer, Search, X, ChevronRight, LogOut,
+  CheckCircle, Printer, Search, X, ChevronRight, LogOut, ChefHat,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useRealtimeQueue } from '@/lib/hooks/useRealtimeQueue'
@@ -47,6 +47,25 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; pill: string }
   },
 }
 
+// A waiting entry whose kitchen stage isn't done yet gets its own pill instead
+// of the generic "Waiting" one, so staff immediately see why Call is blocked.
+// This is a no-op for branches with no active kitchen counter, since those
+// entries are always created kitchen_status: 'ready'.
+const KITCHEN_PENDING_CONFIG = {
+  label: 'Cooking',
+  dot: 'bg-orange-500',
+  pill: 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200',
+}
+
+function rowStatusConfig(entry: QueueEntryDTO) {
+  if (entry.status === 'waiting' && entry.kitchenStatus !== 'ready') {
+    return entry.kitchenStatus === 'preparing'
+      ? KITCHEN_PENDING_CONFIG
+      : { ...KITCHEN_PENDING_CONFIG, label: 'In Kitchen' }
+  }
+  return STATUS_CONFIG[entry.status]
+}
+
 interface Props {
   branchId: string
   branchName: string
@@ -58,7 +77,7 @@ interface Props {
   initialIsPaused: boolean
 }
 
-export function ServePanel({
+export function BusinessModePanel({
   branchId,
   branchName,
   businessName,
@@ -151,7 +170,7 @@ export function ServePanel({
   useEffect(() => {
     if (!printEntry) return
     const timer = setTimeout(async () => {
-      const receiptEl = document.getElementById('serve-print')
+      const receiptEl = document.getElementById('business-mode-print')
       const html = buildReceiptHtml(receiptEl?.innerHTML ?? '')
       const method = await silentPrint({
         html,
@@ -227,6 +246,8 @@ export function ServePanel({
     setPrintEntry(entry)
   }
 
+  const displayNotReady = !!displayEntry && displayEntry.status === 'waiting' && displayEntry.kitchenStatus !== 'ready'
+
   return (
     <>
       {/* Print styles — 80 mm thermal */}
@@ -235,12 +256,12 @@ export function ServePanel({
         @media print {
           * { box-sizing: border-box; }
           .no-print { display: none !important; }
-          #serve-print { display: block !important; width: 80mm; }
+          #business-mode-print { display: block !important; width: 80mm; }
         }
       `}</style>
 
       {/* Hidden print receipt */}
-      <div id="serve-print" style={{ display: 'none' }}>
+      <div id="business-mode-print" style={{ display: 'none' }}>
         {printEntry && (
           <div style={{
             width: '80mm', padding: '5mm 4mm 6mm',
@@ -293,7 +314,7 @@ export function ServePanel({
               </div>
             )}
             <button
-              onClick={() => router.push(`/branches/${branchId}`)}
+              onClick={() => router.push(`/business/${branchId}`)}
               className="flex items-center gap-1 text-gray-500 hover:text-gray-900 transition-colors text-[11px] font-medium ml-1"
             >
               <LogOut className="size-3.5" />
@@ -494,7 +515,7 @@ export function ServePanel({
                               <div className="py-3 text-center text-sm text-gray-500">No matching entries</div>
                             ) : (
                               csResults.map((entry) => {
-                                const cfg = STATUS_CONFIG[entry.status]
+                                const cfg = rowStatusConfig(entry)
                                 return (
                                   <button
                                     key={entry.id}
@@ -521,7 +542,7 @@ export function ServePanel({
                             )
                           ) : csSelectedId && displayEntry ? (
                             (() => {
-                              const cfg = STATUS_CONFIG[displayEntry.status]
+                              const cfg = rowStatusConfig(displayEntry)
                               return (
                                 <div className="flex items-center gap-3 px-3 py-2.5 bg-gray-50">
                                   <span className="font-mono font-black text-sm text-gray-900 tabular-nums w-7 shrink-0">
@@ -586,9 +607,19 @@ export function ServePanel({
                           </div>
                         )}
                         {displayEntry.status === 'waiting' && (
-                          <div className="flex items-center gap-1.5 bg-amber-100 border border-amber-200 rounded-full px-3 py-1">
-                            <span className="size-1.5 rounded-full bg-amber-500" />
-                            <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-widest">Waiting</span>
+                          <div className={[
+                            'flex items-center gap-1.5 rounded-full px-3 py-1 border',
+                            displayNotReady ? 'bg-orange-100 border-orange-200' : 'bg-amber-100 border-amber-200',
+                          ].join(' ')}>
+                            <span className={`size-1.5 rounded-full ${displayNotReady ? 'bg-orange-500' : 'bg-amber-500'}`} />
+                            <span className={[
+                              'text-[10px] font-semibold uppercase tracking-widest',
+                              displayNotReady ? 'text-orange-700' : 'text-amber-700',
+                            ].join(' ')}>
+                              {displayNotReady
+                                ? (displayEntry.kitchenStatus === 'preparing' ? 'Cooking' : 'Waiting on Kitchen')
+                                : 'Waiting'}
+                            </span>
                           </div>
                         )}
                         {displayEntry.status === 'completed' && (
@@ -674,6 +705,11 @@ export function ServePanel({
                       ) : displayEntry.status === 'cancelled' || displayEntry.status === 'no-show' ? (
                         <div className="h-10 flex items-center justify-center rounded-lg bg-gray-100 text-sm text-gray-500 font-medium capitalize">
                           {displayEntry.status}
+                        </div>
+                      ) : displayNotReady ? (
+                        <div className="h-10 flex items-center justify-center gap-2 rounded-lg bg-orange-50 border border-orange-200 text-sm text-orange-700 font-medium px-3 text-center">
+                          <ChefHat className="size-4 shrink-0" />
+                          Waiting on kitchen — not ready to call yet
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -782,7 +818,7 @@ export function ServePanel({
 
                     <AnimatePresence initial={false}>
                       {customerList.map((entry, i) => {
-                        const cfg = STATUS_CONFIG[entry.status]
+                        const cfg = rowStatusConfig(entry)
                         const isActive = entry.status === 'in-progress'
                         return (
                           <motion.div

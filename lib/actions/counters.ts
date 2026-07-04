@@ -3,8 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createSupabaseServiceClient } from '@/lib/db/server'
-import { requireAdmin } from '@/lib/dal/session'
-import { toCounterDTO, type CounterDTO, type DbCounter, type DbQueueEntry, type DbQueueState, type CounterType, type KitchenStatus } from '@/lib/db/types'
+import { requireBranchManager } from '@/lib/dal/session'
+import { hasActiveKitchenCounter } from '@/lib/dal/counters'
+import { toQueueEntryDTO, toCounterDTO, type CounterDTO, type QueueEntryDTO, type DbCounter, type DbQueueEntry, type DbQueueState, type CounterType } from '@/lib/db/types'
 
 // ── Token auth helper ─────────────────────────────────────────
 async function verifyCounterToken(token: string) {
@@ -16,6 +17,31 @@ async function verifyCounterToken(token: string) {
     .single()
   if (!data || !data.is_active) return null
   return data as { id: string; customer_id: string; branch_id: string; type: string; is_active: boolean }
+}
+
+// If a branch has no active kitchen counter left, any waiting entries still
+// sitting at kitchen_status pending/preparing would otherwise be stranded
+// forever (nothing left to flip them to 'ready'). Called whenever a kitchen
+// counter is deactivated, deleted, or retyped away from 'kitchen'.
+async function releaseStrandedKitchenEntries(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  branchId: string
+) {
+  const { count } = await supabase
+    .from('counters')
+    .select('id', { count: 'exact', head: true })
+    .eq('branch_id', branchId)
+    .eq('type', 'kitchen')
+    .eq('is_active', true)
+
+  if ((count ?? 0) > 0) return
+
+  await supabase.from('queue_entries')
+    .update({ kitchen_status: 'ready' })
+    .eq('branch_id', branchId)
+    .eq('status', 'waiting')
+    .in('kitchen_status', ['pending', 'preparing'])
 }
 
 async function broadcastDisplaySignal(
@@ -108,7 +134,9 @@ export async function counterCallNextAction(
 ): Promise<{ error?: string }> {
   const counter = await verifyCounterToken(counterToken)
   if (!counter || counter.branch_id !== branchId) return { error: 'Invalid or inactive counter' }
-  if (counter.type === 'kitchen') return { error: 'Kitchen counter does not use call next' }
+  if (counter.type !== 'billing' && counter.type !== 'delivery') {
+    return { error: 'Only billing or delivery counters can call orders' }
+  }
 
   const supabase = createSupabaseServiceClient()
   const now = new Date().toISOString()
@@ -201,7 +229,9 @@ export async function counterCallEntryAction(
 ): Promise<{ error?: string }> {
   const counter = await verifyCounterToken(counterToken)
   if (!counter || counter.branch_id !== branchId) return { error: 'Invalid or inactive counter' }
-  if (counter.type === 'kitchen') return { error: 'Kitchen counter does not use call/recall' }
+  if (counter.type !== 'billing' && counter.type !== 'delivery') {
+    return { error: 'Only billing or delivery counters can call/recall orders' }
+  }
 
   const supabase = createSupabaseServiceClient()
   const now = new Date().toISOString()
@@ -292,6 +322,9 @@ export async function counterCompleteEntryAction(
 ): Promise<{ error?: string }> {
   const counter = await verifyCounterToken(counterToken)
   if (!counter || counter.branch_id !== branchId) return { error: 'Invalid or inactive counter' }
+  if (counter.type !== 'billing' && counter.type !== 'delivery') {
+    return { error: 'Only billing or delivery counters can complete orders' }
+  }
 
   const supabase = createSupabaseServiceClient()
   const now = new Date().toISOString()
@@ -322,6 +355,72 @@ export async function counterCompleteEntryAction(
   })
 
   return {}
+}
+
+export interface CounterEntryActionResult {
+  error?: string
+  entry?: QueueEntryDTO
+}
+
+// Order counter creates new queue entries — the walk-up "take an order, hand
+// out a queue number" stage that feeds every other counter type.
+export async function counterCreateEntryAction(
+  branchId: string,
+  counterToken: string,
+  billNumber: string,
+  customerName = '',
+  phone = ''
+): Promise<CounterEntryActionResult> {
+  if (!billNumber.trim()) return { error: 'Bill number is required' }
+
+  const counter = await verifyCounterToken(counterToken)
+  if (!counter || counter.branch_id !== branchId) return { error: 'Invalid or inactive counter' }
+  if (counter.type !== 'order') return { error: 'Only order counters can create new entries' }
+
+  const supabase = createSupabaseServiceClient()
+
+  const { data: numData, error: numErr } = await supabase.rpc('claim_queue_number', {
+    p_branch_id: branchId,
+  })
+  if (numErr || numData == null) return { error: 'Failed to assign queue number' }
+
+  const queueNumber = numData as number
+  const needsKitchen = await hasActiveKitchenCounter(branchId)
+
+  const { data, error } = await supabase
+    .from('queue_entries')
+    .insert({
+      customer_id: counter.customer_id,
+      branch_id: branchId,
+      queue_number: queueNumber,
+      bill_number: billNumber.trim(),
+      customer_name: customerName,
+      phone,
+      status: 'waiting',
+      kitchen_status: needsKitchen ? 'pending' : 'ready',
+      source: 'admin',
+    })
+    .select()
+    .single()
+
+  if (error || !data) return { error: 'Failed to create entry' }
+
+  const entry = toQueueEntryDTO(data as DbQueueEntry)
+
+  await supabase.from('activity_logs').insert({
+    customer_id: counter.customer_id,
+    branch_id: branchId,
+    entry_id: entry.id,
+    source: 'admin',
+    type: 'joined',
+    queue_number: queueNumber,
+    bill_number: billNumber.trim(),
+    message: `Queue #${queueNumber} joined — Bill ${billNumber.trim()} (order counter)`,
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath(`/branches/${branchId}`)
+  return { entry }
 }
 
 export async function counterCancelEntryAction(
@@ -369,7 +468,7 @@ export interface CounterActionResult {
 const CreateCounterSchema = z.object({
   branchId: z.string().uuid(),
   name: z.string().min(1, 'Counter name is required').max(100),
-  type: z.enum(['billing', 'kitchen', 'delivery']),
+  type: z.enum(['order', 'billing', 'kitchen', 'delivery']),
 })
 
 // ── Create counter ────────────────────────────────────────────
@@ -377,13 +476,19 @@ export async function createCounterAction(
   _prev: CounterActionResult,
   formData: FormData
 ): Promise<CounterActionResult> {
-  const profile = await requireAdmin()
   const parsed = CreateCounterSchema.safeParse({
     branchId: formData.get('branchId'),
     name: formData.get('name'),
     type: formData.get('type'),
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  let profile
+  try {
+    profile = await requireBranchManager(parsed.data.branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
 
   const supabase = createSupabaseServiceClient()
 
@@ -419,12 +524,17 @@ export async function toggleCounterAction(
   counterId: string,
   branchId: string
 ): Promise<{ error?: string; isActive?: boolean }> {
-  const profile = await requireAdmin()
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
   const supabase = createSupabaseServiceClient()
 
   const { data: existing } = await supabase
     .from('counters')
-    .select('is_active')
+    .select('is_active, type')
     .eq('id', counterId)
     .eq('customer_id', profile.customerId)
     .single()
@@ -441,6 +551,10 @@ export async function toggleCounterAction(
 
   if (error || !data) return { error: 'Failed to update counter' }
 
+  if (existing.type === 'kitchen' && !data.is_active) {
+    await releaseStrandedKitchenEntries(supabase, branchId)
+  }
+
   revalidatePath(`/branches/${branchId}/counters`)
   return { isActive: data.is_active }
 }
@@ -450,7 +564,12 @@ export async function revokeCounterAction(
   counterId: string,
   branchId: string
 ): Promise<{ error?: string; token?: string }> {
-  const profile = await requireAdmin()
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
   const supabase = createSupabaseServiceClient()
 
   const newToken = Array.from(crypto.getRandomValues(new Uint8Array(24)))
@@ -476,14 +595,13 @@ const UpdateCounterSchema = z.object({
   counterId: z.string().uuid(),
   branchId: z.string().uuid(),
   name: z.string().min(1).max(100).optional(),
-  type: z.enum(['billing', 'kitchen', 'delivery']).optional(),
+  type: z.enum(['order', 'billing', 'kitchen', 'delivery']).optional(),
 })
 
 export async function updateCounterAction(
   _prev: CounterActionResult,
   formData: FormData
 ): Promise<CounterActionResult> {
-  const profile = await requireAdmin()
   const parsed = UpdateCounterSchema.safeParse({
     counterId: formData.get('counterId'),
     branchId: formData.get('branchId'),
@@ -492,8 +610,22 @@ export async function updateCounterAction(
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
+  let profile
+  try {
+    profile = await requireBranchManager(parsed.data.branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
+
   const supabase = createSupabaseServiceClient()
   const { counterId, branchId, ...updates } = parsed.data
+
+  const { data: existing } = await supabase
+    .from('counters')
+    .select('type')
+    .eq('id', counterId)
+    .eq('customer_id', profile.customerId)
+    .single()
 
   const { data, error } = await supabase
     .from('counters')
@@ -505,6 +637,10 @@ export async function updateCounterAction(
 
   if (error || !data) return { error: 'Failed to update counter' }
 
+  if (existing?.type === 'kitchen' && updates.type && updates.type !== 'kitchen') {
+    await releaseStrandedKitchenEntries(supabase, branchId)
+  }
+
   revalidatePath(`/branches/${branchId}/counters`)
   return { counter: toCounterDTO(data as DbCounter) }
 }
@@ -514,8 +650,20 @@ export async function deleteCounterAction(
   counterId: string,
   branchId: string
 ): Promise<{ error?: string }> {
-  const profile = await requireAdmin()
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
   const supabase = createSupabaseServiceClient()
+
+  const { data: existing } = await supabase
+    .from('counters')
+    .select('type')
+    .eq('id', counterId)
+    .eq('customer_id', profile.customerId)
+    .single()
 
   const { error } = await supabase
     .from('counters')
@@ -524,6 +672,10 @@ export async function deleteCounterAction(
     .eq('customer_id', profile.customerId)
 
   if (error) return { error: 'Failed to delete counter' }
+
+  if (existing?.type === 'kitchen') {
+    await releaseStrandedKitchenEntries(supabase, branchId)
+  }
 
   revalidatePath(`/branches/${branchId}/counters`)
   return {}

@@ -82,14 +82,12 @@ export async function onboardAction(_prev: AuthResult, formData: FormData): Prom
 
   // 2. Resolve customer — use pre-created if key has one, else create from form
   let customerId: string
+  const isPreLinked = !!licenseRow.customer_id
 
-  if (licenseRow.customer_id) {
-    // Distributor pre-created the customer — just activate it
+  if (isPreLinked) {
+    // Distributor pre-created the customer — activated below, once the
+    // admin account behind it actually exists (step 4).
     customerId = licenseRow.customer_id
-    await service
-      .from('customers')
-      .update({ onboarded_at: new Date().toISOString() })
-      .eq('id', customerId)
   } else {
     // Standalone key — create customer from form data
     if (!parsed.data.businessName) return { error: 'Business name is required' }
@@ -121,7 +119,7 @@ export async function onboardAction(_prev: AuthResult, formData: FormData): Prom
   })
 
   if (authErr || !authUser.user) {
-    if (!licenseRow.customer_id) {
+    if (!isPreLinked) {
       await service.from('customers').delete().eq('id', customerId)
     }
     if (authErr?.message?.includes('already registered')) {
@@ -142,10 +140,17 @@ export async function onboardAction(_prev: AuthResult, formData: FormData): Prom
   if (profileErr) {
     console.error('[onboardAction] profile insert error:', profileErr.message)
     await service.auth.admin.deleteUser(authUser.user.id)
-    if (!licenseRow.customer_id) {
+    if (!isPreLinked) {
       await service.from('customers').delete().eq('id', customerId)
     }
     return { error: `Failed to create profile: ${profileErr.message}` }
+  }
+
+  // 4b. Only now mark the pre-linked customer as onboarded — the admin
+  // account behind it actually exists at this point, so a mid-flow failure
+  // above never leaves a customer looking onboarded with nobody behind it.
+  if (isPreLinked) {
+    await service.from('customers').update({ onboarded_at: new Date().toISOString() }).eq('id', customerId)
   }
 
   // 5. Mark license key as used
@@ -155,7 +160,7 @@ export async function onboardAction(_prev: AuthResult, formData: FormData): Prom
   }).eq('id', licenseRow.id)
 
   // 6. Create branch + queue_state only if standalone key (pre-created customers already have one)
-  if (!licenseRow.customer_id) {
+  if (!isPreLinked) {
     const { data: branch } = await service
       .from('branches')
       .insert({ customer_id: customerId, name: 'Main Branch', location_note: 'Default branch' })

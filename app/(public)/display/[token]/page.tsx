@@ -25,6 +25,8 @@ export default async function DisplayPage({ params }: Props) {
       tickerText={packet.tickerText ?? undefined}
       branchId={packet.branchId}
       announcementLang={packet.settings?.announcementLang ?? 'en'}
+      ads={packet.ads}
+      tickers={packet.tickers}
     />
   )
 }

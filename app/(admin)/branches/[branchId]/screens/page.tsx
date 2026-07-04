@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { requireProfile } from '@/lib/dal/session'
 import { getBranch } from '@/lib/dal/branches'
 import { getScreens } from '@/lib/dal/screens'
+import { getAvailableAdsForBranch, getScreenAdsMap } from '@/lib/dal/ads'
 import { ScreensManager } from '@/components/admin/ScreensManager'
 import { ChevronLeft } from 'lucide-react'
 import { BranchNav } from '@/components/admin/BranchNav'
@@ -16,9 +17,11 @@ interface Props {
 export default async function BranchScreensPage({ params }: Props) {
   const { branchId } = await params
   const profile = await requireProfile()
-  const [branch, screens] = await Promise.all([
+  const [branch, screens, availableAds, screenAdsMap] = await Promise.all([
     getBranch(branchId, profile.customerId),
     getScreens(branchId, profile.customerId),
+    getAvailableAdsForBranch(profile.customerId, branchId),
+    getScreenAdsMap(branchId),
   ])
 
   if (!branch) notFound()
@@ -35,7 +38,7 @@ export default async function BranchScreensPage({ params }: Props) {
         </div>
         <BranchNav branchId={branchId} active="screens" />
       </div>
-      <ScreensManager branchId={branchId} initialScreens={screens} />
+      <ScreensManager branchId={branchId} initialScreens={screens} availableAds={availableAds} screenAdsMap={screenAdsMap} />
     </div>
   )
 }

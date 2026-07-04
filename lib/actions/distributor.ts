@@ -6,6 +6,12 @@ import { createSupabaseServiceClient } from '@/lib/db/server'
 import { requireDistributor } from '@/lib/dal/session'
 import type { DistributorStats } from '@/lib/db/types'
 
+const LICENSE_KEY_VALIDITY_DAYS = 30
+
+function defaultLicenseKeyExpiry(): string {
+  return new Date(Date.now() + LICENSE_KEY_VALIDITY_DAYS * 24 * 60 * 60 * 1000).toISOString()
+}
+
 // ── Create customer + issue license key ───────────────────────
 const CreateCustomerSchema = z.object({
   businessName: z.string().min(1, 'Business name is required').max(100),
@@ -66,9 +72,12 @@ export async function createCustomerAction(
     plan_id: parsed.data.planId,
     customer_id: customer.id,
     notes: `Created for ${parsed.data.businessName}`,
+    expires_at: defaultLicenseKeyExpiry(),
   })
 
   if (keyErr) {
+    if (branch) await service.from('queue_state').delete().eq('branch_id', branch.id)
+    await service.from('branches').delete().eq('customer_id', customer.id)
     await service.from('customers').delete().eq('id', customer.id)
     return { error: 'Failed to generate license key' }
   }
@@ -96,6 +105,7 @@ export async function generateLicenseKeyAction(
     key,
     plan_id: planId,
     notes: notes ?? '',
+    expires_at: defaultLicenseKeyExpiry(),
   }).select().single()
 
   if (error || !data) return { error: 'Failed to generate key' }

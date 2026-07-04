@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getSession, getProfile } from '@/lib/dal/session'
-import { getAccessibleBranches } from '@/lib/dal/users'
+import { getAssignedBranch } from '@/lib/dal/users'
 import { BranchSidebar } from '@/components/branch/BranchSidebar'
 import { BranchTopBar } from '@/components/branch/BranchTopBar'
 
@@ -12,8 +12,7 @@ export default async function BranchOperatorLayout({ children }: { children: Rea
   if (!profile) redirect('/onboard')
   if (profile.role === 'admin') redirect('/dashboard')
 
-  const branches = await getAccessibleBranches(profile)
-  const branch = branches[0]
+  const branch = await getAssignedBranch(profile)
 
   if (!branch) {
     return (

@@ -1,6 +1,6 @@
 // ── Primitive types ───────────────────────────────────────────
 export type UserRole = 'admin' | 'branch_user'
-export type CounterType = 'billing' | 'kitchen' | 'delivery'
+export type CounterType = 'order' | 'billing' | 'kitchen' | 'delivery'
 export type QueueStatus = 'waiting' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
 export type KitchenStatus = 'pending' | 'preparing' | 'ready'
 export type QueueSource = 'admin' | 'self-join' | 'kiosk' | 'api'
@@ -585,6 +585,34 @@ export function toCounterDTO(row: DbCounter): CounterDTO {
     token: row.counter_token,
     isActive: row.is_active,
     lastSeenAt: row.last_seen_at,
+    createdAt: row.created_at,
+  }
+}
+
+export function toAdDTO(row: DbAd): AdDTO {
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    branchId: row.branch_id,
+    name: row.name,
+    fileUrl: row.file_url,
+    fileType: row.file_type,
+    fileSizeBytes: row.file_size_bytes,
+    durationSeconds: row.duration_seconds,
+    displayOrder: row.display_order,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+  }
+}
+
+export function toTickerMessageDTO(row: DbTickerMessage): TickerMessageDTO {
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    branchId: row.branch_id,
+    message: row.message,
+    displayOrder: row.display_order,
+    isActive: row.is_active,
     createdAt: row.created_at,
   }
 }

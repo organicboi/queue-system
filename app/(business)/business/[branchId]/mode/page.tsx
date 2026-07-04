@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation'
 import { requireProfile } from '@/lib/dal/session'
-import { getBranch } from '@/lib/dal/branches'
+import { getAccessibleBranch } from '@/lib/dal/users'
 import { getQueueState, getTodayEntries } from '@/lib/dal/queue'
-import { ServePanel } from '@/components/admin/ServePanel'
+import { BusinessModePanel } from '@/components/business/BusinessModePanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,20 +10,19 @@ interface Props {
   params: Promise<{ branchId: string }>
 }
 
-export default async function ServePage({ params }: Props) {
+export default async function BusinessModePage({ params }: Props) {
   const { branchId } = await params
   const profile = await requireProfile()
+  const branch = await getAccessibleBranch(profile, branchId)
+  if (!branch) notFound()
 
-  const [branch, queueState, entries] = await Promise.all([
-    getBranch(branchId, profile.customerId),
+  const [queueState, entries] = await Promise.all([
     getQueueState(branchId),
     getTodayEntries(branchId),
   ])
 
-  if (!branch) notFound()
-
   return (
-    <ServePanel
+    <BusinessModePanel
       branchId={branchId}
       branchName={branch.name}
       businessName={profile.businessName ?? branch.name}

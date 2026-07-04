@@ -2,6 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/db/server'
 import { toProfileDTO, type ProfileDTO } from '@/lib/db/types'
+import { getAccessibleBranches } from '@/lib/dal/users'
 
 export const getSession = cache(async () => {
   const supabase = await createSupabaseServerClient()
@@ -84,6 +85,22 @@ export const requireBranchUser = cache(async (): Promise<ProfileDTO> => {
   if (profile.role !== 'branch_user') throw new Error('Branch user access required')
   return profile
 })
+
+// Admins can manage any branch of their customer; branch_users can only
+// manage the one branch they're actually assigned to (via user_branches).
+// Used by branch-scoped mutation actions (counters, screens, ads, branch
+// settings) so a branch_user managing their own branch doesn't hit an
+// admin-only throw.
+export async function requireBranchManager(branchId: string): Promise<ProfileDTO> {
+  const profile = await requireProfile()
+  if (profile.role === 'admin') return profile
+
+  const branches = await getAccessibleBranches(profile)
+  if (!branches.some((b) => b.id === branchId)) {
+    throw new Error('You do not have access to this branch')
+  }
+  return profile
+}
 
 export async function verifyDistributor(): Promise<boolean> {
   const { cookies } = await import('next/headers')

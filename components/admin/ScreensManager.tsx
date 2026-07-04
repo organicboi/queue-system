@@ -6,23 +6,30 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createScreenAction, regenerateScreenTokenAction, deleteScreenAction, updateScreenAnnouncementLangAction } from '@/lib/actions/branches'
+import { setScreenAdsAction } from '@/lib/actions/ads'
 import type { ScreenActionResult } from '@/lib/actions/branches'
-import { Tv, Plus, Copy, RefreshCw, Trash2, ExternalLink } from 'lucide-react'
+import { Tv, Plus, Copy, RefreshCw, Trash2, ExternalLink, Megaphone, Globe } from 'lucide-react'
 import { toast } from 'sonner'
-import type { ScreenDTO, AnnouncementLang } from '@/lib/db/types'
+import type { ScreenDTO, AnnouncementLang, AdDTO } from '@/lib/db/types'
 
 interface Props {
   branchId: string
   initialScreens: ScreenDTO[]
+  availableAds?: AdDTO[]
+  screenAdsMap?: Record<string, string[]>
 }
 
 const INIT_CREATE: ScreenActionResult = {}
 
-export function ScreensManager({ branchId, initialScreens }: Props) {
+export function ScreensManager({ branchId, initialScreens, availableAds = [], screenAdsMap = {} }: Props) {
   const [screens, setScreens] = useState(initialScreens)
   const [open, setOpen] = useState(false)
   const [createState, createAction, createPending] = useActionState(createScreenAction, INIT_CREATE)
   const [, startTransition] = useTransition()
+  const [adsPending, setAdsPending] = useState(false)
+
+  const [adsDialogScreenId, setAdsDialogScreenId] = useState<string | null>(null)
+  const [selectedAdIds, setSelectedAdIds] = useState<string[]>([])
 
   if (createState.screen && screens.every(s => s.id !== createState.screen!.id)) {
     setScreens(prev => [...prev, createState.screen!])
@@ -62,6 +69,33 @@ export function ScreensManager({ branchId, initialScreens }: Props) {
       else toast.success('Announcement language updated')
     })
   }
+
+  function openAdsDialog(screen: ScreenDTO) {
+    setAdsDialogScreenId(screen.id)
+    setSelectedAdIds(screenAdsMap[screen.id] ?? [])
+  }
+
+  function toggleAdSelected(adId: string) {
+    setSelectedAdIds(prev => prev.includes(adId) ? prev.filter(id => id !== adId) : [...prev, adId])
+  }
+
+  function handleSaveAds() {
+    if (!adsDialogScreenId) return
+    setAdsPending(true)
+    startTransition(async () => {
+      const result = await setScreenAdsAction(adsDialogScreenId, branchId, selectedAdIds)
+      setAdsPending(false)
+      if (result.error) toast.error(result.error)
+      else {
+        toast.success('Screen ads updated')
+        setAdsDialogScreenId(null)
+      }
+    })
+  }
+
+  const adsDialogScreen = screens.find(s => s.id === adsDialogScreenId)
+  const commonAds = availableAds.filter(a => a.branchId === null)
+  const branchAds = availableAds.filter(a => a.branchId !== null)
 
   return (
     <div className="space-y-4">
@@ -106,6 +140,7 @@ export function ScreensManager({ branchId, initialScreens }: Props) {
         <div className="space-y-3">
           {screens.map((screen) => {
             const displayUrl = `/display/${screen.screenToken}`
+            const pickedCount = (screenAdsMap[screen.id] ?? []).length
             return (
               <div key={screen.id} className="rounded-xl border border-border bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -120,7 +155,7 @@ export function ScreensManager({ branchId, initialScreens }: Props) {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[11px] font-medium text-muted-foreground">Announce</span>
                       <select
@@ -133,6 +168,15 @@ export function ScreensManager({ branchId, initialScreens }: Props) {
                         <option value="both">EN + AR</option>
                       </select>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs px-2"
+                      onClick={() => openAdsDialog(screen)}
+                    >
+                      <Megaphone className="size-3 mr-1" />
+                      Ads{pickedCount > 0 ? ` (${pickedCount})` : ''}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -176,6 +220,70 @@ export function ScreensManager({ branchId, initialScreens }: Props) {
           })}
         </div>
       )}
+
+      <Dialog open={!!adsDialogScreenId} onOpenChange={(v) => !v && setAdsDialogScreenId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ads for {adsDialogScreen?.name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-2">
+            Leave nothing checked to automatically show your branch + common ads.
+            Check specific ads to show only those, in this order.
+          </p>
+
+          <div className="max-h-80 overflow-y-auto space-y-4">
+            {commonAds.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Globe className="size-3" />
+                  Common
+                </p>
+                {commonAds.map((ad) => (
+                  <label key={ad.id} className="flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="checkbox"
+                      checked={selectedAdIds.includes(ad.id)}
+                      onChange={() => toggleAdSelected(ad.id)}
+                      className="size-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                    />
+                    <span className="flex-1 truncate text-gray-900">{ad.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {branchAds.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">This Branch</p>
+                {branchAds.map((ad) => (
+                  <label key={ad.id} className="flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="checkbox"
+                      checked={selectedAdIds.includes(ad.id)}
+                      onChange={() => toggleAdSelected(ad.id)}
+                      className="size-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                    />
+                    <span className="flex-1 truncate text-gray-900">{ad.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {commonAds.length === 0 && branchAds.length === 0 && (
+              <p className="text-sm text-muted-foreground py-6 text-center">
+                No ads yet — add one from Common Ads or this branch&apos;s Ads page first.
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setAdsDialogScreenId(null)}>Cancel</Button>
+            <Button type="button" onClick={handleSaveAds} disabled={adsPending}>
+              {adsPending ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -5,12 +5,15 @@ import { Menu, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Sidebar } from './Sidebar'
+import { BranchSwitcher } from './BranchSwitcher'
 import { useState } from 'react'
 import { usePWAInstall } from '@/hooks/usePWAInstall'
+import type { BranchDTO } from '@/lib/db/types'
 
 function getTitle(pathname: string): string {
   if (pathname === '/dashboard') return 'Dashboard'
   if (pathname === '/branches') return 'Branches'
+  if (pathname === '/ads') return 'Common Ads'
   if (pathname.startsWith('/branches/') && pathname.endsWith('/settings')) return 'Branch Settings'
   if (pathname.startsWith('/branches/') && pathname.endsWith('/screens')) return 'Screen Management'
   if (pathname.startsWith('/branches/') && pathname.endsWith('/ads')) return 'Ads & Ticker'
@@ -21,7 +24,12 @@ function getTitle(pathname: string): string {
   return 'Queue System'
 }
 
-export function TopBar() {
+interface Props {
+  branches: BranchDTO[]
+  activeBranchId: string | null
+}
+
+export function TopBar({ branches, activeBranchId }: Props) {
   const pathname = usePathname()
   const title = getTitle(pathname)
   const [open, setOpen] = useState(false)
@@ -43,6 +51,8 @@ export function TopBar() {
       <div className="flex-1 min-w-0">
         <h1 className="text-base font-semibold text-gray-900 truncate">{title}</h1>
       </div>
+
+      <BranchSwitcher branches={branches} activeBranchId={activeBranchId} />
 
       {canInstall && (
         <Button onClick={install} size="sm" variant="outline" className="gap-1.5 text-primary border-primary/30 hover:bg-primary/10 shrink-0">

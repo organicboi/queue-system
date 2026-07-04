@@ -69,3 +69,21 @@ export const getAccessibleBranches = cache(async (profile: ProfileDTO): Promise<
     .filter(Boolean)
     .map((b: DbBranch) => toBranchDTO(b))
 })
+
+// A branch_user is always assigned to exactly one branch (enforced by the
+// unique(user_id) constraint on user_branches). Use this instead of
+// getAccessibleBranches(profile)[0] wherever a (branch)/branch/* page needs
+// "the current staff member's branch."
+export async function getAssignedBranch(profile: ProfileDTO): Promise<BranchDTO | null> {
+  const branches = await getAccessibleBranches(profile)
+  return branches[0] ?? null
+}
+
+// Resolves a branch only if the profile actually has access to it — admins
+// see any branch of their customer, branch_users only their assigned ones
+// (via user_branches). Prefer this over a bare getBranch(branchId, customerId)
+// wherever a branch_user could otherwise reach a branch they aren't assigned to.
+export async function getAccessibleBranch(profile: ProfileDTO, branchId: string): Promise<BranchDTO | null> {
+  const branches = await getAccessibleBranches(profile)
+  return branches.find((b) => b.id === branchId) ?? null
+}

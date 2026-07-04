@@ -26,3 +26,19 @@ export const getCounterByToken = cache(async (token: string): Promise<CounterDTO
   if (!data) return null
   return toCounterDTO(data as DbCounter)
 })
+
+// Whether a branch runs a kitchen prep stage at all. Entries in branches with
+// no active kitchen counter should never wait on kitchen_status — see
+// lib/actions/queue.ts and lib/actions/counters.ts for where this gates entry
+// creation and the billing/delivery call-next check.
+export const hasActiveKitchenCounter = cache(async (branchId: string): Promise<boolean> => {
+  const supabase = createSupabaseServiceClient()
+  const { count } = await supabase
+    .from('counters')
+    .select('id', { count: 'exact', head: true })
+    .eq('branch_id', branchId)
+    .eq('type', 'kitchen')
+    .eq('is_active', true)
+
+  return (count ?? 0) > 0
+})

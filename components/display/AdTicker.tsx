@@ -1,6 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
+import type { TickerMessageDTO } from "@/lib/db/types"
 
 interface AdTickerProps {
   bg?: string
@@ -9,6 +10,7 @@ interface AdTickerProps {
   chipText?: string
   textColor?: string
   customText?: string
+  tickers?: TickerMessageDTO[]
 }
 
 const DEFAULT_ITEMS = [
@@ -30,8 +32,12 @@ export function AdTicker({
   chipText = "#0F172A",
   textColor = "#CBD5E1",
   customText,
+  tickers,
 }: AdTickerProps) {
-  const items = customText ? [customText] : DEFAULT_ITEMS
+  const activeTickers = (tickers ?? []).filter((t) => t.isActive)
+  const items = activeTickers.length > 0
+    ? activeTickers.map((t) => t.message)
+    : customText ? [customText] : DEFAULT_ITEMS
   const FULL = items.join(SEP)
 
   return (

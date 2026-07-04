@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { requireBranchUser } from '@/lib/dal/session'
-import { getAccessibleBranches } from '@/lib/dal/users'
+import { getAssignedBranch } from '@/lib/dal/users'
 import { getActivityLogsPage, type ActivityLogFilters } from '@/lib/dal/queue'
 import { exportActivityLogsAction } from '@/lib/actions/queue'
 import { rangeToDates } from '@/lib/queueUtils'
@@ -14,8 +14,7 @@ interface Props {
 
 export default async function BranchOperatorLogsPage({ searchParams }: Props) {
   const profile = await requireBranchUser()
-  const branches = await getAccessibleBranches(profile)
-  const branch = branches[0]
+  const branch = await getAssignedBranch(profile)
   if (!branch) notFound()
 
   const sp = await searchParams

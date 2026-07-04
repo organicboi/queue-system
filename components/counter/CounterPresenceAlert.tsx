@@ -11,6 +11,7 @@ interface Props {
 }
 
 const TYPE_LABEL: Record<CounterType, string> = {
+  order: 'Order',
   billing: 'Billing',
   kitchen: 'Kitchen',
   delivery: 'Delivery',

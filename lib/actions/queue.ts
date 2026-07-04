@@ -10,6 +10,7 @@ import {
   type ActivityLogFilters,
 } from '@/lib/dal/queue'
 import { toQueueEntryDTO, type QueueEntryDTO, type ActivityLogDTO, type DbQueueEntry, type DbQueueState } from '@/lib/db/types'
+import { hasActiveKitchenCounter } from '@/lib/dal/counters'
 
 export interface QueueActionResult {
   error?: string
@@ -113,6 +114,7 @@ export async function addEntryAction(
   if (numErr || numData == null) return { error: 'Failed to assign queue number' }
 
   const queueNumber = numData as number
+  const needsKitchen = await hasActiveKitchenCounter(parsed.data.branchId)
   const { data, error } = await supabase
     .from('queue_entries')
     .insert({
@@ -123,6 +125,7 @@ export async function addEntryAction(
       customer_name: parsed.data.customerName ?? '',
       phone: parsed.data.phone ?? '',
       status: 'waiting',
+      kitchen_status: needsKitchen ? 'pending' : 'ready',
       source: 'admin',
     })
     .select()
@@ -189,6 +192,7 @@ export async function publicJoinAction(
   if (numErr || numData == null) return { error: 'Failed to assign queue number' }
 
   const queueNumber = numData as number
+  const needsKitchen = await hasActiveKitchenCounter(parsed.data.branchId)
   const { data, error } = await supabase
     .from('queue_entries')
     .insert({
@@ -199,6 +203,7 @@ export async function publicJoinAction(
       customer_name: parsed.data.customerName ?? '',
       phone: parsed.data.phone ?? '',
       status: 'waiting',
+      kitchen_status: needsKitchen ? 'pending' : 'ready',
       source: 'self-join',
     })
     .select()
@@ -234,6 +239,7 @@ export async function kioskAddEntryAction(
   if (numErr || numData == null) return { error: 'Failed to assign queue number' }
 
   const queueNumber = numData as number
+  const needsKitchen = await hasActiveKitchenCounter(branch.id)
   const { data, error } = await supabase
     .from('queue_entries')
     .insert({
@@ -244,6 +250,7 @@ export async function kioskAddEntryAction(
       customer_name: customerName,
       phone,
       status: 'waiting',
+      kitchen_status: needsKitchen ? 'pending' : 'ready',
       source: 'kiosk',
     })
     .select()
@@ -299,12 +306,15 @@ export async function callNextAction(branchId: string): Promise<{ error?: string
     }
   }
 
-  // Find next waiting entry
+  // Find next waiting entry — only kitchen-ready ones (a no-op filter for
+  // branches with no active kitchen counter, since those entries are created
+  // kitchen_status: 'ready' already).
   const { data: nextRow } = await supabase
     .from('queue_entries')
     .select('*')
     .eq('branch_id', branchId)
     .eq('status', 'waiting')
+    .eq('kitchen_status', 'ready')
     .order('queue_number', { ascending: true })
     .limit(1)
     .single()
@@ -360,6 +370,10 @@ export async function callEntryAction(entryId: string, branchId: string): Promis
 
   if (!entryRow) return { error: 'Entry not found' }
   const entry = entryRow as DbQueueEntry
+
+  if (entry.status === 'waiting' && entry.kitchen_status !== 'ready') {
+    return { error: 'Order is not ready yet' }
+  }
 
   const newCallCount = (entry.call_count ?? 0) + 1
   const isRecall = entry.status === 'in-progress'
@@ -588,6 +602,7 @@ export async function addEntryDirectAction(
   if (numErr || numData == null) return { error: 'Failed to assign queue number' }
 
   const queueNumber = numData as number
+  const needsKitchen = await hasActiveKitchenCounter(branchId)
   const { data, error } = await supabase
     .from('queue_entries')
     .insert({
@@ -598,6 +613,7 @@ export async function addEntryDirectAction(
       customer_name: '',
       phone: '',
       status: 'waiting',
+      kitchen_status: needsKitchen ? 'pending' : 'ready',
       source: 'admin',
     })
     .select()
@@ -608,7 +624,7 @@ export async function addEntryDirectAction(
   const entry = toQueueEntryDTO(data as DbQueueEntry)
   await logActivity(supabase, profile.customerId, branchId, 'joined',
     entry.id, queueNumber, billNumber.trim(),
-    `Queue #${queueNumber} joined — Bill ${billNumber} (serve panel)`,
+    `Queue #${queueNumber} joined — Bill ${billNumber} (business mode)`,
     profile.id)
 
   revalidatePath('/dashboard')
