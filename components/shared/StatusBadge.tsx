@@ -21,11 +21,11 @@ export function StatusBadge({ status, pulse, className }: StatusBadgeProps) {
       <span
         className={cn(
           "size-1.5 rounded-full",
-          status === "waiting" && "bg-blue-500",
-          status === "in-progress" && "bg-teal-500",
-          status === "completed" && "bg-emerald-500",
-          status === "cancelled" && "bg-red-400",
-          status === "no-show" && "bg-orange-400",
+          status === "waiting" && "bg-amber-500",
+          status === "in-progress" && "bg-accent-600",
+          status === "completed" && "bg-accent-600",
+          status === "cancelled" && "bg-slate-400",
+          status === "no-show" && "bg-slate-400",
           pulse && status === "in-progress" && "animate-pulse"
         )}
       />

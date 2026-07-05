@@ -110,6 +110,7 @@ create table public.branches (
   silent_print     boolean     not null default false,
   printer_name     text        not null default '',
   ticker_text      text        not null default '',
+  counter_presence_enabled boolean not null default false,
   is_active        boolean     not null default true,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
@@ -212,7 +213,7 @@ create table public.activity_logs (
   source        text        not null default 'admin'
                             check (source in ('admin','kiosk','self-join','system')),
   type          text        not null
-                            check (type in ('joined','called','recalled','completed','cancelled','no-show','reset','paused','resumed')),
+                            check (type in ('joined','called','recalled','completed','cancelled','no-show','reset','paused','resumed','kitchen-bypassed')),
   queue_number  int         not null default 0,
   bill_number   text        not null default '',
   message       text        not null default '',

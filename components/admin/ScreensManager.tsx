@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useActionState, useTransition } from 'react'
+import Image from 'next/image'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -133,7 +134,7 @@ export function ScreensManager({ branchId, initialScreens, availableAds = [], sc
       {screens.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-10 text-center">
           <Tv className="size-8 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm font-medium text-gray-700">No screens yet</p>
+          <p className="text-sm font-medium text-slate-700">No screens yet</p>
           <p className="text-xs text-muted-foreground mt-1">Add a display screen to show queue numbers on a TV</p>
         </div>
       ) : (
@@ -145,11 +146,11 @@ export function ScreensManager({ branchId, initialScreens, availableAds = [], sc
               <div key={screen.id} className="rounded-xl border border-border bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="size-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
-                      <Tv className="size-4 text-indigo-600" />
+                    <div className="size-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                      <Tv className="size-4 text-slate-600" />
                     </div>
                     <div>
-                      <p className="font-semibold text-sm text-gray-900">{screen.name}</p>
+                      <p className="font-semibold text-sm text-slate-800">{screen.name}</p>
                       <p className="text-xs text-muted-foreground mt-0.5 font-mono truncate max-w-xs">
                         {screen.screenToken}
                       </p>
@@ -161,7 +162,7 @@ export function ScreensManager({ branchId, initialScreens, availableAds = [], sc
                       <select
                         value={screen.announcementLang ?? 'en'}
                         onChange={(e) => handleLangChange(screen.id, e.target.value as AnnouncementLang)}
-                        className="h-7 rounded-md border border-border bg-white px-2 text-xs font-medium text-gray-700 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer"
+                        className="h-7 rounded-md border border-border bg-white px-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-accent-400 cursor-pointer"
                       >
                         <option value="en">EN</option>
                         <option value="ar">AR</option>
@@ -174,7 +175,7 @@ export function ScreensManager({ branchId, initialScreens, availableAds = [], sc
                       className="h-7 text-xs px-2"
                       onClick={() => openAdsDialog(screen)}
                     >
-                      <Megaphone className="size-3 mr-1" />
+                      <Megaphone className="size-3 me-1" />
                       Ads{pickedCount > 0 ? ` (${pickedCount})` : ''}
                     </Button>
                     <Button
@@ -183,7 +184,7 @@ export function ScreensManager({ branchId, initialScreens, availableAds = [], sc
                       className="h-7 text-xs px-2"
                       onClick={() => copyUrl(screen.screenToken)}
                     >
-                      <Copy className="size-3 mr-1" />
+                      <Copy className="size-3 me-1" />
                       Copy URL
                     </Button>
                     <a
@@ -192,14 +193,14 @@ export function ScreensManager({ branchId, initialScreens, availableAds = [], sc
                       rel="noopener noreferrer"
                     >
                       <Button variant="ghost" size="sm" className="h-7 text-xs px-2">
-                        <ExternalLink className="size-3 mr-1" />
+                        <ExternalLink className="size-3 me-1" />
                         Open
                       </Button>
                     </a>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs px-2 text-amber-600 hover:text-amber-700"
+                      className="h-7 text-xs px-2 text-amber-600 active:bg-amber-50"
                       onClick={() => handleRegenerate(screen.id)}
                     >
                       <RefreshCw className="size-3" />
@@ -207,7 +208,7 @@ export function ScreensManager({ branchId, initialScreens, availableAds = [], sc
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs px-2 text-red-500 hover:text-red-600 hover:bg-red-50"
+                      className="h-7 text-xs px-2 text-red-600 active:bg-red-50"
                       onClick={() => handleDelete(screen.id)}
                     >
                       <Trash2 className="size-3" />
@@ -239,14 +240,21 @@ export function ScreensManager({ branchId, initialScreens, availableAds = [], sc
                   Common
                 </p>
                 {commonAds.map((ad) => (
-                  <label key={ad.id} className="flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                  <label key={ad.id} className="flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm cursor-pointer active:bg-slate-50">
                     <input
                       type="checkbox"
                       checked={selectedAdIds.includes(ad.id)}
                       onChange={() => toggleAdSelected(ad.id)}
-                      className="size-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                      className="size-4 rounded border-slate-300 text-accent-600 focus:ring-accent-500"
                     />
-                    <span className="flex-1 truncate text-gray-900">{ad.name}</span>
+                    <div className="relative size-9 rounded-md bg-slate-100 overflow-hidden shrink-0">
+                      {ad.fileType === 'video' ? (
+                        <video src={ad.fileUrl} className="absolute inset-0 size-full object-cover" muted playsInline />
+                      ) : (
+                        <Image src={ad.fileUrl} alt="" fill className="object-cover" sizes="36px" />
+                      )}
+                    </div>
+                    <span className="flex-1 truncate text-slate-800">{ad.name}</span>
                   </label>
                 ))}
               </div>
@@ -256,14 +264,21 @@ export function ScreensManager({ branchId, initialScreens, availableAds = [], sc
               <div className="space-y-1.5">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">This Branch</p>
                 {branchAds.map((ad) => (
-                  <label key={ad.id} className="flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                  <label key={ad.id} className="flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm cursor-pointer active:bg-slate-50">
                     <input
                       type="checkbox"
                       checked={selectedAdIds.includes(ad.id)}
                       onChange={() => toggleAdSelected(ad.id)}
-                      className="size-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                      className="size-4 rounded border-slate-300 text-accent-600 focus:ring-accent-500"
                     />
-                    <span className="flex-1 truncate text-gray-900">{ad.name}</span>
+                    <div className="relative size-9 rounded-md bg-slate-100 overflow-hidden shrink-0">
+                      {ad.fileType === 'video' ? (
+                        <video src={ad.fileUrl} className="absolute inset-0 size-full object-cover" muted playsInline />
+                      ) : (
+                        <Image src={ad.fileUrl} alt="" fill className="object-cover" sizes="36px" />
+                      )}
+                    </div>
+                    <span className="flex-1 truncate text-slate-800">{ad.name}</span>
                   </label>
                 ))}
               </div>

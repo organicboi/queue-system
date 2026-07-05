@@ -45,10 +45,10 @@ export function AnalyticsView({ entries, stats }: Props) {
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: 'Total Today', value: stats.totalToday, color: 'text-gray-900' },
-          { label: 'Completed', value: stats.completed, color: 'text-emerald-600' },
-          { label: 'Cancelled', value: stats.cancelled, color: 'text-red-500' },
-          { label: 'Avg Wait', value: stats.avgWaitMinutes > 0 ? `${stats.avgWaitMinutes}m` : '—', color: 'text-indigo-600' },
+          { label: 'Total Today', value: stats.totalToday, color: 'text-slate-800' },
+          { label: 'Completed', value: stats.completed, color: 'text-accent-700' },
+          { label: 'Cancelled', value: stats.cancelled, color: 'text-red-600' },
+          { label: 'Avg Wait', value: stats.avgWaitMinutes > 0 ? `${stats.avgWaitMinutes}m` : '—', color: 'text-slate-800' },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-xl border border-border bg-white p-4 text-center">
             <p className="text-xs text-muted-foreground font-semibold uppercase tracking-widest mb-1">{label}</p>
@@ -66,8 +66,8 @@ export function AnalyticsView({ entries, stats }: Props) {
               <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <Tooltip
-                contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #E5E7EB' }}
-                cursor={{ fill: '#F9FAFB' }}
+                contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #E2E8F0' }}
+                cursor={{ fill: '#F8FAFC' }}
               />
               <Bar dataKey="count" fill="#0D9488" radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -123,7 +123,7 @@ export function AnalyticsView({ entries, stats }: Props) {
         <div className="divide-y divide-border">
           {entries.slice(0, 10).map((e) => (
             <div key={e.id} className="flex items-center gap-4 px-4 py-3">
-              <span className="font-mono font-black text-sm w-8 text-gray-900">#{e.queueNumber}</span>
+              <span className="font-mono font-black text-sm w-8 text-slate-800">#{e.queueNumber}</span>
               <span className="font-mono text-sm text-muted-foreground flex-1">Bill {e.billNumber}</span>
               <span
                 className="text-xs font-semibold px-2 py-0.5 rounded-full"

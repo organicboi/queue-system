@@ -63,10 +63,10 @@ export function AdTicker({
           animate={{ x: "-50%" }}
           transition={{ repeat: Infinity, duration: 50, ease: "linear" }}
         >
-          <span className="font-medium pr-24" style={{ fontSize: "clamp(0.75rem, 1.1vw, 1rem)", color: textColor }}>
+          <span className="font-medium pe-24" style={{ fontSize: "clamp(0.75rem, 1.1vw, 1rem)", color: textColor }}>
             {FULL}{SEP}{FULL}
           </span>
-          <span className="font-medium pr-24" style={{ fontSize: "clamp(0.75rem, 1.1vw, 1rem)", color: textColor }}>
+          <span className="font-medium pe-24" style={{ fontSize: "clamp(0.75rem, 1.1vw, 1rem)", color: textColor }}>
             {FULL}{SEP}{FULL}
           </span>
         </motion.div>

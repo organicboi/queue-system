@@ -268,9 +268,14 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
             className="relative flex flex-col items-center justify-center overflow-hidden"
             style={{ flex: 3, backgroundColor: theme.servingBg, borderBottom: `1px solid ${theme.servingBorder}` }}
           >
-            <p className="font-black uppercase tracking-[0.5em]" style={{ fontSize: "clamp(0.55rem, 0.9vw, 0.8rem)", color: theme.servingLabel }}>
-              Now Serving
-            </p>
+            <div className="flex flex-col items-center gap-1">
+              <p dir="rtl" className="font-medium" style={{ fontSize: "clamp(0.7rem, 1.1vw, 1rem)", color: theme.servingLabel }}>
+                يتم الخدمة الآن
+              </p>
+              <p className="font-black uppercase tracking-[0.5em]" style={{ fontSize: "clamp(0.55rem, 0.9vw, 0.8rem)", color: theme.servingLabel }}>
+                Now Serving
+              </p>
+            </div>
             <div className="flex flex-col items-center mt-4">
               <AnimatePresence mode="wait">
                 <motion.p
@@ -279,6 +284,7 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
                   initial="initial"
                   animate="animate"
                   exit="exit"
+                  dir="ltr"
                   className="font-black tabular-nums"
                   style={{ fontSize: "clamp(6rem, 16vw, 16rem)", lineHeight: 0.9, color: theme.servingNumber }}
                 >
@@ -314,25 +320,33 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
                   className="absolute inset-0 flex flex-col items-center justify-center z-10"
                   style={{ backgroundColor: theme.callingBg }}
                 >
+                  <div className="flex flex-col items-center gap-1">
+                    <p dir="rtl" className="font-medium" style={{ fontSize: "clamp(0.9rem, 1.4vw, 1.3rem)", color: theme.callingLabel }}>
+                      جاري النداء
+                    </p>
+                    <p className="font-black uppercase tracking-[0.6em]" style={{ fontSize: "clamp(0.55rem, 0.9vw, 0.8rem)", color: theme.callingLabel }}>
+                      Now Calling
+                    </p>
+                  </div>
+                  {/* One-shot flash on call, per design-system v5 §5.5 — no loops. */}
                   <motion.p
-                    animate={{ opacity: [1, 0.1, 1] }}
-                    transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut" }}
-                    className="font-black uppercase tracking-[0.6em]"
-                    style={{ fontSize: "clamp(0.55rem, 0.9vw, 0.8rem)", color: theme.callingLabel }}
-                  >
-                    Now Calling
-                  </motion.p>
-                  <motion.p
-                    animate={{ opacity: [1, 0.35, 1] }}
-                    transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut", delay: 0.08 }}
+                    initial={{ scale: 0.92 }}
+                    animate={{ scale: [0.92, 1.04, 1] }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    dir="ltr"
                     className="font-black tabular-nums mt-6"
                     style={{ fontSize: "clamp(6rem, 16vw, 16rem)", lineHeight: 0.9, color: theme.callingNum }}
                   >
                     {calledInfo.queueNumber}
                   </motion.p>
-                  <p className="mt-8 font-medium" style={{ fontSize: "clamp(0.9rem, 1.6vw, 1.4rem)", color: theme.callingSub }}>
-                    Please proceed to the counter
-                  </p>
+                  <div className="mt-8 flex flex-col items-center gap-1">
+                    <p dir="rtl" className="font-medium" style={{ fontSize: "clamp(0.9rem, 1.6vw, 1.4rem)", color: theme.callingSub }}>
+                      يرجى التوجه إلى المنضدة
+                    </p>
+                    <p className="font-medium" style={{ fontSize: "clamp(0.75rem, 1.3vw, 1.1rem)", color: theme.callingSub }}>
+                      Please proceed to the counter
+                    </p>
+                  </div>
                   {calledInfo.callCount > 1 && (
                     <motion.div
                       initial={{ opacity: 0, y: 6 }}
@@ -372,7 +386,7 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
                       className="flex flex-1 items-center gap-3 rounded-lg px-4"
                       style={{ backgroundColor: theme.rowBg, border: `1px solid ${theme.rowBorder}` }}
                     >
-                      <p className="font-black tabular-nums shrink-0" style={{ fontSize: "clamp(1.1rem, 2.2vw, 2rem)", width: "clamp(2rem, 3vw, 3rem)", color: theme.rowNum }}>
+                      <p dir="ltr" className="font-black tabular-nums shrink-0" style={{ fontSize: "clamp(1.1rem, 2.2vw, 2rem)", width: "clamp(2rem, 3vw, 3rem)", color: theme.rowNum }}>
                         {entry.queueNumber}
                       </p>
                       <p className="font-mono font-semibold truncate" style={{ fontSize: "clamp(0.65rem, 1.1vw, 1rem)", color: theme.rowBill }}>
@@ -405,7 +419,7 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
                       className="flex flex-1 items-center gap-3 rounded-lg px-4"
                       style={{ backgroundColor: theme.rowBg, border: `1px solid ${theme.rowBorder}` }}
                     >
-                      <p className="font-black tabular-nums shrink-0" style={{ fontSize: "clamp(1.1rem, 2.2vw, 2rem)", width: "clamp(2rem, 3vw, 3rem)", color: theme.rowNumDone }}>
+                      <p dir="ltr" className="font-black tabular-nums shrink-0" style={{ fontSize: "clamp(1.1rem, 2.2vw, 2rem)", width: "clamp(2rem, 3vw, 3rem)", color: theme.rowNumDone }}>
                         {entry.queueNumber}
                       </p>
                       <p className="font-mono font-medium truncate" style={{ fontSize: "clamp(0.65rem, 1.1vw, 1rem)", color: theme.rowBillDone }}>

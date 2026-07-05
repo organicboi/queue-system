@@ -39,11 +39,11 @@ export default async function BranchLogsPage({ params, searchParams }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <Link href={`/branches/${branchId}`} className="text-muted-foreground hover:text-gray-700 transition-colors">
+        <Link href={`/branches/${branchId}`} className="text-muted-foreground active:text-slate-700 transition-colors">
           <ChevronLeft className="size-4 inline" />
           <span className="text-xs">{branch.name}</span>
         </Link>
-        <h1 className="text-xl font-bold text-gray-900 mt-1">Activity Log</h1>
+        <h1 className="text-xl font-bold text-slate-800 mt-1">Activity Log</h1>
       </div>
 
       <BranchNav branchId={branchId} active="logs" />

@@ -40,7 +40,7 @@ export function BranchSwitcher({ branches, activeBranchId }: Props) {
       <DropdownMenuTrigger asChild>
         <button
           disabled={pending}
-          className="flex items-center gap-2 rounded-lg border border-border bg-white px-3 py-1.5 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors disabled:opacity-50 shrink-0"
+          className="flex items-center gap-2 rounded-lg border border-border bg-white px-3 py-1.5 text-sm font-medium text-slate-800 active:bg-slate-50 transition-colors disabled:opacity-50 shrink-0"
         >
           <GitBranch className="size-3.5 text-muted-foreground shrink-0" />
           <span className="truncate max-w-36 sm:max-w-48">{active?.name ?? 'Select branch'}</span>
@@ -51,7 +51,7 @@ export function BranchSwitcher({ branches, activeBranchId }: Props) {
         {branches.map((b) => (
           <DropdownMenuItem key={b.id} onClick={() => handleSelect(b.id)} className="flex items-center justify-between gap-2">
             <span className="truncate">{b.name}</span>
-            {b.id === activeBranchId && <Check className="size-3.5 text-teal-600 shrink-0" />}
+            {b.id === activeBranchId && <Check className="size-3.5 text-accent-600 shrink-0" />}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />

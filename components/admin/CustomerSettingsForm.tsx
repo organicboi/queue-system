@@ -80,7 +80,7 @@ export function CustomerSettingsForm({ customer }: Props) {
 
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
       {!state.error && state !== INIT && Object.keys(state).length === 0 && (
-        <p className="text-sm text-emerald-600">Settings saved successfully.</p>
+        <p className="text-sm text-accent-700">Settings saved successfully.</p>
       )}
 
       <div className="flex justify-end">

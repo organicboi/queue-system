@@ -29,11 +29,11 @@ export default async function BranchAdsPage({ params }: Props) {
     <div className="space-y-6">
       <div className="space-y-4">
         <div>
-          <Link href="/branches" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-gray-700 mb-1 w-fit">
+          <Link href="/branches" className="flex items-center gap-1 text-xs text-muted-foreground active:text-slate-700 mb-1 w-fit">
             <ChevronLeft className="size-3.5" />
             Branches
           </Link>
-          <h1 className="text-xl font-semibold text-gray-900">{branch.name}</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{branch.name}</h1>
         </div>
         <BranchNav branchId={branchId} active="ads" />
       </div>

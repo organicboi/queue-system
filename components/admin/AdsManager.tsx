@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   createAdAction,
   deleteAdAction,
@@ -42,7 +41,7 @@ export function AdsManager({ branchId, ads, tickers }: Props) {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Display Ads</h2>
+            <h2 className="text-base font-semibold text-slate-800">Display Ads</h2>
             <p className="text-xs text-muted-foreground mt-0.5">Images and videos shown on display screens</p>
           </div>
           <Dialog open={adOpen} onOpenChange={setAdOpen}>
@@ -63,25 +62,15 @@ export function AdsManager({ branchId, ads, tickers }: Props) {
                   <Input id="name" name="name" placeholder="Summer Promo" required />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="fileUrl">Media URL</Label>
+                  <Label htmlFor="file">Media File</Label>
                   <Input
-                    id="fileUrl"
-                    name="fileUrl"
-                    type="url"
-                    placeholder="https://…"
+                    id="file"
+                    name="file"
+                    type="file"
+                    accept="image/*,video/*"
                     required
                   />
-                  <p className="text-xs text-muted-foreground">Direct link to image or video file</p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Type</Label>
-                  <Select name="fileType" defaultValue="image">
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="image">Image</SelectItem>
-                      <SelectItem value="video">Video</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <p className="text-xs text-muted-foreground">Image or video, up to 25MB</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="durationSeconds">Duration (seconds)</Label>
@@ -115,14 +104,14 @@ export function AdsManager({ branchId, ads, tickers }: Props) {
             <div className="divide-y divide-border">
               {ads.map((ad) => (
                 <div key={ad.id} className="flex items-center gap-3 px-5 py-3">
-                  <div className="size-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                  <div className="size-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
                     {ad.fileType === 'video'
-                      ? <Video className="size-4 text-gray-500" />
-                      : <Image className="size-4 text-gray-500" />
+                      ? <Video className="size-4 text-slate-500" />
+                      : <Image className="size-4 text-slate-500" />
                     }
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{ad.name}</p>
+                    <p className="text-sm font-medium text-slate-800 truncate">{ad.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {ad.fileType} · {ad.durationSeconds}s
                     </p>
@@ -130,15 +119,15 @@ export function AdsManager({ branchId, ads, tickers }: Props) {
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                       ad.isActive
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-gray-100 text-gray-500'
+                        ? 'bg-accent-50 text-accent-700'
+                        : 'bg-slate-100 text-slate-500'
                     }`}>
                       {ad.isActive ? 'ON' : 'OFF'}
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-gray-700"
+                      className="h-7 w-7 p-0 text-muted-foreground active:text-slate-700"
                       title={ad.isActive ? 'Disable' : 'Enable'}
                       onClick={async () => {
                         const r = await toggleAdActiveAction(ad.id, branchId)
@@ -150,7 +139,7 @@ export function AdsManager({ branchId, ads, tickers }: Props) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                      className="h-7 w-7 p-0 text-red-600 active:bg-red-50"
                       title="Delete"
                       onClick={async () => {
                         if (!confirm('Delete this ad?')) return
@@ -173,7 +162,7 @@ export function AdsManager({ branchId, ads, tickers }: Props) {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Ticker Messages</h2>
+            <h2 className="text-base font-semibold text-slate-800">Ticker Messages</h2>
             <p className="text-xs text-muted-foreground mt-0.5">Scrolling text shown at the bottom of the display</p>
           </div>
           <Dialog open={tickerOpen} onOpenChange={setTickerOpen}>
@@ -220,24 +209,24 @@ export function AdsManager({ branchId, ads, tickers }: Props) {
             <div className="divide-y divide-border">
               {tickers.map((ticker) => (
                 <div key={ticker.id} className="flex items-center gap-3 px-5 py-3">
-                  <div className="size-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                    <MessageSquare className="size-4 text-blue-500" />
+                  <div className="size-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                    <MessageSquare className="size-4 text-slate-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900 truncate">{ticker.message}</p>
+                    <p className="text-sm text-slate-800 truncate">{ticker.message}</p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                       ticker.isActive
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-gray-100 text-gray-500'
+                        ? 'bg-accent-50 text-accent-700'
+                        : 'bg-slate-100 text-slate-500'
                     }`}>
                       {ticker.isActive ? 'ON' : 'OFF'}
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-gray-700"
+                      className="h-7 w-7 p-0 text-muted-foreground active:text-slate-700"
                       onClick={async () => {
                         const r = await toggleTickerActiveAction(ticker.id, branchId)
                         if (r.error) toast.error(r.error)
@@ -248,7 +237,7 @@ export function AdsManager({ branchId, ads, tickers }: Props) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                      className="h-7 w-7 p-0 text-red-600 active:bg-red-50"
                       onClick={async () => {
                         if (!confirm('Delete this message?')) return
                         const r = await deleteTickerAction(ticker.id, branchId)

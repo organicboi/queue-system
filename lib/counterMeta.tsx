@@ -14,9 +14,12 @@ export interface CounterTypeMeta {
 // the two stages every business needs; Kitchen and Delivery are opt-in.
 export const COUNTER_TYPE_ORDER: CounterType[] = ['order', 'kitchen', 'billing', 'delivery']
 
+// Design system v5, §2.5 — color signals status, not category. Counter type
+// is differentiated by icon shape + label only; no per-type hue (that would
+// blow the system's 3-saturated-hue budget: accent, amber, red).
 export const COUNTER_META: Record<CounterType, CounterTypeMeta> = {
-  order:    { label: 'Order',    icon: <ClipboardList className="size-4" />, color: 'text-teal-600',    bg: 'bg-teal-50',    optional: false },
-  kitchen:  { label: 'Kitchen',  icon: <ChefHat className="size-4" />,       color: 'text-orange-600',  bg: 'bg-orange-50',  optional: true  },
-  billing:  { label: 'Billing',  icon: <Receipt className="size-4" />,       color: 'text-emerald-600', bg: 'bg-emerald-50', optional: false },
-  delivery: { label: 'Delivery', icon: <Truck className="size-4" />,         color: 'text-blue-600',    bg: 'bg-blue-50',    optional: true  },
+  order:    { label: 'Order',    icon: <ClipboardList className="size-4" />, color: 'text-slate-600', bg: 'bg-slate-100', optional: false },
+  kitchen:  { label: 'Kitchen',  icon: <ChefHat className="size-4" />,       color: 'text-slate-600', bg: 'bg-slate-100', optional: true  },
+  billing:  { label: 'Billing',  icon: <Receipt className="size-4" />,       color: 'text-slate-600', bg: 'bg-slate-100', optional: false },
+  delivery: { label: 'Delivery', icon: <Truck className="size-4" />,         color: 'text-slate-600', bg: 'bg-slate-100', optional: true  },
 }

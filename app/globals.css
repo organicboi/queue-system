@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: 40 14% 97%;
-  --foreground: 220 14% 11%;
+  --background: 210 40% 96%;
+  --foreground: 222 47% 11%;
   --card: 0 0% 100%;
   --card-foreground: 220 14% 11%;
   --popover: 0 0% 100%;
   --popover-foreground: 220 14% 11%;
-  --primary: 175 84% 32%;
+  --primary: 160 84% 39%;
   --primary-foreground: 0 0% 100%;
   --secondary: 210 14% 97%;
   --secondary-foreground: 220 14% 11%;
@@ -19,16 +19,16 @@
   --destructive-foreground: 0 0% 100%;
   --border: 220 13% 91%;
   --input: 220 13% 91%;
-  --ring: 175 84% 32%;
+  --ring: 160 84% 39%;
   --radius: 0.5rem;
   --sidebar-background: 30 10% 98%;
   --sidebar-foreground: 220 14% 11%;
-  --sidebar-primary: 175 84% 32%;
+  --sidebar-primary: 160 84% 39%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 210 14% 94%;
   --sidebar-accent-foreground: 220 14% 11%;
   --sidebar-border: 220 13% 91%;
-  --sidebar-ring: 175 84% 32%;
+  --sidebar-ring: 160 84% 39%;
 }
 
 @theme inline {
@@ -59,10 +59,20 @@
   --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  /* Operator Console "accent" token (design-system v5, §2.2): the single
+     themable brand hue for staff terminals. Defaults to emerald; a
+     property override only needs to redefine these five variables. */
+  --color-accent-50: var(--color-emerald-50);
+  --color-accent-200: var(--color-emerald-200);
+  --color-accent-400: var(--color-emerald-400);
+  --color-accent-600: var(--color-emerald-600);
+  --color-accent-700: var(--color-emerald-700);
+
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-geist-sans), var(--font-arabic), sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 

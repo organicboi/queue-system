@@ -8,6 +8,7 @@ import type { CounterType } from '@/lib/db/types'
 interface Props {
   branchId: string
   selfCounterId: string
+  enabled?: boolean
 }
 
 const TYPE_LABEL: Record<CounterType, string> = {
@@ -21,8 +22,9 @@ const TYPE_LABEL: Record<CounterType, string> = {
 // branch appears offline (no heartbeat within the threshold) — e.g. the
 // delivery counter isn't being watched, so ready orders may pile up
 // unnoticed unless someone else steps in.
-export function CounterPresenceAlert({ branchId, selfCounterId }: Props) {
-  const counters = useCounterPresence(branchId)
+// Rendered as a slim full-width strip in the shell's banner slot.
+export function CounterPresenceAlert({ branchId, selfCounterId, enabled = false }: Props) {
+  const counters = useCounterPresence(branchId, enabled)
 
   const offlineSiblings = counters.filter(
     c => c.id !== selfCounterId && c.isActive && !c.isOnline
@@ -31,23 +33,21 @@ export function CounterPresenceAlert({ branchId, selfCounterId }: Props) {
   if (offlineSiblings.length === 0) return null
 
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
-      <WifiOff className="size-4 text-amber-600 shrink-0 mt-0.5" />
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-amber-800">
-          {offlineSiblings.length === 1 ? 'A counter appears offline' : `${offlineSiblings.length} counters appear offline`}
-        </p>
-        <p className="text-xs text-amber-700 mt-0.5">
-          {offlineSiblings.map((c, i) => (
-            <span key={c.id}>
-              {i > 0 && ', '}
-              {c.name} ({TYPE_LABEL[c.type]})
-              {c.lastSeenAt ? ` — last seen ${formatRelativeTime(c.lastSeenAt)}` : ' — never opened'}
-            </span>
-          ))}
-          . You may need to cover their orders yourself.
-        </p>
-      </div>
+    <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-3 py-1.5 flex items-center gap-2">
+      <WifiOff className="size-3.5 text-amber-600 shrink-0" />
+      <p className="text-xs text-amber-800 truncate min-w-0">
+        <span className="font-bold">
+          {offlineSiblings.length === 1 ? 'Counter offline: ' : `${offlineSiblings.length} counters offline: `}
+        </span>
+        {offlineSiblings.map((c, i) => (
+          <span key={c.id}>
+            {i > 0 && ', '}
+            {c.name} ({TYPE_LABEL[c.type]}
+            {c.lastSeenAt ? `, ${formatRelativeTime(c.lastSeenAt)}` : ', never opened'})
+          </span>
+        ))}
+        {' — cover their orders if needed.'}
+      </p>
     </div>
   )
 }

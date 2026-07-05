@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ClipboardList, PlusCircle, CheckCircle2, Printer, XCircle, Clock } from 'lucide-react'
+import { ClipboardList, CheckCircle2, Printer, Delete, Ticket } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRealtimeQueue } from '@/lib/hooks/useRealtimeQueue'
 import { useCounterHeartbeat } from '@/lib/hooks/useCounterPresence'
 import { counterCreateEntryAction, counterCancelEntryAction } from '@/lib/actions/counters'
 import { CounterPresenceAlert } from '@/components/counter/CounterPresenceAlert'
+import { ConsoleFrame, ConsoleLoading, KeypadKey, RowCancel, STATUS_PILL } from '@/components/counter/console'
 import { formatTime } from '@/lib/queueUtils'
-import { flipNumber } from '@/lib/animations'
 import { silentPrint, buildReceiptHtml } from '@/lib/silentPrint'
 import type { QueueEntryDTO } from '@/lib/db/types'
 
@@ -21,35 +21,31 @@ interface Props {
   branchName: string
   silentPrintEnabled: boolean
   printerName: string
+  presenceEnabled?: boolean
 }
 
-type Step = 'entry' | 'success'
-
-const STATUS_PILL: Record<string, { label: string; className: string }> = {
-  waiting: { label: 'Waiting', className: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200' },
-  'in-progress': { label: 'Serving', className: 'bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-200' },
-  completed: { label: 'Done', className: 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-200' },
-  cancelled: { label: 'Cancelled', className: 'bg-gray-100 text-gray-500' },
-  'no-show': { label: 'No-show', className: 'bg-orange-50 text-orange-600' },
-}
+const MAX_BILL_LENGTH = 12
+const HIGHLIGHT_DURATION_MS = 3000
 
 export function OrderCounter({
-  branchId, counterId, counterName, counterToken, branchName, silentPrintEnabled, printerName,
+  branchId, counterId, counterName, counterToken, branchName, silentPrintEnabled, printerName, presenceEnabled = false,
 }: Props) {
   const { entries, isLoading } = useRealtimeQueue(branchId)
   const [pending, startTransition] = useTransition()
-  useCounterHeartbeat(counterToken)
+  useCounterHeartbeat(counterToken, presenceEnabled)
 
-  const [step, setStep] = useState<Step>('entry')
   const [billNumber, setBillNumber] = useState('')
   const [customerName, setCustomerName] = useState('')
-  const [createdEntry, setCreatedEntry] = useState<QueueEntryDTO | null>(null)
   const [printEntry, setPrintEntry] = useState<QueueEntryDTO | null>(null)
+  const [highlightId, setHighlightId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    if (step === 'entry') setTimeout(() => inputRef.current?.focus(), 50)
-  }, [step])
+    return () => {
+      if (highlightTimer.current) clearTimeout(highlightTimer.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (!printEntry) return
@@ -71,7 +67,19 @@ export function OrderCounter({
   const recentOrders = entries
     .slice()
     .sort((a, b) => b.queueNumber - a.queueNumber)
-    .slice(0, 8)
+    .slice(0, 10)
+
+  function append(text: string) {
+    setBillNumber((prev) => (prev + text).slice(0, MAX_BILL_LENGTH))
+  }
+
+  function handleBackspace() {
+    setBillNumber((prev) => prev.slice(0, -1))
+  }
+
+  function handleClear() {
+    setBillNumber('')
+  }
 
   function handleSubmit() {
     const trimmed = billNumber.trim()
@@ -83,19 +91,19 @@ export function OrderCounter({
         return
       }
       if (result.entry) {
-        setCreatedEntry(result.entry)
-        setStep('success')
         toast.success(`Queue #${result.entry.queueNumber} — Bill ${result.entry.billNumber}`)
         setPrintEntry(result.entry)
+
+        // Reset the form immediately for the next customer — no success screen,
+        // the new entry is highlighted in the recent orders list instead.
+        setBillNumber('')
+        setCustomerName('')
+
+        setHighlightId(result.entry.id)
+        if (highlightTimer.current) clearTimeout(highlightTimer.current)
+        highlightTimer.current = setTimeout(() => setHighlightId(null), HIGHLIGHT_DURATION_MS)
       }
     })
-  }
-
-  function handleAddAnother() {
-    setBillNumber('')
-    setCustomerName('')
-    setCreatedEntry(null)
-    setStep('entry')
   }
 
   function handleCancel(entry: QueueEntryDTO) {
@@ -106,8 +114,12 @@ export function OrderCounter({
     })
   }
 
+  function handleReprint(entry: QueueEntryDTO) {
+    setPrintEntry(entry)
+  }
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <>
       {/* Print styles — 80mm thermal */}
       <style>{`
         @page { size: 80mm auto; margin: 0; }
@@ -139,196 +151,158 @@ export function OrderCounter({
         )}
       </div>
 
-      <div className="no-print flex flex-col min-h-screen">
-        <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-3 md:py-4 sticky top-0 z-10">
-          <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 shrink-0">
-              <div className="size-9 rounded-lg bg-teal-50 flex items-center justify-center shrink-0">
-                <ClipboardList className="size-5 text-teal-600" />
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 leading-none mb-0.5">
-                  Order
-                </p>
-                <h1 className="text-sm md:text-base font-semibold text-gray-900 leading-tight">{counterName}</h1>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <main className="flex-1 max-w-2xl mx-auto w-full px-3 md:px-4 lg:px-6 py-4 md:py-6 space-y-4">
+      <div className="no-print">
+        <ConsoleFrame
+          icon={ClipboardList}
+          name={counterName}
+          typeLabel="Order · Ticket Station"
+          banner={<CounterPresenceAlert branchId={branchId} selfCounterId={counterId} enabled={presenceEnabled} />}
+        >
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-24">
-              <ClipboardList className="size-10 mb-3 animate-pulse text-gray-300" />
-              <p className="text-sm text-gray-500">Loading…</p>
-            </div>
+            <ConsoleLoading icon={ClipboardList} />
           ) : (
-            <>
-              <CounterPresenceAlert branchId={branchId} selfCounterId={counterId} />
+              <div className="h-full grid gap-3 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] portrait:grid-cols-1 portrait:grid-rows-[minmax(0,1.55fr)_minmax(0,1fr)] landscape:grid-rows-1 landscape:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                {/* Ticket-entry panel */}
+                <section className="min-h-0">
+                  <div className="h-full flex flex-col rounded-3xl border border-slate-200 bg-white p-4 gap-3 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.25)]">
+                    <h2 className="text-lg font-bold text-slate-800 leading-tight text-center shrink-0">Enter Bill Number</h2>
 
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-4 pt-4 pb-3 border-b border-gray-100">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">New Order</p>
-                  <p className="text-sm font-semibold text-gray-900 mt-0.5">Take a customer&apos;s order</p>
-                </div>
+                    {/* Bill display — fed by the on-screen pad; virtual keyboard suppressed. */}
+                    <div className="relative shrink-0 rounded-2xl border border-slate-200 bg-slate-50 focus-within:border-accent-400 focus-within:ring-4 focus-within:ring-accent-600/10 transition-colors">
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        inputMode="none"
+                        placeholder="Bill number"
+                        value={billNumber}
+                        onChange={(e) => setBillNumber(e.target.value.slice(0, MAX_BILL_LENGTH))}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                        className="w-full h-[4.5rem] bg-transparent text-center text-5xl font-mono font-black tracking-wider tabular-nums text-slate-900 placeholder:text-lg placeholder:font-semibold placeholder:tracking-normal placeholder:text-slate-300 focus:outline-none"
+                      />
+                    </div>
 
-                <div className="p-4">
-                  <AnimatePresence mode="wait">
-                    {step === 'entry' ? (
-                      <motion.div
-                        key="entry"
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.14 }}
-                        className="space-y-3"
+                    <div className="shrink-0 rounded-2xl border border-slate-200 bg-slate-50 focus-within:border-accent-400 focus-within:ring-4 focus-within:ring-accent-600/10 transition-colors">
+                      <input
+                        type="text"
+                        placeholder="Customer name (optional)"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                        className="w-full h-11 bg-transparent px-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Keypad: dimensional keys + tall gradient Create Ticket. */}
+                    <div className="grid grid-cols-4 gap-2 flex-1 min-h-0">
+                      <div className="col-span-3 grid grid-cols-3 grid-rows-4 gap-2 min-h-0">
+                        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
+                          <KeypadKey key={d} onTap={() => append(d)} disabled={pending}>{d}</KeypadKey>
+                        ))}
+                        <KeypadKey variant="danger" onTap={handleClear} disabled={pending}>Clear</KeypadKey>
+                        <KeypadKey onTap={() => append('0')} disabled={pending}>0</KeypadKey>
+                        <KeypadKey variant="muted" onTap={handleBackspace} disabled={pending} aria-label="Backspace">
+                          <Delete className="size-6" />
+                        </KeypadKey>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={!billNumber.trim() || pending}
+                        className="rounded-2xl bg-accent-600 text-white flex flex-col items-center justify-center gap-2 select-none transition active:translate-y-px active:bg-accent-700 disabled:opacity-40 disabled:active:translate-y-0 shadow-[0_6px_16px_-6px_rgba(5,150,105,0.5)]"
                       >
-                        <div>
-                          <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                            Bill Number
-                          </label>
-                          <input
-                            ref={inputRef}
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="0000"
-                            value={billNumber}
-                            onChange={(e) => setBillNumber(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-4 py-4 text-center text-2xl font-black tracking-widest text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-teal-500 transition-colors"
-                          />
+                        <Ticket className="size-8" />
+                        <span className="text-base font-bold uppercase tracking-wide leading-tight text-center px-1">Generate<br />Ticket</span>
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Recent orders */}
+                <section className="min-h-0 flex flex-col">
+                  <div className="flex items-center gap-2 px-1.5 pb-2 shrink-0">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Recent Orders</p>
+                    <span className="ms-auto min-w-6 h-6 px-1.5 rounded-full bg-white border border-slate-200 text-slate-500 text-xs font-bold flex items-center justify-center shadow-sm">
+                      {recentOrders.length}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin space-y-2 px-0.5 pb-1">
+                    {recentOrders.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 px-4">
+                        <div className="size-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center mb-3">
+                          <ClipboardList className="size-6 text-slate-300" />
                         </div>
-                        <div>
-                          <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                            Customer Name (optional)
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Walk-in"
-                            value={customerName}
-                            onChange={(e) => setCustomerName(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-                            className="w-full h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-teal-500 transition-colors"
-                          />
-                        </div>
-                        <button
-                          onClick={handleSubmit}
-                          disabled={!billNumber.trim() || pending}
-                          className="w-full h-11 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all select-none disabled:opacity-40"
-                        >
-                          <PlusCircle className="size-4" />
-                          Generate Queue Number
-                        </button>
-                      </motion.div>
+                        <p className="text-sm font-semibold text-slate-500">No orders yet</p>
+                        <p className="text-xs mt-1">Tickets you create appear here</p>
+                      </div>
                     ) : (
-                      <motion.div
-                        key="success"
-                        initial={{ opacity: 0, scale: 0.96 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.96 }}
-                        transition={{ duration: 0.18 }}
-                        className="space-y-3"
-                      >
-                        <div className="rounded-xl bg-teal-50 border border-teal-100 overflow-hidden">
-                          <div className="p-5 text-center">
-                            <div className="flex items-center justify-center gap-1.5 mb-3">
-                              <CheckCircle2 className="size-3.5 text-teal-600" />
-                              <span className="text-teal-700 text-[11px] font-semibold">Added successfully</span>
-                            </div>
-                            <p className="text-[11px] font-semibold uppercase tracking-wider text-teal-600 mb-1">Queue Number</p>
-                            <AnimatePresence mode="wait">
-                              <motion.p
-                                key={createdEntry?.queueNumber}
-                                variants={flipNumber}
-                                initial="initial"
-                                animate="animate"
-                                exit="exit"
-                                className="text-7xl font-black text-teal-600 tabular-nums leading-none"
-                              >
-                                #{createdEntry?.queueNumber}
-                              </motion.p>
-                            </AnimatePresence>
-                            <div className="border-t border-teal-100 my-4" />
-                            <p className="text-gray-700 text-sm font-mono font-semibold">Bill {createdEntry?.billNumber}</p>
-                            <p className="text-gray-500 text-xs mt-0.5">{createdEntry ? formatTime(createdEntry.joinedAt) : ''}</p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handleAddAnother}
-                            className="flex-1 h-10 rounded-lg text-sm font-semibold border border-gray-200 hover:bg-gray-50 transition-colors"
-                          >
-                            Add Another
-                          </button>
-                          {createdEntry && (
-                            <button
-                              onClick={() => setPrintEntry(createdEntry)}
-                              title="Print ticket"
-                              className="h-10 px-3.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                      <AnimatePresence initial={false}>
+                        {recentOrders.map((entry) => {
+                          const pill = STATUS_PILL[entry.status]
+                          const isHighlighted = entry.id === highlightId
+                          return (
+                            <motion.div
+                              key={entry.id}
+                              layout
+                              initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.98 }}
+                              transition={{ duration: 0.25, ease: 'easeOut' }}
+                              className={`rounded-2xl border px-3 py-2 flex items-center gap-3 transition-colors duration-700 ${
+                                isHighlighted
+                                  ? 'bg-accent-50 border-accent-300'
+                                  : 'bg-white border-slate-200 shadow-sm'
+                              }`}
                             >
-                              <Printer className="size-4 text-gray-600" />
-                            </button>
-                          )}
-                        </div>
-                      </motion.div>
+                              <span className={`size-11 rounded-xl flex items-center justify-center font-mono font-black text-lg tabular-nums shrink-0 border ${
+                                isHighlighted
+                                  ? 'bg-accent-600 text-white border-accent-600'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                              }`}>
+                                {entry.queueNumber}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-slate-800 truncate">
+                                  Bill {entry.billNumber}
+                                  {entry.customerName && <span className="font-normal text-slate-400"> · {entry.customerName}</span>}
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-xs text-slate-400 tabular-nums">{formatTime(entry.joinedAt)}</span>
+                                  {!isHighlighted && pill && (
+                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${pill.className}`}>
+                                      {pill.label}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {isHighlighted ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-accent-600 text-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shrink-0">
+                                  <CheckCircle2 className="size-3" />
+                                  Added
+                                </span>
+                              ) : entry.status === 'waiting' ? (
+                                <div className="flex flex-col gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleReprint(entry)}
+                                    className="h-8 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-bold flex items-center justify-center gap-1 shadow-sm active:bg-slate-50 active:scale-95 transition"
+                                  >
+                                    <Printer className="size-3.5" />
+                                    Reprint
+                                  </button>
+                                  <RowCancel disabled={pending} onConfirm={() => handleCancel(entry)} />
+                                </div>
+                              ) : null}
+                            </motion.div>
+                          )
+                        })}
+                      </AnimatePresence>
                     )}
-                  </AnimatePresence>
-                </div>
-              </div>
-
-              {/* Recent orders */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between px-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Recent Orders</p>
-                </div>
-                {recentOrders.length === 0 ? (
-                  <div className="border border-dashed border-gray-300 rounded-xl p-8 text-center">
-                    <p className="text-sm text-gray-400">Orders you create will appear here</p>
                   </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    {recentOrders.map((entry) => {
-                      const pill = STATUS_PILL[entry.status]
-                      return (
-                        <div
-                          key={entry.id}
-                          className="bg-white rounded-xl border border-gray-200 p-3 flex items-center gap-3"
-                        >
-                          <span className="font-mono font-black text-base text-gray-900 tabular-nums w-8 shrink-0">
-                            {entry.queueNumber}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-800 truncate">Bill {entry.billNumber}</p>
-                            <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
-                              <Clock className="size-3" />
-                              {formatTime(entry.joinedAt)}
-                            </div>
-                          </div>
-                          {pill && (
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${pill.className}`}>
-                              {pill.label}
-                            </span>
-                          )}
-                          {entry.status === 'waiting' && (
-                            <button
-                              onClick={() => handleCancel(entry)}
-                              disabled={pending}
-                              title="Cancel this order"
-                              className="shrink-0 text-gray-300 hover:text-red-500 transition-colors disabled:opacity-40"
-                            >
-                              <XCircle className="size-4" />
-                            </button>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+                </section>
               </div>
-            </>
           )}
-        </main>
+        </ConsoleFrame>
       </div>
-    </div>
+    </>
   )
 }

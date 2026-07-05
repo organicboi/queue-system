@@ -23,6 +23,7 @@ const TYPE_OPTIONS: { value: ActivityType | 'all'; label: string }[] = [
   { value: 'reset', label: 'Reset' },
   { value: 'paused', label: 'Paused' },
   { value: 'resumed', label: 'Resumed' },
+  { value: 'kitchen-bypassed', label: 'Kitchen bypassed' },
 ]
 
 const RANGE_OPTIONS = [
@@ -42,6 +43,7 @@ const dotColor: Record<string, string> = {
   reset: 'bg-purple-400',
   paused: 'bg-yellow-400',
   resumed: 'bg-green-400',
+  'kitchen-bypassed': 'bg-amber-500',
 }
 
 interface ExportFilters {

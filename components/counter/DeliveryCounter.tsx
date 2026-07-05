@@ -1,6 +1,7 @@
 'use client'
 
 import { useTransition } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useRealtimeQueue } from '@/lib/hooks/useRealtimeQueue'
 import { useCounterHeartbeat } from '@/lib/hooks/useCounterPresence'
 import {
@@ -9,10 +10,11 @@ import {
   counterCompleteEntryAction,
   counterCancelEntryAction,
 } from '@/lib/actions/counters'
-import { Truck, Phone, Clock, CheckCircle2, PackageCheck, ChefHat, SkipForward, BellRing, XCircle } from 'lucide-react'
+import { Truck, Phone, CheckCircle2, PackageCheck, ChefHat, SkipForward, BellRing } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatTime } from '@/lib/queueUtils'
 import { CounterPresenceAlert } from '@/components/counter/CounterPresenceAlert'
+import { ConsoleFrame, ConsoleLoading, TaskSplit, ElapsedPill, ConfirmCancel, useNow, minutesSince } from '@/components/counter/console'
 import type { QueueEntryDTO } from '@/lib/db/types'
 
 interface Props {
@@ -20,12 +22,19 @@ interface Props {
   counterId: string
   counterName: string
   counterToken: string
+  presenceEnabled?: boolean
 }
 
-export function DeliveryCounter({ branchId, counterId, counterName, counterToken }: Props) {
+/*
+ * Delivery mirrors Billing's single-focus task shape (design system v5,
+ * §5.2): one order out for delivery (or up next) at a time — no FIFO lane,
+ * the list below the hero is informational.
+ */
+export function DeliveryCounter({ branchId, counterId, counterName, counterToken, presenceEnabled = false }: Props) {
   const { entries, isPaused, isLoading } = useRealtimeQueue(branchId)
   const [pending, startTransition] = useTransition()
-  useCounterHeartbeat(counterToken)
+  useCounterHeartbeat(counterToken, presenceEnabled)
+  const now = useNow()
 
   const atCounter = entries.find(e => e.status === 'in-progress')
 
@@ -33,11 +42,14 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
     .filter(e => e.status === 'waiting' && e.kitchenStatus === 'ready')
     .sort((a, b) => a.queueNumber - b.queueNumber)
 
+  const next = readyForDelivery[0]
+
   const inKitchen = entries.filter(
     e => e.status === 'waiting' && (e.kitchenStatus === 'pending' || e.kitchenStatus === 'preparing')
   ).length
 
-  const totalWaiting = readyForDelivery.length + inKitchen
+  const focus = atCounter ?? next
+  const queueList = atCounter ? readyForDelivery : readyForDelivery.slice(1)
 
   const recentlyDelivered = entries
     .filter(e => e.status === 'completed')
@@ -76,304 +88,288 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-
-      <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-3 md:py-4 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
-
-          <div className="flex items-center gap-2.5 shrink-0">
-            <div className="size-9 rounded-lg bg-teal-50 flex items-center justify-center shrink-0">
-              <Truck className="size-5 text-teal-600" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 leading-none mb-0.5">
-                Delivery
-              </p>
-              <h1 className="text-sm md:text-base font-semibold text-gray-900 leading-tight">{counterName}</h1>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            {inKitchen > 0 && (
-              <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-600 rounded-full px-2.5 py-1 text-xs font-semibold">
-                <ChefHat className="size-3" />
-                {inKitchen}
-                <span className="hidden sm:inline ml-0.5">in kitchen</span>
-              </div>
-            )}
-            {readyForDelivery.length > 0 && (
-              <div className="flex items-center gap-1 bg-teal-50 border border-teal-200 text-teal-700 rounded-full px-2.5 py-1 text-xs font-semibold">
-                <span className="size-1.5 rounded-full bg-teal-500 animate-pulse" />
-                {readyForDelivery.length}
-                <span className="hidden sm:inline ml-0.5">ready</span>
-              </div>
-            )}
-            {isPaused && (
-              <div className="text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
-                Paused
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-2xl mx-auto w-full px-3 md:px-4 lg:px-6 py-4 md:py-6 space-y-4">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-24">
-            <Truck className="size-10 mb-3 animate-pulse text-gray-300" />
-            <p className="text-sm text-gray-500">Loading…</p>
-          </div>
-        ) : (
-          <>
-            <CounterPresenceAlert branchId={branchId} selfCounterId={counterId} />
-
-            {/* At Counter */}
-            {atCounter && (
-              <div className="bg-white border border-teal-200 rounded-xl overflow-hidden">
-                <div className="bg-teal-50 border-b border-teal-200 px-4 py-2.5 flex items-center gap-2">
-                  <span className="size-1.5 rounded-full bg-teal-500 animate-pulse" />
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-teal-700">
-                    Out for Delivery Now
-                  </span>
-                </div>
-                <div className="p-4 md:p-6 space-y-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-20 h-20 md:w-24 md:h-24 rounded-lg bg-teal-50 border border-teal-200 flex items-center justify-center shrink-0">
-                      <span className="font-mono font-black text-gray-900 text-4xl md:text-5xl">
-                        {atCounter.queueNumber}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0 pt-1">
-                      {atCounter.billNumber && (
-                        <p className="text-xl md:text-2xl font-semibold text-gray-900 leading-tight">
-                          Bill #{atCounter.billNumber}
-                        </p>
-                      )}
-                      {atCounter.customerName ? (
-                        <p className="text-sm text-gray-500 mt-0.5 truncate">{atCounter.customerName}</p>
-                      ) : (
-                        <p className="text-sm text-gray-400 italic mt-0.5">No name provided</p>
-                      )}
-                      {atCounter.startedAt && (
-                        <div className="flex items-center gap-1 text-xs text-gray-400 mt-1.5">
-                          <Clock className="size-3" />
-                          Called {formatTime(atCounter.startedAt)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Phone */}
-                  {atCounter.phone ? (
-                    <a
-                      href={`tel:${atCounter.phone}`}
-                      className="flex items-center gap-3 bg-teal-50 border border-teal-200 rounded-lg px-4 py-3 hover:bg-teal-100 active:scale-95 transition-all select-none"
-                    >
-                      <div className="size-9 rounded-lg bg-teal-600 flex items-center justify-center shrink-0">
-                        <Phone className="size-4 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px] text-teal-600 font-semibold uppercase tracking-wider mb-0.5">
-                          Tap to Call
-                        </p>
-                        <p className="text-lg md:text-xl font-semibold text-gray-900 leading-tight">
-                          {atCounter.phone}
-                        </p>
-                      </div>
-                    </a>
-                  ) : (
-                    <div className="flex items-center gap-3 bg-gray-50 border border-dashed border-gray-200 rounded-lg px-4 py-3">
-                      <div className="size-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                        <Phone className="size-4 text-gray-400" />
-                      </div>
-                      <p className="text-sm text-gray-400">No phone number</p>
-                    </div>
-                  )}
-
-                  {/* Notes */}
-                  {atCounter.notes && (
-                    <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
-                      <span className="text-amber-600 shrink-0 mt-0.5">⚠</span>
-                      <p className="text-sm text-amber-700">{atCounter.notes}</p>
-                    </div>
-                  )}
-
-                  {/* Recall */}
-                  <button
-                    onClick={() => handleRecall(atCounter)}
-                    disabled={pending}
-                    className="w-full h-11 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all select-none disabled:opacity-40"
-                  >
-                    <BellRing className="size-4" />
-                    Recall
-                  </button>
-
-                  {((atCounter.callCount ?? 0) > 0 || (atCounter.recallCount ?? 0) > 0) && (
-                    <p className="text-xs text-center text-gray-500 font-medium -mt-2">
-                      Called <span className="text-gray-700 font-bold">{atCounter.callCount ?? 0}×</span>
-                      {(atCounter.recallCount ?? 0) > 0 && (
-                        <> · Recalled <span className="text-amber-600 font-bold">{atCounter.recallCount}×</span></>
-                      )}
-                    </p>
-                  )}
-
-                  <div className="grid grid-cols-4 gap-2">
-                    <button
-                      onClick={() => handleDeliver(atCounter)}
-                      disabled={pending}
-                      className="col-span-3 h-12 md:h-14 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-base flex items-center justify-center gap-2 active:scale-95 transition-all select-none disabled:opacity-40"
-                    >
-                      <CheckCircle2 className="size-5 shrink-0" />
-                      Delivered
-                    </button>
-                    <button
-                      onClick={() => handleCancel(atCounter)}
-                      disabled={pending}
-                      className="h-12 md:h-14 rounded-lg border border-gray-200 bg-white text-red-500 hover:bg-red-50 font-semibold text-sm flex flex-col items-center justify-center gap-1 active:scale-95 transition-all select-none disabled:opacity-40"
-                    >
-                      <XCircle className="size-5" />
-                      <span className="text-[10px] font-semibold uppercase tracking-wide">Cancel</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Call Next */}
-            {readyForDelivery.length > 0 && (
-              <button
-                onClick={handleCallNext}
-                disabled={pending || isPaused}
-                className={`w-full rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all select-none disabled:opacity-40 ${
-                  atCounter ? 'h-12 text-sm' : 'h-14 md:h-16 text-base'
-                }`}
+    <ConsoleFrame
+      icon={Truck}
+      name={counterName}
+      typeLabel="Delivery · Dispatch Station"
+      banner={<CounterPresenceAlert branchId={branchId} selfCounterId={counterId} enabled={presenceEnabled} />}
+    >
+      {isLoading ? (
+        <ConsoleLoading icon={Truck} />
+      ) : (
+        <TaskSplit
+          task={
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={focus ? `${focus.id}-${atCounter ? 'out' : 'next'}` : 'empty'}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                className="h-full"
               >
-                <SkipForward className="size-5 shrink-0" />
                 {atCounter ? (
-                  <>Call Next — #{readyForDelivery[0]?.queueNumber}</>
+                  <OutForDeliveryHero
+                    entry={atCounter}
+                    now={now}
+                    pending={pending}
+                    onDeliver={() => handleDeliver(atCounter)}
+                    onRecall={() => handleRecall(atCounter)}
+                    onCancel={() => handleCancel(atCounter)}
+                  />
+                ) : next ? (
+                  <UpNextHero entry={next} pending={pending} paused={isPaused} onCall={handleCallNext} />
                 ) : (
-                  <>Call Next · Queue #{readyForDelivery[0]?.queueNumber}</>
+                  <EmptyHero inKitchen={inKitchen} />
                 )}
-              </button>
-            )}
-
-            {/* Ready queue list */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between px-1">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                  Ready for Delivery
-                </p>
-                <span className="text-xs text-gray-400">
-                  {readyForDelivery.length} order{readyForDelivery.length !== 1 ? 's' : ''}
+              </motion.div>
+            </AnimatePresence>
+          }
+          list={
+            <>
+              <div className="flex items-center gap-2 px-1.5 pb-2 shrink-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Ready for Delivery</p>
+                <span className="ms-auto min-w-6 h-6 px-1.5 rounded-full bg-white border border-slate-200 text-slate-500 text-xs font-bold flex items-center justify-center tabular-nums shadow-sm">
+                  {queueList.length}
                 </span>
               </div>
-
-              {readyForDelivery.length === 0 && !atCounter ? (
-                <div className="border border-dashed border-gray-300 rounded-xl p-12 text-center flex flex-col items-center">
-                  {inKitchen > 0 ? (
-                    <>
-                      <div className="size-10 rounded-lg bg-amber-50 flex items-center justify-center mb-3">
-                        <ChefHat className="size-5 text-amber-600" />
-                      </div>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {inKitchen} order{inKitchen > 1 ? 's' : ''} in kitchen
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Orders appear here once kitchen marks them ready
-                      </p>
-                    </>
-                  ) : totalWaiting === 0 ? (
-                    <>
-                      <div className="size-10 rounded-lg bg-green-50 flex items-center justify-center mb-3">
-                        <Truck className="size-5 text-green-600" />
-                      </div>
-                      <p className="text-sm font-semibold text-gray-900">All clear</p>
-                      <p className="text-sm text-gray-500 mt-1">Kitchen-ready orders appear here</p>
-                    </>
-                  ) : null}
-                </div>
-              ) : (
-                readyForDelivery.map((entry, idx) => (
-                  <div
-                    key={entry.id}
-                    className={`bg-white rounded-xl border p-3 md:p-4 flex items-center gap-3 ${
-                      idx === 0 ? 'border-teal-200 bg-teal-50/30' : 'border-gray-200'
-                    }`}
-                  >
-                    <div className={`w-12 h-12 md:w-14 md:h-14 rounded-lg flex items-center justify-center shrink-0 ${
-                      idx === 0 ? 'bg-teal-50 border border-teal-200' : 'bg-gray-100'
-                    }`}>
-                      <span className={`font-mono font-black text-xl md:text-2xl ${
-                        idx === 0 ? 'text-gray-900' : 'text-gray-400'
-                      }`}>
-                        {entry.queueNumber}
-                      </span>
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin space-y-2 px-0.5 pb-1">
+                {queueList.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 px-4">
+                    <div className="size-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center mb-3">
+                      <Truck className="size-6 text-slate-300" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      {entry.billNumber && (
-                        <p className="text-sm font-semibold text-gray-900">Bill #{entry.billNumber}</p>
-                      )}
-                      {entry.customerName && (
-                        <p className="text-xs text-gray-500 truncate">{entry.customerName}</p>
-                      )}
-                      <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
-                        <Clock className="size-3" />
-                        {formatTime(entry.joinedAt)}
-                      </div>
-                      {entry.notes && (
-                        <p className="text-xs text-amber-600 mt-0.5 truncate">⚠ {entry.notes}</p>
-                      )}
-                    </div>
-                    {idx === 0 && (
-                      <div className="shrink-0 bg-teal-600 text-white rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider">
-                        NEXT
-                      </div>
-                    )}
+                    <p className="text-sm font-semibold text-slate-500">{focus ? 'Nothing else waiting' : 'Nothing waiting'}</p>
+                    <p className="text-xs mt-1 max-w-52">Kitchen-ready orders queue up here</p>
                   </div>
-                ))
-              )}
-            </div>
+                ) : (
+                  <AnimatePresence initial={false}>
+                    {queueList.map((entry, idx) => (
+                      <motion.div
+                        key={entry.id}
+                        layout
+                        initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.98 }}
+                        transition={{ duration: 0.25, ease: 'easeOut' }}
+                      >
+                        <QueueRow entry={entry} now={now} highlight={!!atCounter && idx === 0} />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                )}
+                {inKitchen > 0 && (
+                  <div className="flex items-center gap-1.5 px-1 pt-2 text-xs text-slate-400">
+                    <ChefHat className="size-3.5" />
+                    {inKitchen} still in kitchen
+                  </div>
+                )}
 
-            {/* Recently delivered */}
-            {recentlyDelivered.length > 0 && (
-              <div className="space-y-2 pt-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 px-1 flex items-center gap-2">
-                  <PackageCheck className="size-3.5" />
-                  Recently Delivered
-                </p>
-                <div className="space-y-1.5">
-                  {recentlyDelivered.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="bg-white rounded-xl border border-gray-200 p-3 flex items-center gap-3"
-                    >
-                      <div className="size-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                        <span className="font-mono font-black text-base text-gray-300">{entry.queueNumber}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {entry.billNumber && (
-                            <span className="text-sm text-gray-500">Bill #{entry.billNumber}</span>
-                          )}
-                          {entry.customerName && (
-                            <span className="text-xs text-gray-400 truncate">{entry.customerName}</span>
+                {recentlyDelivered.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 px-1 pt-3 pb-1">
+                      <PackageCheck className="size-3.5 text-slate-400" />
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Recently Delivered</p>
+                    </div>
+                    {recentlyDelivered.map(entry => (
+                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2 flex items-center gap-3 opacity-70">
+                        <span className="w-12 text-center font-mono font-black text-xl tabular-nums text-slate-300 shrink-0" dir="ltr">
+                          {entry.queueNumber}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-slate-500 truncate">
+                            {entry.billNumber ? `Bill #${entry.billNumber}` : '—'}
+                            {entry.customerName && <span className="text-slate-400"> · {entry.customerName}</span>}
+                          </p>
+                          {entry.completedAt && (
+                            <p className="text-xs text-slate-400 tabular-nums">Delivered {formatTime(entry.completedAt)}</p>
                           )}
                         </div>
-                        {entry.completedAt && (
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            Delivered {formatTime(entry.completedAt)}
-                          </p>
-                        )}
+                        <CheckCircle2 className="size-4 text-accent-600 shrink-0" />
                       </div>
-                      <PackageCheck className="size-4 text-green-500 shrink-0" />
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </>
+                )}
               </div>
-            )}
-          </>
+            </>
+          }
+        />
+      )}
+    </ConsoleFrame>
+  )
+}
+
+/* Out for delivery: flat white hero, tap-to-call, one accent CTA. */
+function OutForDeliveryHero({ entry, now, pending, onDeliver, onRecall, onCancel }: {
+  entry: QueueEntryDTO
+  now: number
+  pending: boolean
+  onDeliver: () => void
+  onRecall: () => void
+  onCancel: () => void
+}) {
+  const mins = minutesSince(entry.startedAt ?? entry.joinedAt, now)
+  return (
+    <div className="h-full min-h-0 rounded-3xl bg-white border border-slate-200 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.25)] flex flex-col p-5 gap-3">
+      <div className="flex items-center gap-2">
+        <span className="size-2 rounded-full bg-accent-600 animate-pulse" />
+        <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Out for Delivery</span>
+        <span className="ms-auto"><ElapsedPill mins={mins} /></span>
+      </div>
+
+      <div className="min-h-0">
+        <p className="font-mono font-black tabular-nums text-slate-900 leading-[0.82] text-[clamp(3.5rem,15vh,7rem)]" dir="ltr">
+          {entry.queueNumber}
+        </p>
+        <p className="text-2xl font-bold text-slate-800 mt-2">{entry.billNumber ? `Bill #${entry.billNumber}` : 'No bill #'}</p>
+        <p className="text-slate-500 truncate">{entry.customerName || 'No name'}</p>
+        {((entry.callCount ?? 0) > 1 || (entry.recallCount ?? 0) > 0) && (
+          <p className="text-slate-400 text-xs mt-1">
+            Called {entry.callCount ?? 0}×{(entry.recallCount ?? 0) > 0 && ` · Recalled ${entry.recallCount}×`}
+          </p>
         )}
-      </main>
+      </div>
+
+      {entry.phone ? (
+        <a
+          href={`tel:${entry.phone}`}
+          className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 active:bg-slate-100 active:scale-[0.98] transition-all"
+        >
+          <div className="size-10 rounded-lg bg-slate-700 flex items-center justify-center shrink-0">
+            <Phone className="size-4.5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Tap to Call</p>
+            <p className="text-lg font-bold text-slate-800 leading-tight tabular-nums" dir="ltr">{entry.phone}</p>
+          </div>
+        </a>
+      ) : (
+        <div className="flex items-center gap-2 text-sm text-slate-400 px-1">
+          <Phone className="size-4" />
+          No phone number
+        </div>
+      )}
+
+      {entry.notes && (
+        <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+          <span className="shrink-0">⚠</span>
+          <span className="leading-5">{entry.notes}</span>
+        </div>
+      )}
+
+      <div className="mt-auto space-y-2.5">
+        <div className="grid grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onRecall}
+            className="h-12 rounded-2xl bg-white border border-slate-200 text-slate-700 text-sm font-bold flex items-center justify-center gap-2 select-none transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0 shadow-sm active:bg-slate-50"
+          >
+            <BellRing className="size-4.5" />
+            Recall
+          </button>
+          <ConfirmCancel disabled={pending} onConfirm={onCancel} />
+        </div>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onDeliver}
+          className="w-full h-14 rounded-2xl bg-accent-600 text-white text-base font-bold flex items-center justify-center gap-2 select-none transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0 shadow-[0_6px_16px_-6px_rgba(5,150,105,0.5)] active:bg-accent-700"
+        >
+          <CheckCircle2 className="size-5" />
+          Delivered
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* Up next: flat white hero, single primary CTA to call. */
+function UpNextHero({ entry, pending, paused, onCall }: {
+  entry: QueueEntryDTO
+  pending: boolean
+  paused: boolean
+  onCall: () => void
+}) {
+  return (
+    <div className="h-full min-h-0 rounded-3xl bg-white border border-slate-200 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.25)] flex flex-col p-5">
+      <div className="flex items-center">
+        <span className="inline-flex items-center h-7 rounded-full bg-accent-50 text-accent-700 border border-accent-200 px-2.5 text-xs font-bold">
+          Up Next
+        </span>
+      </div>
+
+      <div className="flex-1 min-h-0 flex flex-col justify-center">
+        <p className="font-mono font-black tabular-nums text-slate-900 leading-[0.82] text-[clamp(4.5rem,20vh,9rem)]" dir="ltr">
+          {entry.queueNumber}
+        </p>
+        <p className="text-2xl font-bold text-slate-800 mt-2">{entry.billNumber ? `Bill #${entry.billNumber}` : 'No bill #'}</p>
+        <p className="text-slate-500 truncate">{entry.customerName || 'No name'}</p>
+        {entry.notes && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+            <span className="shrink-0">⚠</span>
+            <span className="leading-5">{entry.notes}</span>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <button
+          type="button"
+          disabled={pending || paused}
+          onClick={onCall}
+          className="w-full h-14 rounded-2xl bg-accent-600 text-white text-base font-bold flex items-center justify-center gap-2 select-none transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0 shadow-[0_6px_16px_-6px_rgba(5,150,105,0.5)] active:bg-accent-700"
+        >
+          <SkipForward className="size-5" />
+          Call #{entry.queueNumber}
+        </button>
+        {paused && <p className="text-center text-xs font-semibold text-amber-600 mt-2">Queue is paused</p>}
+      </div>
+    </div>
+  )
+}
+
+/* Nothing to deliver: calm empty card. */
+function EmptyHero({ inKitchen }: { inKitchen: number }) {
+  const kitchen = inKitchen > 0
+  return (
+    <div className="h-full min-h-0 rounded-3xl bg-white border border-slate-200 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.25)] flex flex-col items-center justify-center text-center p-6">
+      <div className={`size-16 rounded-2xl flex items-center justify-center mb-3 ${kitchen ? 'bg-amber-50 text-amber-600' : 'bg-accent-50 text-accent-700'}`}>
+        {kitchen ? <ChefHat className="size-7" /> : <CheckCircle2 className="size-7" />}
+      </div>
+      <p className="text-lg font-bold text-slate-700">
+        {kitchen ? `${inKitchen} order${inKitchen > 1 ? 's' : ''} in kitchen` : 'All clear'}
+      </p>
+      <p className="text-sm text-slate-400 mt-1 max-w-64">
+        {kitchen ? 'They appear here once the kitchen marks them ready' : 'Kitchen-ready orders show up here automatically'}
+      </p>
+    </div>
+  )
+}
+
+/* A ready order in the queue list: mono number, bill/name, wait pill. */
+function QueueRow({ entry, now, highlight = false }: {
+  entry: QueueEntryDTO
+  now: number
+  highlight?: boolean
+}) {
+  return (
+    <div className={`rounded-2xl border p-2.5 flex items-center gap-3 ${
+      highlight ? 'bg-accent-50 border-accent-300' : 'bg-white border-slate-200 shadow-sm'
+    }`}>
+      <span className="size-12 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center font-mono font-black text-xl tabular-nums shrink-0" dir="ltr">
+        {entry.queueNumber}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="font-bold text-slate-800 truncate">
+          {entry.billNumber ? `Bill #${entry.billNumber}` : '—'}
+        </p>
+        <p className="text-sm text-slate-400 truncate">
+          {entry.customerName || 'No name'}
+          {entry.notes && <span className="text-amber-600"> · ⚠ {entry.notes}</span>}
+        </p>
+      </div>
+      <ElapsedPill mins={minutesSince(entry.joinedAt, now)} />
     </div>
   )
 }

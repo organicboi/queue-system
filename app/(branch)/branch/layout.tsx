@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession, getProfile } from '@/lib/dal/session'
 import { getAssignedBranch } from '@/lib/dal/users'
+import { getCounters } from '@/lib/dal/counters'
 import { BranchSidebar } from '@/components/branch/BranchSidebar'
 import { BranchTopBar } from '@/components/branch/BranchTopBar'
 
@@ -16,10 +17,10 @@ export default async function BranchOperatorLayout({ children }: { children: Rea
 
   if (!branch) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background p-6 text-center">
+      <div className="flex h-screen items-center justify-center bg-slate-100 p-6 text-center">
         <div className="max-w-sm space-y-2">
-          <p className="text-sm font-medium text-gray-900">No branch assigned</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm font-medium text-slate-800">No branch assigned</p>
+          <p className="text-sm text-slate-500">
             Your account isn&apos;t linked to a branch yet. Ask an admin to assign you to one.
           </p>
         </div>
@@ -27,14 +28,16 @@ export default async function BranchOperatorLayout({ children }: { children: Rea
     )
   }
 
+  const counters = await getCounters(profile.customerId, branch.id)
+
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <aside className="hidden w-60 shrink-0 border-r border-border md:flex md:flex-col">
-        <BranchSidebar branchName={branch.name} />
+    <div className="flex h-screen overflow-hidden bg-slate-100">
+      <aside className="hidden w-60 shrink-0 border-e border-slate-200 md:flex md:flex-col">
+        <BranchSidebar branchName={branch.name} counters={counters} />
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <BranchTopBar branchName={branch.name} />
+        <BranchTopBar branchName={branch.name} counters={counters} />
         <main className="flex-1 overflow-y-auto">
           <div className="p-4 md:p-6">
             {children}

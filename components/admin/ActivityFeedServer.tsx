@@ -7,14 +7,15 @@ import type { ActivityLogDTO } from '@/lib/db/types'
 
 const dotColor: Record<string, string> = {
   joined:    'bg-slate-400',
-  called:    'bg-blue-500',
-  recalled:  'bg-indigo-500',
-  completed: 'bg-emerald-500',
+  called:    'bg-accent-600',
+  recalled:  'bg-amber-500',
+  completed: 'bg-accent-600',
   cancelled: 'bg-red-400',
-  'no-show': 'bg-orange-400',
-  reset:     'bg-purple-400',
-  paused:    'bg-yellow-400',
-  resumed:   'bg-green-400',
+  'no-show': 'bg-slate-400',
+  reset:     'bg-red-400',
+  paused:    'bg-amber-400',
+  resumed:   'bg-accent-600',
+  'kitchen-bypassed': 'bg-amber-500',
 }
 
 interface ActivityFeedServerProps {
@@ -33,7 +34,7 @@ export function ActivityFeedServer({ logs, viewAllHref }: ActivityFeedServerProp
           {viewAllHref && (
             <Link
               href={viewAllHref}
-              className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              className="flex items-center gap-1 text-xs font-medium text-primary active:underline"
             >
               View all
               <ArrowRight className="size-3" />
@@ -47,9 +48,9 @@ export function ActivityFeedServer({ logs, viewAllHref }: ActivityFeedServerProp
           {logs.map((log) => (
             <div
               key={log.id}
-              className="flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-muted/40 transition-colors"
+              className="flex items-start gap-3 rounded-lg px-3 py-2.5 active:bg-muted/40 transition-colors"
             >
-              <span className={cn('mt-1.5 size-1.5 rounded-full shrink-0', dotColor[log.type] ?? 'bg-gray-400')} />
+              <span className={cn('mt-1.5 size-1.5 rounded-full shrink-0', dotColor[log.type] ?? 'bg-slate-400')} />
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-foreground leading-snug">{log.message}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">

@@ -9,9 +9,9 @@ export function QueueHealthBar() {
 
   const status =
     waitingCount <= 3
-      ? { label: "Low Traffic", color: "text-emerald-600", bar: "bg-emerald-500" }
+      ? { label: "Low Traffic", color: "text-accent-700", bar: "bg-accent-600" }
       : waitingCount <= 7
-      ? { label: "Medium Traffic", color: "text-amber-600", bar: "bg-amber-400" }
+      ? { label: "Medium Traffic", color: "text-amber-600", bar: "bg-amber-500" }
       : { label: "High Traffic", color: "text-red-600", bar: "bg-red-500" }
 
   const pct = Math.min(100, Math.round((waitingCount / 15) * 100))

@@ -69,7 +69,7 @@ export function QueueTable({ branchId, initialEntries, compact }: QueueTableProp
                   : entries.filter((e) => e.status === f.value).length
                 return (
                   <TabsTrigger key={f.value} value={f.value} className="text-xs px-2.5 h-7">
-                    {f.label} <span className="ml-1 text-[10px] text-muted-foreground">({count})</span>
+                    {f.label} <span className="ms-1 text-[10px] text-muted-foreground">({count})</span>
                   </TabsTrigger>
                 )
               })}
@@ -79,7 +79,7 @@ export function QueueTable({ branchId, initialEntries, compact }: QueueTableProp
             placeholder="Search queue # or bill..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-8 text-xs w-full sm:w-48 ml-auto"
+            className="h-8 text-xs w-full sm:w-48 ms-auto"
           />
         </div>
       </div>
@@ -106,12 +106,12 @@ export function QueueTable({ branchId, initialEntries, compact }: QueueTableProp
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.15 }}
-                  className={`border-b border-border transition-colors hover:bg-muted/20 ${
-                    entry.status === "in-progress" ? "bg-teal-50/50" : ""
+                  className={`border-b border-border transition-colors active:bg-muted/20 ${
+                    entry.status === "in-progress" ? "bg-accent-50/50" : ""
                   }`}
                 >
                   <TableCell className="font-mono font-black text-base py-3">
-                    <span className={entry.queueNumber === currentServingNumber ? "text-teal-600" : ""}>
+                    <span dir="ltr" className={entry.queueNumber === currentServingNumber ? "text-accent-700" : ""}>
                       #{entry.queueNumber}
                     </span>
                   </TableCell>
@@ -137,14 +137,14 @@ export function QueueTable({ branchId, initialEntries, compact }: QueueTableProp
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 text-xs px-2 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                          className="h-7 text-xs px-2 text-accent-700 active:bg-accent-50"
                           onClick={() => act(
                             () => callEntryAction(entry.id, branchId),
                             `Queue #${entry.queueNumber} called`
                           )}
                           disabled={pending}
                         >
-                          <PhoneCall className="size-3 mr-1" />
+                          <PhoneCall className="size-3 me-1" />
                           {entry.status === "in-progress" ? "Recall" : "Call"}
                         </Button>
                       )}
@@ -152,7 +152,7 @@ export function QueueTable({ branchId, initialEntries, compact }: QueueTableProp
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 text-xs px-2 text-orange-500 hover:text-orange-600 hover:bg-orange-50"
+                          className="h-7 text-xs px-2 text-amber-600 active:bg-amber-50"
                           onClick={() => act(
                             () => noShowEntryAction(entry.id, branchId),
                             `Queue #${entry.queueNumber} marked no-show`
@@ -166,7 +166,7 @@ export function QueueTable({ branchId, initialEntries, compact }: QueueTableProp
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 text-xs px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                          className="h-7 text-xs px-2 text-accent-700 active:bg-accent-50"
                           onClick={() => act(
                             () => completeEntryAction(entry.id, branchId),
                             `Queue #${entry.queueNumber} completed`
@@ -180,7 +180,7 @@ export function QueueTable({ branchId, initialEntries, compact }: QueueTableProp
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 text-xs px-2 text-red-500 hover:text-red-600 hover:bg-red-50"
+                          className="h-7 text-xs px-2 text-red-600 active:bg-red-50"
                           onClick={() => act(
                             () => cancelEntryAction(entry.id, branchId),
                             `Queue #${entry.queueNumber} cancelled`

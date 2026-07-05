@@ -27,7 +27,7 @@ export function QRDisplay({ token, queueNumber, customerName, billNumber }: QRDi
 
   return (
     <div className="flex flex-col items-center gap-4 py-2">
-      <div className="rounded-sm bg-white border border-gray-200 p-4">
+      <div className="rounded-sm bg-white border border-slate-200 p-4">
         <QRCodeSVG
           value={url}
           size={180}
@@ -38,7 +38,7 @@ export function QRDisplay({ token, queueNumber, customerName, billNumber }: QRDi
       </div>
 
       <div className="text-center">
-        <p className="text-3xl font-black text-gray-900">#{queueNumber}</p>
+        <p className="text-3xl font-mono font-black text-slate-800" dir="ltr">#{queueNumber}</p>
         <p className="text-sm text-muted-foreground mt-1">{customerName}</p>
         {billNumber && (
           <p className="text-xs font-medium text-muted-foreground mt-0.5">
@@ -54,7 +54,7 @@ export function QRDisplay({ token, queueNumber, customerName, billNumber }: QRDi
 
       <div className="flex w-full gap-2">
         <Button variant="outline" className="flex-1 gap-2" onClick={handleCopy}>
-          {copied ? <Check className="size-4 text-emerald-600" /> : <Copy className="size-4" />}
+          {copied ? <Check className="size-4 text-accent-600" /> : <Copy className="size-4" />}
           {copied ? "Copied!" : "Copy Link"}
         </Button>
         <Button variant="outline" size="icon" asChild>

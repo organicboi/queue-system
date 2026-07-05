@@ -18,10 +18,12 @@ export function isCounterOnline(lastSeenAt: string | null, now = Date.now()): bo
   return now - new Date(lastSeenAt).getTime() < COUNTER_OFFLINE_THRESHOLD_MS
 }
 
-// Reports this counter page as "open right now" while mounted.
-export function useCounterHeartbeat(counterToken: string) {
+// Reports this counter page as "open right now" while mounted. Gated behind
+// the branch's counterPresenceEnabled setting — no point writing heartbeats
+// nobody reads.
+export function useCounterHeartbeat(counterToken: string, enabled = true) {
   useEffect(() => {
-    if (!counterToken) return
+    if (!counterToken || !enabled) return
     let alive = true
 
     function ping() {
@@ -47,12 +49,14 @@ export function useCounterHeartbeat(counterToken: string) {
 
 // Polls the token-free presence RPC for every counter in the branch, so a
 // counter page can show whether its sibling counters are staffed right now.
-export function useCounterPresence(branchId: string) {
+// Disabled by default (see counterPresenceEnabled on branches) — pass
+// enabled=true once the branch has opted into the feature.
+export function useCounterPresence(branchId: string, enabled = true) {
   const [counters, setCounters] = useState<CounterPresenceEntry[]>([])
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    if (!branchId) return
+    if (!branchId || !enabled) return
     const supabase = createSupabaseBrowserClient()
     let alive = true
 

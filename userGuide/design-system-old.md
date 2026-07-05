@@ -1,5 +1,10 @@
 # Queue System — Design System Guide
 
+> ⚠️ **Legacy (teal system).** For any route you are **redesigning**, follow the canonical
+> [`design-system-v2.md`](./design-system-v2.md) ("Soft Warm") instead. This document now only
+> describes surfaces that have **not yet been migrated** to v2 (admin, branch, and the counters
+> other than Billing). Do not start new redesign work from this file.
+
 This guide defines the visual language for every route in this app (excluding `/display`). Follow it for all future UI work. No exceptions.
 
 ---

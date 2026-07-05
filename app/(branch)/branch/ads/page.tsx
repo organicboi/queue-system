@@ -18,7 +18,7 @@ export default async function BranchAdsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-gray-900">Ads & Ticker</h1>
+      <h1 className="text-xl font-semibold text-slate-800">Ads & Ticker</h1>
       <div className="max-w-3xl">
         <AdsManager branchId={branch.id} ads={ads} tickers={tickers} />
       </div>

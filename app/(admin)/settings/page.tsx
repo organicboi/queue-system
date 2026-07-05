@@ -11,7 +11,7 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-4 max-w-3xl">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Settings</h1>
+        <h1 className="text-xl font-bold text-slate-800">Settings</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Manage your business information</p>
       </div>
       <CustomerSettingsForm customer={customer} />

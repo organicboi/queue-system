@@ -68,7 +68,7 @@ export function AddCustomerForm({ branchId, queueLabel }: Props) {
             <Button
               type="submit"
               disabled={pending}
-              className="w-full h-12 text-base bg-primary hover:bg-primary/90"
+              className="w-full h-12 text-base bg-primary active:bg-primary/90"
             >
               {pending ? 'Assigning…' : 'Generate Queue Number'}
             </Button>
@@ -76,7 +76,7 @@ export function AddCustomerForm({ branchId, queueLabel }: Props) {
             <button
               type="button"
               onClick={() => router.back()}
-              className="flex items-center gap-1.5 mx-auto text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1.5 mx-auto text-sm text-muted-foreground active:text-foreground transition-colors"
             >
               <ArrowLeft className="size-3.5" />
               Back
@@ -92,15 +92,15 @@ export function AddCustomerForm({ branchId, queueLabel }: Props) {
           transition={{ duration: 0.2 }}
           className="space-y-6 text-center"
         >
-          <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
-            <span className="text-emerald-600 text-2xl font-bold">✓</span>
+          <div className="w-14 h-14 rounded-full bg-accent-50 flex items-center justify-center mx-auto">
+            <span className="text-accent-700 text-2xl font-bold">✓</span>
           </div>
 
           <div className="rounded-2xl border-2 border-border bg-muted/20 py-8 px-10 space-y-2">
             <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
               {queueLabel}
             </p>
-            <p className="text-7xl font-black text-gray-900 tabular-nums leading-none">
+            <p className="text-7xl font-black text-slate-800 tabular-nums leading-none">
               #{lastEntry?.queueNumber}
             </p>
             <p className="text-sm font-mono text-muted-foreground mt-2">
@@ -118,7 +118,7 @@ export function AddCustomerForm({ branchId, queueLabel }: Props) {
               Add Another
             </Button>
             <Button
-              className="flex-1 bg-primary hover:bg-primary/90"
+              className="flex-1 bg-primary active:bg-primary/90"
               onClick={() => router.push(`/branches/${branchId}`)}
             >
               View Queue

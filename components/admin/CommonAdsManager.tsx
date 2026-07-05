@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createCommonAdAction, toggleCommonAdActiveAction, deleteCommonAdAction } from '@/lib/actions/ads'
 import { Plus, Trash2, Image, Video, Eye, EyeOff, Globe } from 'lucide-react'
 import { toast } from 'sonner'
@@ -27,7 +26,7 @@ export function CommonAdsManager({ ads }: Props) {
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">Common Ads</h2>
+          <h2 className="text-base font-semibold text-slate-800">Common Ads</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Shown across every branch&apos;s screens, unless a screen has its own picks
           </p>
@@ -49,19 +48,9 @@ export function CommonAdsManager({ ads }: Props) {
                 <Input id="name" name="name" placeholder="Brand Campaign" required />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="fileUrl">Media URL</Label>
-                <Input id="fileUrl" name="fileUrl" type="url" placeholder="https://…" required />
-                <p className="text-xs text-muted-foreground">Direct link to image or video file</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Type</Label>
-                <Select name="fileType" defaultValue="image">
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="image">Image</SelectItem>
-                    <SelectItem value="video">Video</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="file">Media File</Label>
+                <Input id="file" name="file" type="file" accept="image/*,video/*" required />
+                <p className="text-xs text-muted-foreground">Image or video, up to 25MB</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="durationSeconds">Duration (seconds)</Label>
@@ -86,13 +75,13 @@ export function CommonAdsManager({ ads }: Props) {
           <div className="divide-y divide-border">
             {ads.map((ad) => (
               <div key={ad.id} className="flex items-center gap-3 px-5 py-3">
-                <div className="size-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
-                  {ad.fileType === 'video' ? <Video className="size-4 text-indigo-500" /> : <Image className="size-4 text-indigo-500" />}
+                <div className="size-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                  {ad.fileType === 'video' ? <Video className="size-4 text-slate-500" /> : <Image className="size-4 text-slate-500" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium text-gray-900 truncate">{ad.name}</p>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-600 px-1.5 py-0.5 text-[10px] font-semibold">
+                    <p className="text-sm font-medium text-slate-800 truncate">{ad.name}</p>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-600 px-1.5 py-0.5 text-[10px] font-semibold">
                       <Globe className="size-2.5" />
                       Common
                     </span>
@@ -100,11 +89,11 @@ export function CommonAdsManager({ ads }: Props) {
                   <p className="text-xs text-muted-foreground">{ad.fileType} · {ad.durationSeconds}s</p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${ad.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${ad.isActive ? 'bg-accent-50 text-accent-700' : 'bg-slate-100 text-slate-500'}`}>
                     {ad.isActive ? 'ON' : 'OFF'}
                   </span>
                   <Button
-                    variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-gray-700"
+                    variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground active:text-slate-700"
                     title={ad.isActive ? 'Disable' : 'Enable'}
                     onClick={async () => {
                       const r = await toggleCommonAdActiveAction(ad.id)
@@ -114,7 +103,7 @@ export function CommonAdsManager({ ads }: Props) {
                     {ad.isActive ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
                   </Button>
                   <Button
-                    variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                    variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 active:bg-red-50"
                     title="Delete"
                     onClick={async () => {
                       if (!confirm('Delete this common ad? It will be removed from every branch.')) return

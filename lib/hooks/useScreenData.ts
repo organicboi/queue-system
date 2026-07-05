@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/db/browser'
-import type { ScreenDataPacket, DbQueueState, DbQueueEntry } from '@/lib/db/types'
-import { toQueueEntryDTO } from '@/lib/db/types'
+import type { ScreenDataPacket, DbQueueState, DbQueueEntry, DbAd, DbTickerMessage } from '@/lib/db/types'
+import { toQueueEntryDTO, toAdDTO, toTickerMessageDTO } from '@/lib/db/types'
 
 interface ScreenDataState {
   packet: ScreenDataPacket | null
@@ -41,7 +41,14 @@ export function useScreenData(screenToken: string, initialPacket?: ScreenDataPac
         return
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const packet = data as any as ScreenDataPacket
+      const raw = data as any
+      // get_screen_data returns ads/tickers as raw rows (snake_case columns
+      // via Postgres row-to-json) — map to camelCase DTOs the UI expects.
+      const packet: ScreenDataPacket = {
+        ...raw,
+        ads: ((raw.ads ?? []) as DbAd[]).map(toAdDTO),
+        tickers: ((raw.tickers ?? []) as DbTickerMessage[]).map(toTickerMessageDTO),
+      }
       setState(prev => ({
         ...prev,
         packet,

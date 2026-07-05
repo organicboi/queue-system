@@ -4,7 +4,7 @@ export type CounterType = 'order' | 'billing' | 'kitchen' | 'delivery'
 export type QueueStatus = 'waiting' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
 export type KitchenStatus = 'pending' | 'preparing' | 'ready'
 export type QueueSource = 'admin' | 'self-join' | 'kiosk' | 'api'
-export type ActivityType = 'joined' | 'called' | 'recalled' | 'completed' | 'cancelled' | 'no-show' | 'reset' | 'paused' | 'resumed'
+export type ActivityType = 'joined' | 'called' | 'recalled' | 'completed' | 'cancelled' | 'no-show' | 'reset' | 'paused' | 'resumed' | 'kitchen-bypassed'
 export type AdMergeMode = 'replace' | 'prepend' | 'append'
 export type ScreenLayout = 'split-standard' | 'rates-wide' | 'rates-full' | 'ads-full' | 'portrait'
 export type ScreenTheme = 'standard' | 'dark' | 'vibrant' | 'minimal'
@@ -88,6 +88,7 @@ export interface DbBranch {
   silent_print: boolean
   printer_name: string
   ticker_text: string
+  counter_presence_enabled: boolean
   is_active: boolean
   created_at: string
   updated_at: string
@@ -130,6 +131,7 @@ export interface DbCounter {
   type: CounterType
   counter_token: string
   is_active: boolean
+  accepting_orders: boolean
   last_seen_at: string | null
   created_at: string
   updated_at: string
@@ -295,6 +297,7 @@ export interface BranchDTO {
   silentPrint: boolean
   printerName: string
   tickerText: string
+  counterPresenceEnabled: boolean
   isActive: boolean
   createdAt: string
 }
@@ -327,6 +330,7 @@ export interface CounterDTO {
   type: CounterType
   token: string
   isActive: boolean
+  acceptingOrders: boolean
   lastSeenAt: string | null
   createdAt: string
 }
@@ -548,6 +552,7 @@ export function toBranchDTO(row: DbBranch): BranchDTO {
     silentPrint: row.silent_print,
     printerName: row.printer_name,
     tickerText: row.ticker_text,
+    counterPresenceEnabled: row.counter_presence_enabled,
     isActive: row.is_active,
     createdAt: row.created_at,
   }
@@ -584,6 +589,7 @@ export function toCounterDTO(row: DbCounter): CounterDTO {
     type: row.type,
     token: row.counter_token,
     isActive: row.is_active,
+    acceptingOrders: row.accepting_orders,
     lastSeenAt: row.last_seen_at,
     createdAt: row.created_at,
   }

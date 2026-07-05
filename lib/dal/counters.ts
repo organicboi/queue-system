@@ -27,10 +27,13 @@ export const getCounterByToken = cache(async (token: string): Promise<CounterDTO
   return toCounterDTO(data as DbCounter)
 })
 
-// Whether a branch runs a kitchen prep stage at all. Entries in branches with
-// no active kitchen counter should never wait on kitchen_status — see
-// lib/actions/queue.ts and lib/actions/counters.ts for where this gates entry
-// creation and the billing/delivery call-next check.
+// Whether a branch runs a kitchen prep stage right now. Entries in branches
+// with no active + order-accepting kitchen counter should never wait on
+// kitchen_status — see lib/actions/queue.ts and lib/actions/counters.ts for
+// where this gates entry creation and the billing/delivery call-next check.
+// accepting_orders is the staff-facing shift toggle (console stays usable
+// when off); is_active is the separate provisioning flag that also gates
+// the counter's own token page.
 export const hasActiveKitchenCounter = cache(async (branchId: string): Promise<boolean> => {
   const supabase = createSupabaseServiceClient()
   const { count } = await supabase
@@ -39,6 +42,7 @@ export const hasActiveKitchenCounter = cache(async (branchId: string): Promise<b
     .eq('branch_id', branchId)
     .eq('type', 'kitchen')
     .eq('is_active', true)
+    .eq('accepting_orders', true)
 
   return (count ?? 0) > 0
 })

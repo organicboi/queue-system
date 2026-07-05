@@ -6,12 +6,15 @@ interface Props {
   avgServiceTime: number
 }
 
+// Design system v5, §2.5 — metric tone follows the same 3-hue budget as
+// status pills: a plain count is neutral, waiting is amber, anything in
+// the "progressing/done" family shares the one accent bucket.
 const cards = (stats: DashboardStats, avgServiceTime: number) => [
   {
     label: 'Total Today',
     value: stats.totalToday,
     icon: Users,
-    accent: 'blue',
+    accent: 'slate',
     sub: 'customers served',
   },
   {
@@ -25,23 +28,22 @@ const cards = (stats: DashboardStats, avgServiceTime: number) => [
     label: 'In Progress',
     value: stats.inProgress,
     icon: TrendingUp,
-    accent: 'indigo',
+    accent: 'accent',
     sub: 'being served now',
   },
   {
     label: 'Completed',
     value: stats.completed,
     icon: CheckCircle2,
-    accent: 'emerald',
+    accent: 'accent',
     sub: stats.avgWaitMinutes > 0 ? `avg ${stats.avgWaitMinutes}m wait` : 'today',
   },
 ]
 
 const accents: Record<string, string> = {
-  blue:    'bg-blue-50 text-blue-600 border-blue-100',
-  amber:   'bg-amber-50 text-amber-600 border-amber-100',
-  indigo:  'bg-indigo-50 text-indigo-600 border-indigo-100',
-  emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+  slate:  'bg-slate-100 text-slate-600 border-slate-200',
+  amber:  'bg-amber-50 text-amber-600 border-amber-100',
+  accent: 'bg-accent-50 text-accent-700 border-accent-200',
 }
 
 export function DashboardMetrics({ stats, avgServiceTime }: Props) {
@@ -56,7 +58,7 @@ export function DashboardMetrics({ stats, avgServiceTime }: Props) {
             </span>
           </div>
           <div>
-            <p className="text-3xl font-black text-gray-900 tabular-nums leading-none">{value}</p>
+            <p className="text-3xl font-mono font-black text-slate-800 tabular-nums leading-none" dir="ltr">{value}</p>
             <p className="text-xs text-muted-foreground mt-1">{sub}</p>
           </div>
         </div>

@@ -32,14 +32,14 @@ function CredentialsCard({ email, password, onDone }: { email: string; password:
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 space-y-3">
-        <p className="text-sm font-medium text-emerald-800">Login details for {email}</p>
+      <div className="rounded-lg border border-accent-200 bg-accent-50 p-4 space-y-3">
+        <p className="text-sm font-medium text-accent-700">Login details for {email}</p>
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-2 rounded bg-white border border-emerald-200 px-2.5 py-1.5">
+          <div className="flex items-center justify-between gap-2 rounded bg-white border border-accent-200 px-2.5 py-1.5">
             <span className="text-xs text-muted-foreground shrink-0">Email</span>
             <code className="text-sm font-mono truncate">{email}</code>
           </div>
-          <div className="flex items-center justify-between gap-2 rounded bg-white border border-emerald-200 px-2.5 py-1.5">
+          <div className="flex items-center justify-between gap-2 rounded bg-white border border-accent-200 px-2.5 py-1.5">
             <span className="text-xs text-muted-foreground shrink-0">Password</span>
             <code className="text-sm font-mono truncate">{password}</code>
           </div>
@@ -93,7 +93,7 @@ function InviteUserForm({ branches, onDone }: { branches: BranchDTO[]; onDone: (
           <Label htmlFor="password">Password</Label>
           <button
             type="button"
-            className="text-xs font-medium text-primary hover:underline"
+            className="text-xs font-medium text-primary active:underline"
             onClick={() => setPassword(generatePassword())}
           >
             Generate
@@ -169,7 +169,7 @@ function ResetPasswordForm({ userId, email, onDone }: { userId: string; email: s
           <Label htmlFor="reset-password">New Password</Label>
           <button
             type="button"
-            className="text-xs font-medium text-primary hover:underline"
+            className="text-xs font-medium text-primary active:underline"
             onClick={() => setPassword(generatePassword())}
           >
             Generate
@@ -256,18 +256,18 @@ export function UsersManager({ users, branches, currentUserId, userBranchMap }: 
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-gray-900 truncate">{user.fullName}</p>
+                  <p className="text-sm font-medium text-slate-800 truncate">{user.fullName}</p>
                   {user.role === 'admin' ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">
                       <Crown className="size-2.5" />ADMIN
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
                       <User className="size-2.5" />STAFF
                     </span>
                   )}
                   {!user.isActive && (
-                    <span className="text-[10px] font-semibold bg-red-100 text-red-600 px-1.5 py-0.5 rounded">INACTIVE</span>
+                    <span className="text-[10px] font-semibold bg-red-50 text-red-600 px-1.5 py-0.5 rounded">INACTIVE</span>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{user.email}</p>
@@ -298,10 +298,10 @@ export function UsersManager({ users, branches, currentUserId, userBranchMap }: 
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                  className="h-7 text-xs text-slate-500 active:text-slate-700 active:bg-slate-100"
                   onClick={() => setResetTarget({ id: user.id, email: user.email })}
                 >
-                  <KeyRound className="size-3.5 mr-1" />
+                  <KeyRound className="size-3.5 me-1" />
                   Reset Password
                 </Button>
               </div>
@@ -311,28 +311,28 @@ export function UsersManager({ users, branches, currentUserId, userBranchMap }: 
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
+                      className="h-7 text-xs text-red-600 active:bg-red-50"
                       onClick={async () => {
                         const r = await deactivateUserAction(user.id)
                         if (r.error) toast.error(r.error)
                         else toast.success('User deactivated')
                       }}
                     >
-                      <UserX className="size-3.5 mr-1" />
+                      <UserX className="size-3.5 me-1" />
                       Deactivate
                     </Button>
                   ) : (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                      className="h-7 text-xs text-accent-700 active:bg-accent-50"
                       onClick={async () => {
                         const r = await reactivateUserAction(user.id)
                         if (r.error) toast.error(r.error)
                         else toast.success('User reactivated')
                       }}
                     >
-                      <UserCheck className="size-3.5 mr-1" />
+                      <UserCheck className="size-3.5 me-1" />
                       Reactivate
                     </Button>
                   )}
@@ -343,7 +343,7 @@ export function UsersManager({ users, branches, currentUserId, userBranchMap }: 
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
+                    className="h-7 text-xs text-red-600 active:bg-red-50"
                     onClick={async () => {
                       if (!confirm(`Permanently delete ${user.fullName}? This cannot be undone.`)) return
                       const r = await deleteUserAction(user.id)
@@ -351,7 +351,7 @@ export function UsersManager({ users, branches, currentUserId, userBranchMap }: 
                       else toast.success('User deleted')
                     }}
                   >
-                    <Trash2 className="size-3.5 mr-1" />
+                    <Trash2 className="size-3.5 me-1" />
                     Delete
                   </Button>
                 </div>

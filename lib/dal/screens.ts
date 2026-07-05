@@ -2,7 +2,8 @@ import 'server-only'
 import { cache } from 'react'
 import { createSupabaseServiceClient } from '@/lib/db/server'
 import {
-  toScreenDTO, type ScreenDTO, type ScreenDataPacket, type DbScreen,
+  toScreenDTO, toAdDTO, toTickerMessageDTO,
+  type ScreenDTO, type ScreenDataPacket, type DbScreen, type DbAd, type DbTickerMessage,
 } from '@/lib/db/types'
 
 export const getScreens = cache(async (branchId: string, customerId: string): Promise<ScreenDTO[]> => {
@@ -54,8 +55,10 @@ export const getScreenByToken = cache(async (token: string): Promise<ScreenDataP
     currentServingNumber: packet.currentServingNumber,
     isPaused: packet.isPaused,
     entries: packet.entries ?? [],
-    ads: packet.ads ?? [],
-    tickers: packet.tickers ?? [],
+    // get_screen_data returns ads/tickers as raw rows (snake_case columns
+    // via Postgres row-to-json) — map to camelCase DTOs the UI expects.
+    ads: ((packet.ads ?? []) as DbAd[]).map(toAdDTO),
+    tickers: ((packet.tickers ?? []) as DbTickerMessage[]).map(toTickerMessageDTO),
     settings: rawSettings ? {
       layout: rawSettings.layout,
       theme: rawSettings.theme,

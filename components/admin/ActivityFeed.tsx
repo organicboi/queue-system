@@ -6,12 +6,13 @@ import { formatRelativeTime } from "@/lib/queueUtils"
 import type { ActivityLogDTO } from "@/lib/db/types"
 
 const logDot: Record<string, string> = {
-  completed: "bg-emerald-500",
-  called:    "bg-teal-500",
-  recalled:  "bg-teal-400",
-  joined:    "bg-gray-400",
+  completed: "bg-accent-600",
+  called:    "bg-accent-600",
+  recalled:  "bg-amber-500",
+  joined:    "bg-slate-400",
   cancelled: "bg-red-400",
-  reset:     "bg-orange-400",
+  reset:     "bg-red-400",
+  "kitchen-bypassed": "bg-amber-500",
 }
 
 interface ActivityFeedProps {
@@ -31,9 +32,9 @@ export function ActivityFeed({ logs }: ActivityFeedProps) {
           {logs.map((log) => (
             <div
               key={log.id}
-              className="flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-muted/40 transition-colors"
+              className="flex items-start gap-3 rounded-lg px-3 py-2.5 active:bg-muted/40 transition-colors"
             >
-              <span className={cn("mt-1.5 size-1.5 rounded-full shrink-0", logDot[log.type] ?? "bg-gray-400")} />
+              <span className={cn("mt-1.5 size-1.5 rounded-full shrink-0", logDot[log.type] ?? "bg-slate-400")} />
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-foreground leading-snug">{log.message}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">

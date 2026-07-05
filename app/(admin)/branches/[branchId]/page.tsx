@@ -37,12 +37,12 @@ export default async function BranchPage({ params }: Props) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Link href="/branches" className="text-muted-foreground hover:text-gray-700 transition-colors">
+            <Link href="/branches" className="text-muted-foreground active:text-slate-700 transition-colors">
               <ChevronLeft className="size-4 inline" />
               <span className="text-xs">Branches</span>
             </Link>
           </div>
-          <h1 className="text-xl font-bold text-gray-900">{branch.name}</h1>
+          <h1 className="text-xl font-bold text-slate-800">{branch.name}</h1>
           {branch.locationNote && (
             <p className="text-sm text-muted-foreground mt-0.5">{branch.locationNote}</p>
           )}

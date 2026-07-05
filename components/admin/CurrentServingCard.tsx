@@ -37,7 +37,7 @@ export function CurrentServingCard() {
             exit="exit"
             className="text-center"
           >
-            <div className="text-7xl font-black tracking-tight leading-none text-gray-900">
+            <div className="text-7xl font-mono font-black tracking-tight leading-none text-slate-800 tabular-nums" dir="ltr">
               #{currentServingNumber}
             </div>
           </motion.div>
@@ -63,7 +63,7 @@ export function CurrentServingCard() {
       <div className="grid grid-cols-3 gap-2">
         <Button variant="outline" size="sm" onClick={() => callPrevious()}>Prev</Button>
         <Button variant="outline" size="sm" onClick={() => callNext()}>Next</Button>
-        <Button size="sm" onClick={handleComplete} className="col-span-3 bg-emerald-600 hover:bg-emerald-700 text-white">
+        <Button size="sm" onClick={handleComplete} className="col-span-3 bg-accent-600 active:bg-accent-700 text-white">
           Mark Completed
         </Button>
       </div>

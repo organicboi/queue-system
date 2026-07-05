@@ -4,13 +4,25 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createSupabaseServiceClient } from '@/lib/db/server'
 import { requireAdmin, requireBranchManager } from '@/lib/dal/session'
+import { uploadAdFile, deleteAdFileByUrl } from '@/lib/storage/ads'
+
+const MAX_FILE_BYTES = 25 * 1024 * 1024 // 25MB
+
+const AdFileSchema = z
+  .instanceof(File)
+  .refine((f) => f.size > 0, 'A file is required')
+  .refine((f) => f.size <= MAX_FILE_BYTES, 'File is too large (max 25MB)')
+  .refine((f) => f.type.startsWith('image/') || f.type.startsWith('video/'), 'Must be an image or video')
+
+function fileTypeOf(file: File): 'image' | 'video' {
+  return file.type.startsWith('video/') ? 'video' : 'image'
+}
 
 // ── Create ad ─────────────────────────────────────────────────
 const AdSchema = z.object({
   branchId: z.string().uuid(),
   name: z.string().min(1).max(100),
-  fileUrl: z.string().url(),
-  fileType: z.enum(['image', 'video']),
+  file: AdFileSchema,
   durationSeconds: z.coerce.number().int().min(3).max(120).optional(),
 })
 
@@ -21,8 +33,7 @@ export async function createAdAction(
   const parsed = AdSchema.safeParse({
     branchId: formData.get('branchId'),
     name: formData.get('name'),
-    fileUrl: formData.get('fileUrl'),
-    fileType: formData.get('fileType'),
+    file: formData.get('file'),
     durationSeconds: formData.get('durationSeconds') || undefined,
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
@@ -55,12 +66,20 @@ export async function createAdAction(
 
   const displayOrder = ((last?.display_order ?? 0) as number) + 1
 
+  let uploaded
+  try {
+    uploaded = await uploadAdFile(parsed.data.file, profile.customerId, parsed.data.branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to upload file' }
+  }
+
   const { error } = await supabase.from('ads').insert({
     customer_id: profile.customerId,
     branch_id: parsed.data.branchId,
     name: parsed.data.name,
-    file_url: parsed.data.fileUrl,
-    file_type: parsed.data.fileType,
+    file_url: uploaded.url,
+    file_type: fileTypeOf(parsed.data.file),
+    file_size_bytes: uploaded.sizeBytes,
     duration_seconds: parsed.data.durationSeconds ?? 8,
     display_order: displayOrder,
   })
@@ -112,6 +131,13 @@ export async function deleteAdAction(adId: string, branchId: string): Promise<{ 
   }
   const supabase = createSupabaseServiceClient()
 
+  const { data: ad } = await supabase
+    .from('ads')
+    .select('file_url')
+    .eq('id', adId)
+    .eq('customer_id', profile.customerId)
+    .single()
+
   const { error } = await supabase
     .from('ads')
     .delete()
@@ -119,6 +145,8 @@ export async function deleteAdAction(adId: string, branchId: string): Promise<{ 
     .eq('customer_id', profile.customerId)
 
   if (error) return { error: 'Failed to delete ad' }
+
+  if (ad?.file_url) await deleteAdFileByUrl(ad.file_url)
 
   revalidatePath(`/branches/${branchId}/ads`)
   return {}
@@ -255,8 +283,7 @@ export async function deleteTickerAction(tickerId: string, branchId: string): Pr
 // (unless a screen has its own explicit picks), so this stays admin-only.
 const CommonAdSchema = z.object({
   name: z.string().min(1).max(100),
-  fileUrl: z.string().url(),
-  fileType: z.enum(['image', 'video']),
+  file: AdFileSchema,
   durationSeconds: z.coerce.number().int().min(3).max(120).optional(),
 })
 
@@ -267,8 +294,7 @@ export async function createCommonAdAction(
   const profile = await requireAdmin()
   const parsed = CommonAdSchema.safeParse({
     name: formData.get('name'),
-    fileUrl: formData.get('fileUrl'),
-    fileType: formData.get('fileType'),
+    file: formData.get('file'),
     durationSeconds: formData.get('durationSeconds') || undefined,
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
@@ -286,12 +312,20 @@ export async function createCommonAdAction(
 
   const displayOrder = ((last?.display_order ?? 0) as number) + 1
 
+  let uploaded
+  try {
+    uploaded = await uploadAdFile(parsed.data.file, profile.customerId, null)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to upload file' }
+  }
+
   const { error } = await supabase.from('ads').insert({
     customer_id: profile.customerId,
     branch_id: null,
     name: parsed.data.name,
-    file_url: parsed.data.fileUrl,
-    file_type: parsed.data.fileType,
+    file_url: uploaded.url,
+    file_type: fileTypeOf(parsed.data.file),
+    file_size_bytes: uploaded.sizeBytes,
     duration_seconds: parsed.data.durationSeconds ?? 8,
     display_order: displayOrder,
   })
@@ -332,6 +366,14 @@ export async function deleteCommonAdAction(adId: string): Promise<{ error?: stri
   const profile = await requireAdmin()
   const supabase = createSupabaseServiceClient()
 
+  const { data: ad } = await supabase
+    .from('ads')
+    .select('file_url')
+    .eq('id', adId)
+    .eq('customer_id', profile.customerId)
+    .is('branch_id', null)
+    .single()
+
   const { error } = await supabase
     .from('ads')
     .delete()
@@ -340,6 +382,8 @@ export async function deleteCommonAdAction(adId: string): Promise<{ error?: stri
     .is('branch_id', null)
 
   if (error) return { error: 'Failed to delete ad' }
+
+  if (ad?.file_url) await deleteAdFileByUrl(ad.file_url)
 
   revalidatePath('/ads')
   return {}

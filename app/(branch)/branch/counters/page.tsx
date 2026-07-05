@@ -15,8 +15,8 @@ export default async function BranchCountersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-gray-900">Counters</h1>
-      <CountersManager branchId={branch.id} initialCounters={counters} />
+      <h1 className="text-xl font-semibold text-slate-800">Counters</h1>
+      <CountersManager branchId={branch.id} initialCounters={counters} presenceEnabled={branch.counterPresenceEnabled} />
     </div>
   )
 }

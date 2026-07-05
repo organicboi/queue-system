@@ -22,11 +22,14 @@ async function verifyCounterToken(token: string) {
 // If a branch has no active kitchen counter left, any waiting entries still
 // sitting at kitchen_status pending/preparing would otherwise be stranded
 // forever (nothing left to flip them to 'ready'). Called whenever a kitchen
-// counter is deactivated, deleted, or retyped away from 'kitchen'.
+// counter is deactivated, deleted, or retyped away from 'kitchen'. Logs a
+// 'kitchen-bypassed' event so this shows up as a manager-visible flag rather
+// than silently behaving like a branch that never had a kitchen stage.
 async function releaseStrandedKitchenEntries(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
-  branchId: string
+  branchId: string,
+  customerId: string
 ) {
   const { count } = await supabase
     .from('counters')
@@ -34,14 +37,28 @@ async function releaseStrandedKitchenEntries(
     .eq('branch_id', branchId)
     .eq('type', 'kitchen')
     .eq('is_active', true)
+    .eq('accepting_orders', true)
 
   if ((count ?? 0) > 0) return
 
-  await supabase.from('queue_entries')
+  const { data: released } = await supabase.from('queue_entries')
     .update({ kitchen_status: 'ready' })
     .eq('branch_id', branchId)
     .eq('status', 'waiting')
     .in('kitchen_status', ['pending', 'preparing'])
+    .select('id')
+
+  if (released?.length) {
+    await supabase.from('activity_logs').insert({
+      customer_id: customerId,
+      branch_id: branchId,
+      source: 'system',
+      type: 'kitchen-bypassed',
+      queue_number: 0,
+      bill_number: '-',
+      message: `Kitchen went offline — ${released.length} order${released.length > 1 ? 's' : ''} bypassed straight to ready`,
+    })
+  }
 }
 
 async function broadcastDisplaySignal(
@@ -82,6 +99,55 @@ export async function counterHeartbeatAction(counterToken: string): Promise<{ er
     .eq('id', counter.id)
 
   return {}
+}
+
+// Kitchen staff self-service shift toggle — flips accepting_orders on their
+// own counter without needing branch-manager access. Unlike toggling
+// is_active (the counters admin page), this never 404s the console: the
+// kitchen tablet stays usable, it just stops feeding new orders into prep.
+export async function counterToggleAcceptingOrdersAction(
+  counterToken: string
+): Promise<{ error?: string; acceptingOrders?: boolean }> {
+  const counter = await verifyCounterToken(counterToken)
+  if (!counter) return { error: 'Invalid or inactive counter' }
+  if (counter.type !== 'kitchen') return { error: 'Only kitchen counters can toggle order acceptance' }
+
+  const supabase = createSupabaseServiceClient()
+
+  const { data: existing } = await supabase
+    .from('counters')
+    .select('accepting_orders')
+    .eq('id', counter.id)
+    .single()
+
+  if (!existing) return { error: 'Counter not found' }
+
+  const newValue = !existing.accepting_orders
+
+  const { data, error } = await supabase
+    .from('counters')
+    .update({ accepting_orders: newValue, updated_at: new Date().toISOString() })
+    .eq('id', counter.id)
+    .select('accepting_orders')
+    .single()
+
+  if (error || !data) return { error: 'Failed to update kitchen status' }
+
+  if (!newValue) {
+    await supabase.from('activity_logs').insert({
+      customer_id: counter.customer_id,
+      branch_id: counter.branch_id,
+      source: 'admin',
+      type: 'kitchen-bypassed',
+      queue_number: 0,
+      bill_number: '-',
+      message: 'Kitchen marked offline from console — new orders will skip prep',
+    })
+    await releaseStrandedKitchenEntries(supabase, counter.branch_id, counter.customer_id)
+  }
+
+  revalidatePath(`/branches/${counter.branch_id}/counters`)
+  return { acceptingOrders: data.accepting_orders }
 }
 
 // ── Counter Queue Actions (authenticated by counter token) ─────
@@ -552,42 +618,11 @@ export async function toggleCounterAction(
   if (error || !data) return { error: 'Failed to update counter' }
 
   if (existing.type === 'kitchen' && !data.is_active) {
-    await releaseStrandedKitchenEntries(supabase, branchId)
+    await releaseStrandedKitchenEntries(supabase, branchId, profile.customerId)
   }
 
   revalidatePath(`/branches/${branchId}/counters`)
   return { isActive: data.is_active }
-}
-
-// ── Revoke counter access (regenerate token) ──────────────────
-export async function revokeCounterAction(
-  counterId: string,
-  branchId: string
-): Promise<{ error?: string; token?: string }> {
-  let profile
-  try {
-    profile = await requireBranchManager(branchId)
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : 'Access denied' }
-  }
-  const supabase = createSupabaseServiceClient()
-
-  const newToken = Array.from(crypto.getRandomValues(new Uint8Array(24)))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-
-  const { data, error } = await supabase
-    .from('counters')
-    .update({ counter_token: newToken, updated_at: new Date().toISOString() })
-    .eq('id', counterId)
-    .eq('customer_id', profile.customerId)
-    .select('counter_token')
-    .single()
-
-  if (error || !data) return { error: 'Failed to revoke counter access' }
-
-  revalidatePath(`/branches/${branchId}/counters`)
-  return { token: data.counter_token }
 }
 
 // ── Update counter name/type ───────────────────────────────────
@@ -638,7 +673,7 @@ export async function updateCounterAction(
   if (error || !data) return { error: 'Failed to update counter' }
 
   if (existing?.type === 'kitchen' && updates.type && updates.type !== 'kitchen') {
-    await releaseStrandedKitchenEntries(supabase, branchId)
+    await releaseStrandedKitchenEntries(supabase, branchId, profile.customerId)
   }
 
   revalidatePath(`/branches/${branchId}/counters`)
@@ -674,7 +709,7 @@ export async function deleteCounterAction(
   if (error) return { error: 'Failed to delete counter' }
 
   if (existing?.type === 'kitchen') {
-    await releaseStrandedKitchenEntries(supabase, branchId)
+    await releaseStrandedKitchenEntries(supabase, branchId, profile.customerId)
   }
 
   revalidatePath(`/branches/${branchId}/counters`)

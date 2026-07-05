@@ -69,14 +69,37 @@ export function BranchSettingsForm({ branch }: Props) {
         </div>
 
         <div className="space-y-1.5">
+          <Label htmlFor="printerName">Printer Name</Label>
+          <Input id="printerName" name="printerName" defaultValue={branch.printerName ?? ''} placeholder="e.g. POS-80 Thermal" />
+          <p className="text-xs text-muted-foreground">
+            Exact printer name as it appears in QZ Tray, running on the counter device. Leave blank to use the device&apos;s default printer.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
           <Label htmlFor="tickerText">Ticker Message</Label>
           <Input id="tickerText" name="tickerText" defaultValue={branch.tickerText ?? ''} placeholder="Welcome message for display screen..." />
         </div>
       </div>
 
+      <div className="rounded-xl border border-border bg-white p-6 space-y-4">
+        <h3 className="text-sm font-semibold">Counters</h3>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Counter Online/Offline Status</p>
+            <p className="text-xs text-muted-foreground">
+              Show whether counter staff currently have their page open (Beta — off by default)
+            </p>
+          </div>
+          <input type="hidden" name="counterPresenceEnabled" value={branch.counterPresenceEnabled ? 'true' : 'false'} />
+          <Switch defaultChecked={branch.counterPresenceEnabled} name="counterPresenceEnabled" value="true" />
+        </div>
+      </div>
+
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
       {!state.error && state && Object.keys(state).length === 0 && (
-        <p className="text-sm text-emerald-600">Settings saved.</p>
+        <p className="text-sm text-accent-700">Settings saved.</p>
       )}
 
       <div className="flex justify-end">

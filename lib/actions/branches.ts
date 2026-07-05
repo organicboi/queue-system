@@ -150,6 +150,7 @@ const BranchSettingsSchema = z.object({
   silentPrint: z.boolean().optional(),
   printerName: z.string().max(100).optional(),
   tickerText: z.string().max(500).optional(),
+  counterPresenceEnabled: z.boolean().optional(),
 })
 
 export async function updateBranchSettingsAction(
@@ -166,6 +167,7 @@ export async function updateBranchSettingsAction(
     silentPrint: formData.get('silentPrint') === 'true',
     printerName: formData.get('printerName') || undefined,
     tickerText: formData.get('tickerText') || undefined,
+    counterPresenceEnabled: formData.get('counterPresenceEnabled') === 'true',
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
@@ -190,6 +192,7 @@ export async function updateBranchSettingsAction(
       silent_print: updates.silentPrint,
       printer_name: updates.printerName,
       ticker_text: updates.tickerText,
+      counter_presence_enabled: updates.counterPresenceEnabled,
       updated_at: new Date().toISOString(),
     })
     .eq('id', branchId)

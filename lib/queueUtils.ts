@@ -34,33 +34,37 @@ export function formatRelativeTime(isoString: string): string {
   return date.toLocaleDateString()
 }
 
+// Design system v5, §2.5 — status pill map: waiting is the only amber
+// state; in-progress and completed share one accent bucket ("done" reads
+// the same whether it just happened or is happening now); cancelled and
+// no-show share the neutral slate bucket (label text distinguishes which).
 export function getStatusColor(status: QueueStatus): string {
   switch (status) {
     case "waiting":
-      return "text-blue-700"
+      return "text-amber-700"
     case "in-progress":
-      return "text-teal-700"
+      return "text-accent-700"
     case "completed":
-      return "text-emerald-700"
+      return "text-accent-700"
     case "cancelled":
-      return "text-red-600"
+      return "text-slate-500"
     case "no-show":
-      return "text-orange-600"
+      return "text-slate-500"
   }
 }
 
 export function getStatusBg(status: QueueStatus): string {
   switch (status) {
     case "waiting":
-      return "bg-blue-50 border-blue-200"
+      return "bg-amber-50 border-amber-200"
     case "in-progress":
-      return "bg-teal-50 border-teal-200"
+      return "bg-accent-50 border-accent-200"
     case "completed":
-      return "bg-emerald-50 border-emerald-200"
+      return "bg-accent-50 border-accent-200"
     case "cancelled":
-      return "bg-red-50 border-red-200"
+      return "bg-slate-100 border-slate-200"
     case "no-show":
-      return "bg-orange-50 border-orange-200"
+      return "bg-slate-100 border-slate-200"
   }
 }
 

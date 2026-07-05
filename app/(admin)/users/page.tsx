@@ -17,7 +17,7 @@ export default async function UsersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Users</h1>
+          <h1 className="text-xl font-bold text-slate-800">Users</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{users.length} team member{users.length !== 1 ? 's' : ''}</p>
         </div>
       </div>

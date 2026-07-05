@@ -72,7 +72,7 @@ export function LiveQueuePanel({ branchId, initialEntries, initialServingNumber,
             className="h-8 text-xs gap-1.5"
           >
             {isPaused ? (
-              <><PlayCircle className="size-3.5 text-green-600" />Resume</>
+              <><PlayCircle className="size-3.5 text-accent-700" />Resume</>
             ) : (
               <><PauseCircle className="size-3.5 text-amber-600" />Pause</>
             )}
@@ -81,7 +81,7 @@ export function LiveQueuePanel({ branchId, initialEntries, initialServingNumber,
             size="sm"
             onClick={handleCallNext}
             disabled={pending || waiting.length === 0 || isPaused}
-            className="bg-primary hover:bg-primary/90 text-xs h-8 gap-1.5"
+            className="bg-primary active:bg-primary/90 text-xs h-8 gap-1.5"
           >
             <SkipForward className="size-3.5" />
             Call Next
@@ -90,17 +90,17 @@ export function LiveQueuePanel({ branchId, initialEntries, initialServingNumber,
       </div>
 
       {/* Now serving */}
-      <div className="px-4 py-4 border-b border-border bg-teal-50/50">
+      <div className="px-4 py-4 border-b border-border bg-accent-50/50">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5">
           Now Serving
         </p>
         {inProgress ? (
           <div className="flex items-center gap-3">
-            <span className="text-4xl font-black text-teal-700 tabular-nums">
+            <span className="text-4xl font-mono font-black text-accent-700 tabular-nums" dir="ltr">
               #{inProgress.queueNumber}
             </span>
             <div>
-              <p className="font-mono text-sm font-semibold text-gray-800">Bill {inProgress.billNumber}</p>
+              <p className="font-mono text-sm font-semibold text-slate-800">Bill {inProgress.billNumber}</p>
               <p className="text-xs text-muted-foreground">Called at {formatTime(inProgress.startedAt ?? inProgress.joinedAt)}</p>
             </div>
           </div>
@@ -114,27 +114,27 @@ export function LiveQueuePanel({ branchId, initialEntries, initialServingNumber,
         {waiting.slice(0, 8).map((entry, i) => (
           <div
             key={entry.id}
-            className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"
+            className="flex items-center gap-3 px-4 py-3 active:bg-muted/30 transition-colors"
           >
             <span className="text-xs font-semibold text-muted-foreground w-5 shrink-0">{i + 1}</span>
-            <span className="font-mono font-black text-lg text-gray-900 tabular-nums w-10 shrink-0">
+            <span className="font-mono font-black text-lg text-slate-800 tabular-nums w-10 shrink-0" dir="ltr">
               #{entry.queueNumber}
             </span>
             <div className="flex-1 min-w-0">
               <span className="font-mono text-sm text-muted-foreground">Bill {entry.billNumber}</span>
               {entry.customerName && (
-                <span className="ml-2 text-xs text-gray-500">{entry.customerName}</span>
+                <span className="ms-2 text-xs text-slate-500">{entry.customerName}</span>
               )}
             </div>
             <span className="text-xs text-muted-foreground">{formatTime(entry.joinedAt)}</span>
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 text-xs px-2 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+              className="h-7 text-xs px-2 text-accent-700 active:bg-accent-50"
               onClick={() => handleCallEntry(entry)}
               disabled={pending || isPaused}
             >
-              <PhoneCall className="size-3 mr-1" />
+              <PhoneCall className="size-3 me-1" />
               Call
             </Button>
           </div>

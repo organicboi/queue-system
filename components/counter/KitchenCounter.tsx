@@ -1,140 +1,61 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useRealtimeQueue } from '@/lib/hooks/useRealtimeQueue'
 import { useCounterHeartbeat } from '@/lib/hooks/useCounterPresence'
-import { counterUpdateKitchenStatusAction } from '@/lib/actions/counters'
-import { ChefHat, Flame, CheckCircle2, Clock } from 'lucide-react'
+import { counterUpdateKitchenStatusAction, counterToggleAcceptingOrdersAction } from '@/lib/actions/counters'
+import { ChefHat, Flame, CheckCircle2, Inbox, WifiOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { CounterPresenceAlert } from '@/components/counter/CounterPresenceAlert'
+import { ConsoleFrame, ConsoleLoading, ElapsedPill, useNow, minutesSince, useTapGuard } from '@/components/counter/console'
 import type { QueueEntryDTO } from '@/lib/db/types'
+import type { LucideIcon } from 'lucide-react'
 
 interface Props {
   branchId: string
   counterId: string
   counterName: string
   counterToken: string
+  acceptingOrders: boolean
+  presenceEnabled?: boolean
 }
 
-function timeAgo(iso: string) {
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (diff < 1) return 'just now'
-  if (diff === 1) return '1 min ago'
-  return `${diff} min ago`
-}
-
-function PendingCard({ entry, onPreparing, onReady, pending }: {
-  entry: QueueEntryDTO
-  onPreparing: () => void
-  onReady: () => void
-  pending: boolean
-}) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-      <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">New Order</span>
-        <div className="flex items-center gap-1 text-xs text-amber-500">
-          <Clock className="size-3" />
-          {timeAgo(entry.joinedAt)}
-        </div>
-      </div>
-      <div className="p-4 md:p-5 space-y-4">
-        <div className="flex items-center gap-3 md:gap-4">
-          <div className="w-16 h-16 md:w-20 md:h-20 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
-            <span className="font-mono font-black text-gray-900 text-3xl md:text-4xl">{entry.queueNumber}</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            {entry.billNumber && (
-              <p className="text-sm font-semibold text-gray-900">Bill #{entry.billNumber}</p>
-            )}
-            {entry.customerName && (
-              <p className="text-sm text-gray-500 truncate mt-0.5">{entry.customerName}</p>
-            )}
-          </div>
-        </div>
-        {entry.notes && (
-          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
-            <span className="text-amber-600 mt-0.5 shrink-0 text-sm">⚠</span>
-            <p className="text-sm text-amber-700">{entry.notes}</p>
-          </div>
-        )}
-        <div className="grid grid-cols-2 gap-2 md:gap-3">
-          <button
-            onClick={onPreparing}
-            disabled={pending}
-            className="h-12 md:h-14 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 font-semibold text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all select-none disabled:opacity-40"
-          >
-            <Flame className="size-4 shrink-0" />
-            Start Prep
-          </button>
-          <button
-            onClick={onReady}
-            disabled={pending}
-            className="h-12 md:h-14 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all select-none disabled:opacity-40"
-          >
-            <CheckCircle2 className="size-4 shrink-0" />
-            Mark Ready
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function PreparingCard({ entry, onReady, pending }: {
-  entry: QueueEntryDTO
-  onReady: () => void
-  pending: boolean
-}) {
-  return (
-    <div className="bg-white border border-teal-200 rounded-xl overflow-hidden">
-      <div className="bg-teal-50 border-b border-teal-200 px-4 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-teal-700">
-          <Flame className="size-3.5" />
-          <span className="text-[11px] font-semibold uppercase tracking-wider">Cooking</span>
-        </div>
-        <div className="flex items-center gap-1 text-xs text-teal-600">
-          <Clock className="size-3" />
-          {timeAgo(entry.joinedAt)}
-        </div>
-      </div>
-      <div className="p-4 md:p-5 space-y-4">
-        <div className="flex items-center gap-3 md:gap-4">
-          <div className="w-16 h-16 md:w-20 md:h-20 rounded-lg bg-teal-50 border border-teal-200 flex items-center justify-center shrink-0">
-            <span className="font-mono font-black text-gray-900 text-3xl md:text-4xl">{entry.queueNumber}</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            {entry.billNumber && (
-              <p className="text-sm font-semibold text-gray-900">Bill #{entry.billNumber}</p>
-            )}
-            {entry.customerName && (
-              <p className="text-sm text-gray-500 truncate mt-0.5">{entry.customerName}</p>
-            )}
-          </div>
-        </div>
-        {entry.notes && (
-          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
-            <span className="text-amber-600 mt-0.5 shrink-0 text-sm">⚠</span>
-            <p className="text-sm text-amber-700">{entry.notes}</p>
-          </div>
-        )}
-        <button
-          onClick={onReady}
-          disabled={pending}
-          className="w-full h-14 md:h-16 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-base flex items-center justify-center gap-2 active:scale-95 transition-all select-none disabled:opacity-40"
-        >
-          <CheckCircle2 className="size-5 shrink-0" />
-          Order Ready
-        </button>
-      </div>
-    </div>
-  )
-}
-
-export function KitchenCounter({ branchId, counterId, counterName, counterToken }: Props) {
+/*
+ * Kitchen isn't "one focus + a queue" — it's two prep lanes worked in
+ * parallel, so it keeps the console foundations (flat slate canvas,
+ * white cards, one accent, mono numbers) but not the keypad layout.
+ * New orders always sit on the left (top in portrait), cooking always
+ * on the right (bottom), so spatial memory holds across a shift.
+ *
+ * Design system v5, §5.3 (FIFO emphasis rule): within a lane, only the
+ * first (oldest) card's action renders as the solid accent CTA — every
+ * card below renders the same action in the quiet skin. The accent
+ * means "do this one next," not "this class of action."
+ */
+export function KitchenCounter({ branchId, counterId, counterName, counterToken, acceptingOrders: initialAcceptingOrders, presenceEnabled = false }: Props) {
   const { entries, isLoading } = useRealtimeQueue(branchId)
   const [pending, startTransition] = useTransition()
-  useCounterHeartbeat(counterToken)
+  const [acceptingOrders, setAcceptingOrders] = useState(initialAcceptingOrders)
+  const [togglePending, startToggle] = useTransition()
+  useCounterHeartbeat(counterToken, presenceEnabled)
+  const now = useNow(60000)
+
+  function handleToggleAccepting() {
+    startToggle(async () => {
+      const result = await counterToggleAcceptingOrdersAction(counterToken)
+      if (result.error) {
+        toast.error(result.error)
+        return
+      }
+      setAcceptingOrders(result.acceptingOrders ?? acceptingOrders)
+      if (result.acceptingOrders) {
+        toast.success('Kitchen back online')
+      } else {
+        toast('Kitchen offline — new orders will skip prep')
+      }
+    })
+  }
 
   const newOrders = entries
     .filter(e => e.status === 'waiting' && e.kitchenStatus === 'pending')
@@ -143,9 +64,6 @@ export function KitchenCounter({ branchId, counterId, counterName, counterToken 
   const inPrep = entries
     .filter(e => e.status === 'waiting' && e.kitchenStatus === 'preparing')
     .sort((a, b) => a.queueNumber - b.queueNumber)
-
-  const readyCount = entries.filter(e => e.status === 'waiting' && e.kitchenStatus === 'ready').length
-  const doneToday = entries.filter(e => e.status === 'completed').length
 
   function handleStatus(entry: QueueEntryDTO, newStatus: 'preparing' | 'ready') {
     startTransition(async () => {
@@ -156,128 +74,227 @@ export function KitchenCounter({ branchId, counterId, counterName, counterToken 
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-
-      <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-3 md:py-4 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
-
-          <div className="flex items-center gap-2.5 shrink-0">
-            <div className="size-9 rounded-lg bg-teal-50 flex items-center justify-center shrink-0">
-              <ChefHat className="size-5 text-teal-600" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 leading-none mb-0.5">
-                Kitchen
+    <ConsoleFrame
+      icon={ChefHat}
+      name={counterName}
+      typeLabel="Kitchen · Prep Station"
+      headerRight={<AcceptingOrdersToggle acceptingOrders={acceptingOrders} pending={togglePending} onToggle={handleToggleAccepting} />}
+      banner={
+        <>
+          {!acceptingOrders && (
+            <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-3 py-1.5 flex items-center gap-2">
+              <WifiOff className="size-3.5 text-amber-600 shrink-0" />
+              <p className="text-xs text-amber-800">
+                <span className="font-bold">Kitchen offline</span> — new orders skip prep and go straight to billing/delivery.
               </p>
-              <h1 className="text-sm md:text-base font-semibold text-gray-900 leading-tight">{counterName}</h1>
             </div>
-          </div>
+          )}
+          <CounterPresenceAlert branchId={branchId} selfCounterId={counterId} enabled={presenceEnabled} />
+        </>
+      }
+    >
+      {isLoading ? (
+        <ConsoleLoading icon={ChefHat} />
+      ) : (
+        <div className="h-full grid gap-3 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] portrait:grid-rows-2 landscape:grid-cols-2">
+          {/* Lane 1 — New orders waiting to be started. */}
+          <Lane
+            label="New Orders"
+            count={newOrders.length}
+            pulse={newOrders.length > 0}
+            empty={<LaneEmpty icon={Inbox} title="No new orders" sub="Incoming orders appear here automatically" />}
+          >
+            {newOrders.map((entry, index) => {
+              const isNext = index === 0
+              return (
+                <Ticket key={entry.id} entry={entry} now={now}>
+                  {/* Start Prep is the dominant next step only on the oldest
+                      card; Ready is always the quiet skip-ahead shortcut. */}
+                  <div className={isNext ? 'grid grid-cols-[1.4fr_1fr] gap-2' : 'grid grid-cols-2 gap-2'}>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => handleStatus(entry, 'preparing')}
+                      className={isNext ? PRIMARY_BTN : SECONDARY_BTN}
+                    >
+                      <Flame className="size-5" />
+                      Start Prep
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => handleStatus(entry, 'ready')}
+                      className={SECONDARY_BTN}
+                    >
+                      <CheckCircle2 className="size-5" />
+                      Ready
+                    </button>
+                  </div>
+                </Ticket>
+              )
+            })}
+          </Lane>
 
-          <div className="flex items-center gap-1.5 md:gap-2 flex-wrap justify-end">
-            {newOrders.length > 0 && (
-              <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-600 rounded-full px-2.5 py-1 text-xs font-semibold">
-                <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                {newOrders.length}
-                <span className="hidden sm:inline ml-0.5">new</span>
-              </div>
-            )}
-            {inPrep.length > 0 && (
-              <div className="flex items-center gap-1 bg-teal-50 border border-teal-200 text-teal-700 rounded-full px-2.5 py-1 text-xs font-semibold">
-                <Flame className="size-3" />
-                {inPrep.length}
-                <span className="hidden sm:inline ml-0.5">cooking</span>
-              </div>
-            )}
-            {readyCount > 0 && (
-              <div className="flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 rounded-full px-2.5 py-1 text-xs font-semibold">
-                <CheckCircle2 className="size-3" />
-                {readyCount}
-                <span className="hidden sm:inline ml-0.5">ready</span>
-              </div>
-            )}
-            {doneToday > 0 && (
-              <span className="hidden md:block text-xs text-gray-400 pl-1">{doneToday} done</span>
-            )}
-          </div>
+          {/* Lane 2 — Orders on the stove, one tap from billing. */}
+          <Lane
+            label="Cooking"
+            count={inPrep.length}
+            empty={<LaneEmpty icon={Flame} title="Nothing cooking" sub="Tap Start Prep to move orders here" />}
+          >
+            {inPrep.map((entry, index) => {
+              const isNext = index === 0
+              return (
+                <Ticket key={entry.id} entry={entry} now={now}>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => handleStatus(entry, 'ready')}
+                    className={`w-full ${isNext ? PRIMARY_BTN : SECONDARY_BTN}`}
+                  >
+                    <CheckCircle2 className="size-5" />
+                    Order Ready
+                  </button>
+                </Ticket>
+              )
+            })}
+          </Lane>
         </div>
-      </header>
+      )}
+    </ConsoleFrame>
+  )
+}
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-3 md:px-4 lg:px-6 py-4 md:py-5 space-y-4">
-        {!isLoading && <CounterPresenceAlert branchId={branchId} selfCounterId={counterId} />}
+/* Shift-level online/offline toggle, next to the header clock. Going
+   offline is disruptive (skips prep for every new order), so the first tap
+   only "arms" it — track flips amber and pulses, thumb stays put — and a
+   second tap confirms (thumb only ever moves on the real, committed change).
+   Coming back online is instant. */
+function AcceptingOrdersToggle({ acceptingOrders, pending, onToggle }: {
+  acceptingOrders: boolean
+  pending: boolean
+  onToggle: () => void
+}) {
+  const { armed, tap } = useTapGuard(onToggle)
+  const isOn = acceptingOrders
+  const previewOff = isOn && armed
+  const label = previewOff ? 'Tap again to go offline' : isOn ? 'Kitchen online' : 'Kitchen offline'
+  const labelColor = previewOff ? 'text-amber-600' : isOn ? 'text-accent-700' : 'text-slate-400'
 
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-24">
-            <ChefHat className="size-10 mb-3 animate-pulse text-gray-300" />
-            <p className="text-sm text-gray-500">Loading orders…</p>
-          </div>
-        ) : newOrders.length === 0 && inPrep.length === 0 ? (
-          <div className="border border-dashed border-gray-300 rounded-xl p-12 text-center flex flex-col items-center">
-            <div className="size-10 rounded-lg bg-green-50 flex items-center justify-center mb-3">
-              <CheckCircle2 className="size-5 text-green-600" />
-            </div>
-            <p className="text-sm font-semibold text-gray-900">Kitchen is clear</p>
-            <p className="text-sm text-gray-500 mt-1">New orders appear here automatically</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 lg:gap-6 items-start">
+  return (
+    <div className="flex items-center gap-2.5 rounded-2xl bg-slate-50 border border-slate-200 pl-3 pr-1.5 py-1.5">
+      <span className={`text-[11px] font-bold uppercase tracking-wide whitespace-nowrap ${labelColor}`}>
+        {label}
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isOn}
+        aria-label="Kitchen accepting orders"
+        onClick={isOn ? tap : onToggle}
+        disabled={pending}
+        className={`h-10 w-20 rounded-full p-1 flex items-center select-none transition-colors duration-300 ease-out disabled:opacity-40 shrink-0 ${
+          !isOn ? 'bg-slate-300 justify-start'
+          : previewOff ? 'bg-amber-500 justify-end animate-pulse'
+          : 'bg-accent-600 justify-end'
+        }`}
+      >
+        <motion.span
+          layout
+          transition={{ type: 'spring', stiffness: 600, damping: 34 }}
+          className="size-8 rounded-full bg-white shadow-[0_2px_8px_-2px_rgba(15,23,42,0.35)] flex items-center justify-center"
+        >
+          <ChefHat className={`size-4 ${!isOn ? 'text-slate-400' : previewOff ? 'text-amber-600' : 'text-accent-600'}`} />
+        </motion.span>
+      </button>
+    </div>
+  )
+}
 
-            <section className="space-y-3">
-              <div className="flex items-center gap-2 px-1">
-                <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
-                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">New Orders</h2>
-                <span className="ml-auto text-[11px] font-semibold text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">
-                  {newOrders.length}
-                </span>
-              </div>
-              {newOrders.length === 0 ? (
-                <div className="border border-dashed border-gray-200 rounded-xl py-12 flex flex-col items-center text-center">
-                  <p className="text-sm text-gray-400">No new orders</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {newOrders.map(entry => (
-                    <PendingCard
-                      key={entry.id}
-                      entry={entry}
-                      pending={pending}
-                      onPreparing={() => handleStatus(entry, 'preparing')}
-                      onReady={() => handleStatus(entry, 'ready')}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
+/* Card action base — 48px+ target, physical press feedback, 0.25s ease-out
+   so the FIFO promotion swap (quiet → accent) reads as a deliberate change. */
+const BTN_BASE =
+  'rounded-2xl text-[15px] font-bold flex items-center justify-center gap-2 select-none transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0'
 
-            <section className="space-y-3">
-              <div className="flex items-center gap-2 px-1">
-                <Flame className="size-3 text-teal-600" />
-                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">In Preparation</h2>
-                <span className="ml-auto text-[11px] font-semibold text-teal-700 bg-teal-50 rounded-full px-2 py-0.5">
-                  {inPrep.length}
-                </span>
-              </div>
-              {inPrep.length === 0 ? (
-                <div className="border border-dashed border-gray-200 rounded-xl py-12 flex flex-col items-center text-center">
-                  <p className="text-sm text-gray-400">Nothing cooking yet</p>
-                  <p className="text-xs text-gray-400 mt-1">Tap &ldquo;Start Prep&rdquo; to move orders here</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {inPrep.map(entry => (
-                    <PreparingCard
-                      key={entry.id}
-                      entry={entry}
-                      pending={pending}
-                      onReady={() => handleStatus(entry, 'ready')}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
+/* Primary — the one solid accent CTA per lane, on the next-to-act card. */
+const PRIMARY_BTN = `${BTN_BASE} h-14 bg-accent-600 text-white shadow-[0_6px_16px_-6px_rgba(5,150,105,0.5)] active:bg-accent-700`
 
-          </div>
+/* Secondary — every repeated lane action below the first card, and every shortcut. */
+const SECONDARY_BTN = `${BTN_BASE} h-12 bg-white border border-slate-200 text-slate-700 shadow-sm active:bg-slate-50`
+
+/* A prep lane: caps header + count, then a scrolling column of flat tickets. */
+function Lane({ label, count, pulse = false, empty, children }: {
+  label: string
+  count: number
+  pulse?: boolean
+  empty: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <section className="min-h-0 flex flex-col">
+      <div className="flex items-center gap-2 px-1.5 pb-2 shrink-0">
+        {pulse && <span className="size-2 rounded-full bg-amber-500 animate-pulse" />}
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+        <span className="ms-auto min-w-6 h-6 px-1.5 rounded-full bg-white border border-slate-200 text-slate-500 text-xs font-bold flex items-center justify-center tabular-nums shadow-sm">
+          {count}
+        </span>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin space-y-2 px-0.5 pb-1">
+        {count === 0 ? empty : (
+          <AnimatePresence initial={false}>{children}</AnimatePresence>
         )}
-      </main>
+      </div>
+    </section>
+  )
+}
+
+/* A single order as a flat white card: mono number tile · bill/name ·
+   escalating wait pill, optional notes strip, then the lane's action(s). */
+function Ticket({ entry, now, children }: {
+  entry: QueueEntryDTO
+  now: number
+  children: React.ReactNode
+}) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -8, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
+      className="rounded-2xl bg-white border border-slate-200 shadow-sm p-3 space-y-3"
+    >
+      <div className="flex items-center gap-3">
+        <span className="size-12 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center font-mono font-black text-xl tabular-nums shrink-0" dir="ltr">
+          {entry.queueNumber}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-slate-800 truncate">
+            {entry.billNumber ? `Bill ${entry.billNumber}` : `#${entry.queueNumber}`}
+          </p>
+          <p className="text-xs text-slate-400 truncate">{entry.customerName || 'Walk-in'}</p>
+        </div>
+        <ElapsedPill mins={minutesSince(entry.joinedAt, now)} />
+      </div>
+      {entry.notes && (
+        <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+          <span className="shrink-0">⚠</span>
+          <span className="leading-5">{entry.notes}</span>
+        </div>
+      )}
+      {children}
+    </motion.div>
+  )
+}
+
+/* Calm empty lane: flat icon tile + short message. */
+function LaneEmpty({ icon: Icon, title, sub }: { icon: LucideIcon; title: string; sub: string }) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 px-4">
+      <div className="size-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center mb-3">
+        <Icon className="size-6 text-slate-300" />
+      </div>
+      <p className="text-sm font-semibold text-slate-500">{title}</p>
+      <p className="text-xs mt-1 max-w-52">{sub}</p>
     </div>
   )
 }
