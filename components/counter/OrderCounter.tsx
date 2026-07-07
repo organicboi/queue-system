@@ -11,6 +11,7 @@ import { CounterPresenceAlert } from '@/components/counter/CounterPresenceAlert'
 import { ConsoleFrame, ConsoleLoading, KeypadKey, RowCancel, STATUS_PILL } from '@/components/counter/console'
 import { formatTime } from '@/lib/queueUtils'
 import { silentPrint, buildReceiptHtml } from '@/lib/silentPrint'
+import { isAndroid, printViaRawBT } from '@/lib/rawbtPrint'
 import type { QueueEntryDTO } from '@/lib/db/types'
 
 interface Props {
@@ -51,7 +52,15 @@ export function OrderCounter({
     if (!printEntry) return
     const timer = setTimeout(async () => {
       const receiptEl = document.getElementById('order-print')
-      const html = buildReceiptHtml(receiptEl?.innerHTML ?? '')
+      if (!receiptEl) return
+
+      if (silentPrintEnabled && isAndroid()) {
+        await printViaRawBT(receiptEl)
+        setPrintEntry(null)
+        return
+      }
+
+      const html = buildReceiptHtml(receiptEl.innerHTML)
       const method = await silentPrint({ html, printerName, forceDialog: !silentPrintEnabled })
       if (method === 'qz') setPrintEntry(null)
     }, 80)
@@ -122,7 +131,8 @@ export function OrderCounter({
     <>
       {/* Print styles — 80mm thermal */}
       <style>{`
-        @page { size: 80mm auto; margin: 0; }
+        @page { size: 80mm 110mm; margin: 0; }
+        #order-print.rawbt-capturing { display: block !important; position: fixed; left: -9999px; top: 0; }
         @media print {
           * { box-sizing: border-box; }
           .no-print { display: none !important; }

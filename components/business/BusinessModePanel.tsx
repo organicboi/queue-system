@@ -252,7 +252,7 @@ export function BusinessModePanel({
     <>
       {/* Print styles — 80 mm thermal */}
       <style>{`
-        @page { size: 80mm auto; margin: 0; }
+        @page { size: 80mm 110mm; margin: 0; }
         @media print {
           * { box-sizing: border-box; }
           .no-print { display: none !important; }

@@ -105,3 +105,11 @@ body {
     border-radius: 2px;
   }
 }
+
+/* Toaster is portaled to <body>, outside any .no-print wrapper — hide it
+   globally so success/error toasts never bleed into a print page. */
+@media print {
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+}

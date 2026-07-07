@@ -1,21 +1,22 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useRealtimeQueue } from '@/lib/hooks/useRealtimeQueue'
 import { useCounterHeartbeat } from '@/lib/hooks/useCounterPresence'
 import {
-  counterCallNextAction,
   counterCallEntryAction,
   counterCompleteEntryAction,
   counterCancelEntryAction,
 } from '@/lib/actions/counters'
-import { Truck, Phone, CheckCircle2, PackageCheck, ChefHat, SkipForward, BellRing } from 'lucide-react'
+import { Truck, Phone, CheckCircle2, PackageCheck, ChefHat, SkipForward, BellRing, Search, X, Delete } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatTime } from '@/lib/queueUtils'
 import { CounterPresenceAlert } from '@/components/counter/CounterPresenceAlert'
-import { ConsoleFrame, ConsoleLoading, TaskSplit, ElapsedPill, ConfirmCancel, useNow, minutesSince } from '@/components/counter/console'
+import { ConsoleFrame, ConsoleLoading, TaskSplit, ElapsedPill, ConfirmCancel, RowCancel, useNow, minutesSince } from '@/components/counter/console'
 import type { QueueEntryDTO } from '@/lib/db/types'
+
+const MAX_SEARCH_LENGTH = 20
 
 interface Props {
   branchId: string
@@ -33,6 +34,8 @@ interface Props {
 export function DeliveryCounter({ branchId, counterId, counterName, counterToken, presenceEnabled = false }: Props) {
   const { entries, isPaused, isLoading } = useRealtimeQueue(branchId)
   const [pending, startTransition] = useTransition()
+  const [search, setSearch] = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
   useCounterHeartbeat(counterToken, presenceEnabled)
   const now = useNow()
 
@@ -56,18 +59,28 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
     .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''))
     .slice(0, 5)
 
-  function handleCallNext() {
-    startTransition(async () => {
-      const result = await counterCallNextAction(branchId, counterToken)
-      if (result.error) toast.error(result.error)
-    })
-  }
+  const searchResults = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return []
+    return entries
+      .filter(e => e.status === 'waiting' || e.status === 'in-progress')
+      .filter(e =>
+        String(e.queueNumber).includes(query) ||
+        e.billNumber?.toLowerCase().includes(query) ||
+        e.customerName?.toLowerCase().includes(query)
+      )
+      .sort((a, b) => a.queueNumber - b.queueNumber)
+  }, [entries, search])
 
-  function handleRecall(entry: QueueEntryDTO) {
+  // Call/recall works off whatever the entry's current status is — waiting+ready
+  // becomes a call, already in-progress becomes a recall — so one button always
+  // applies regardless of where the order sits in the queue.
+  function handleCallOrRecall(entry: QueueEntryDTO) {
+    const wasInProgress = entry.status === 'in-progress'
     startTransition(async () => {
       const result = await counterCallEntryAction(entry.id, branchId, counterToken)
       if (result.error) toast.error(result.error)
-      else toast.success(`#${entry.queueNumber} recalled`)
+      else toast.success(`#${entry.queueNumber} ${wasInProgress ? 'recalled' : 'called'}`)
     })
   }
 
@@ -114,11 +127,18 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
                     now={now}
                     pending={pending}
                     onDeliver={() => handleDeliver(atCounter)}
-                    onRecall={() => handleRecall(atCounter)}
+                    onCall={() => handleCallOrRecall(atCounter)}
+                    onRecall={() => handleCallOrRecall(atCounter)}
                     onCancel={() => handleCancel(atCounter)}
                   />
                 ) : next ? (
-                  <UpNextHero entry={next} pending={pending} paused={isPaused} onCall={handleCallNext} />
+                  <UpNextHero
+                    entry={next}
+                    pending={pending}
+                    paused={isPaused}
+                    onCall={() => handleCallOrRecall(next)}
+                    onRecall={() => handleCallOrRecall(next)}
+                  />
                 ) : (
                   <EmptyHero inKitchen={inKitchen} />
                 )}
@@ -127,70 +147,161 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
           }
           list={
             <>
-              <div className="flex items-center gap-2 px-1.5 pb-2 shrink-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Ready for Delivery</p>
-                <span className="ms-auto min-w-6 h-6 px-1.5 rounded-full bg-white border border-slate-200 text-slate-500 text-xs font-bold flex items-center justify-center tabular-nums shadow-sm">
-                  {queueList.length}
-                </span>
-              </div>
-              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin space-y-2 px-0.5 pb-1">
-                {queueList.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 px-4">
-                    <div className="size-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center mb-3">
-                      <Truck className="size-6 text-slate-300" />
-                    </div>
-                    <p className="text-sm font-semibold text-slate-500">{focus ? 'Nothing else waiting' : 'Nothing waiting'}</p>
-                    <p className="text-xs mt-1 max-w-52">Kitchen-ready orders queue up here</p>
-                  </div>
-                ) : (
-                  <AnimatePresence initial={false}>
-                    {queueList.map((entry, idx) => (
-                      <motion.div
-                        key={entry.id}
-                        layout
-                        initial={{ opacity: 0, y: -8, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.98 }}
-                        transition={{ duration: 0.25, ease: 'easeOut' }}
-                      >
-                        <QueueRow entry={entry} now={now} highlight={!!atCounter && idx === 0} />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                )}
-                {inKitchen > 0 && (
-                  <div className="flex items-center gap-1.5 px-1 pt-2 text-xs text-slate-400">
-                    <ChefHat className="size-3.5" />
-                    {inKitchen} still in kitchen
-                  </div>
+              {searchFocused && (
+                <div className="fixed inset-0 z-10" onClick={() => setSearchFocused(false)} />
+              )}
+              <div className="relative shrink-0 mb-2 rounded-xl border border-slate-200 bg-white focus-within:border-accent-400 focus-within:ring-4 focus-within:ring-accent-600/10 transition-colors z-20">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+                <input
+                  type="text"
+                  inputMode="none"
+                  placeholder="Search queue #, bill #, or name…"
+                  value={search}
+                  onFocus={() => setSearchFocused(true)}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full h-10 bg-transparent pl-9 pr-9 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 size-6 rounded-full flex items-center justify-center text-slate-400 active:bg-slate-100"
+                  >
+                    <X className="size-4" />
+                  </button>
                 )}
 
-                {recentlyDelivered.length > 0 && (
-                  <>
-                    <div className="flex items-center gap-2 px-1 pt-3 pb-1">
-                      <PackageCheck className="size-3.5 text-slate-400" />
-                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Recently Delivered</p>
-                    </div>
-                    {recentlyDelivered.map(entry => (
-                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2 flex items-center gap-3 opacity-70">
-                        <span className="w-12 text-center font-mono font-black text-xl tabular-nums text-slate-300 shrink-0" dir="ltr">
-                          {entry.queueNumber}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-slate-500 truncate">
-                            {entry.billNumber ? `Bill #${entry.billNumber}` : '—'}
-                            {entry.customerName && <span className="text-slate-400"> · {entry.customerName}</span>}
-                          </p>
-                          {entry.completedAt && (
-                            <p className="text-xs text-slate-400 tabular-nums">Delivered {formatTime(entry.completedAt)}</p>
-                          )}
-                        </div>
-                        <CheckCircle2 className="size-4 text-accent-600 shrink-0" />
-                      </div>
-                    ))}
-                  </>
+                {searchFocused && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute top-full inset-x-0 mt-2 z-20 rounded-2xl border border-slate-200 bg-white shadow-xl p-2.5"
+                  >
+                    <SearchNumpad
+                      onDigit={(d) => setSearch((prev) => (prev + d).slice(0, MAX_SEARCH_LENGTH))}
+                      onBackspace={() => setSearch((prev) => prev.slice(0, -1))}
+                      onClear={() => setSearch('')}
+                      onClose={() => setSearchFocused(false)}
+                    />
+                  </div>
                 )}
               </div>
+
+              {search ? (
+                <>
+                  <div className="flex items-center gap-2 px-1.5 pb-2 shrink-0">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Search Results</p>
+                    <span className="ms-auto min-w-6 h-6 px-1.5 rounded-full bg-white border border-slate-200 text-slate-500 text-xs font-bold flex items-center justify-center tabular-nums shadow-sm">
+                      {searchResults.length}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin space-y-2 px-0.5 pb-1">
+                    {searchResults.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 px-4">
+                        <div className="size-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center mb-3">
+                          <Search className="size-6 text-slate-300" />
+                        </div>
+                        <p className="text-sm font-semibold text-slate-500">No matches</p>
+                        <p className="text-xs mt-1">Try a different queue #, bill #, or name</p>
+                      </div>
+                    ) : (
+                      <AnimatePresence initial={false}>
+                        {searchResults.map((entry) => (
+                          <motion.div
+                            key={entry.id}
+                            layout
+                            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.98 }}
+                            transition={{ duration: 0.25, ease: 'easeOut' }}
+                          >
+                            <QueueRow
+                              entry={entry}
+                              now={now}
+                              pending={pending}
+                              onCall={() => handleCallOrRecall(entry)}
+                              onCancel={() => handleCancel(entry)}
+                            />
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 px-1.5 pb-2 shrink-0">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Ready for Delivery</p>
+                    <span className="ms-auto min-w-6 h-6 px-1.5 rounded-full bg-white border border-slate-200 text-slate-500 text-xs font-bold flex items-center justify-center tabular-nums shadow-sm">
+                      {queueList.length}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin space-y-2 px-0.5 pb-1">
+                    {queueList.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 px-4">
+                        <div className="size-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center mb-3">
+                          <Truck className="size-6 text-slate-300" />
+                        </div>
+                        <p className="text-sm font-semibold text-slate-500">{focus ? 'Nothing else waiting' : 'Nothing waiting'}</p>
+                        <p className="text-xs mt-1 max-w-52">Kitchen-ready orders queue up here</p>
+                      </div>
+                    ) : (
+                      <AnimatePresence initial={false}>
+                        {queueList.map((entry, idx) => (
+                          <motion.div
+                            key={entry.id}
+                            layout
+                            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.98 }}
+                            transition={{ duration: 0.25, ease: 'easeOut' }}
+                          >
+                            <QueueRow
+                              entry={entry}
+                              now={now}
+                              highlight={!!atCounter && idx === 0}
+                              pending={pending}
+                              onCall={() => handleCallOrRecall(entry)}
+                              onCancel={() => handleCancel(entry)}
+                            />
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    )}
+                    {inKitchen > 0 && (
+                      <div className="flex items-center gap-1.5 px-1 pt-2 text-xs text-slate-400">
+                        <ChefHat className="size-3.5" />
+                        {inKitchen} still in kitchen
+                      </div>
+                    )}
+
+                    {recentlyDelivered.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 px-1 pt-3 pb-1">
+                          <PackageCheck className="size-3.5 text-slate-400" />
+                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Recently Delivered</p>
+                        </div>
+                        {recentlyDelivered.map(entry => (
+                          <div key={entry.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2 flex items-center gap-3 opacity-70">
+                            <span className="w-12 text-center font-mono font-black text-xl tabular-nums text-slate-300 shrink-0" dir="ltr">
+                              {entry.queueNumber}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-slate-500 truncate">
+                                {entry.billNumber ? `Bill #${entry.billNumber}` : '—'}
+                                {entry.customerName && <span className="text-slate-400"> · {entry.customerName}</span>}
+                              </p>
+                              {entry.completedAt && (
+                                <p className="text-xs text-slate-400 tabular-nums">Delivered {formatTime(entry.completedAt)}</p>
+                              )}
+                            </div>
+                            <CheckCircle2 className="size-4 text-accent-600 shrink-0" />
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
             </>
           }
         />
@@ -200,11 +311,12 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
 }
 
 /* Out for delivery: flat white hero, tap-to-call, one accent CTA. */
-function OutForDeliveryHero({ entry, now, pending, onDeliver, onRecall, onCancel }: {
+function OutForDeliveryHero({ entry, now, pending, onDeliver, onCall, onRecall, onCancel }: {
   entry: QueueEntryDTO
   now: number
   pending: boolean
   onDeliver: () => void
+  onCall: () => void
   onRecall: () => void
   onCancel: () => void
 }) {
@@ -258,7 +370,16 @@ function OutForDeliveryHero({ entry, now, pending, onDeliver, onRecall, onCancel
       )}
 
       <div className="mt-auto space-y-2.5">
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-3 gap-2.5">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onCall}
+            className="h-12 rounded-2xl bg-white border border-slate-200 text-slate-700 text-sm font-bold flex items-center justify-center gap-2 select-none transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0 shadow-sm active:bg-slate-50"
+          >
+            <Phone className="size-4.5" />
+            Call
+          </button>
           <button
             type="button"
             disabled={pending}
@@ -284,12 +405,13 @@ function OutForDeliveryHero({ entry, now, pending, onDeliver, onRecall, onCancel
   )
 }
 
-/* Up next: flat white hero, single primary CTA to call. */
-function UpNextHero({ entry, pending, paused, onCall }: {
+/* Up next: flat white hero, primary CTA to call, secondary to recall. */
+function UpNextHero({ entry, pending, paused, onCall, onRecall }: {
   entry: QueueEntryDTO
   pending: boolean
   paused: boolean
   onCall: () => void
+  onRecall: () => void
 }) {
   return (
     <div className="h-full min-h-0 rounded-3xl bg-white border border-slate-200 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.25)] flex flex-col p-5">
@@ -313,7 +435,7 @@ function UpNextHero({ entry, pending, paused, onCall }: {
         )}
       </div>
 
-      <div>
+      <div className="space-y-2.5">
         <button
           type="button"
           disabled={pending || paused}
@@ -322,6 +444,15 @@ function UpNextHero({ entry, pending, paused, onCall }: {
         >
           <SkipForward className="size-5" />
           Call #{entry.queueNumber}
+        </button>
+        <button
+          type="button"
+          disabled={pending || paused}
+          onClick={onRecall}
+          className="w-full h-11 rounded-2xl bg-white border border-slate-200 text-slate-700 text-sm font-bold flex items-center justify-center gap-2 select-none transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0 shadow-sm active:bg-slate-50"
+        >
+          <BellRing className="size-4.5" />
+          Recall
         </button>
         {paused && <p className="text-center text-xs font-semibold text-amber-600 mt-2">Queue is paused</p>}
       </div>
@@ -347,12 +478,77 @@ function EmptyHero({ inKitchen }: { inKitchen: number }) {
   )
 }
 
-/* A ready order in the queue list: mono number, bill/name, wait pill. */
-function QueueRow({ entry, now, highlight = false }: {
+/* Compact numpad dropdown anchored under the search bar — deliberately small
+   so the hero and the list both stay visible and usable behind it, instead
+   of the pad taking over the whole task panel. Suppresses the OS keyboard,
+   matching Order's bill-entry pad. */
+function SearchNumpad({ onDigit, onBackspace, onClear, onClose }: {
+  onDigit: (d: string) => void
+  onBackspace: () => void
+  onClear: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="w-full max-w-64 mx-auto">
+      <div className="grid grid-cols-3 gap-1.5">
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
+          <button
+            key={d}
+            type="button"
+            onClick={() => onDigit(d)}
+            className="h-10 rounded-lg bg-slate-700 text-white text-base font-bold flex items-center justify-center select-none active:bg-slate-800 active:scale-95 transition"
+          >
+            {d}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={onClear}
+          className="h-10 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-bold flex items-center justify-center select-none active:bg-red-100 active:scale-95 transition"
+        >
+          Clear
+        </button>
+        <button
+          type="button"
+          onClick={() => onDigit('0')}
+          className="h-10 rounded-lg bg-slate-700 text-white text-base font-bold flex items-center justify-center select-none active:bg-slate-800 active:scale-95 transition"
+        >
+          0
+        </button>
+        <button
+          type="button"
+          onClick={onBackspace}
+          aria-label="Backspace"
+          className="h-10 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center select-none active:bg-slate-300 active:scale-95 transition"
+        >
+          <Delete className="size-4.5" />
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="mt-1.5 w-full h-9 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-bold flex items-center justify-center gap-1 active:bg-slate-50 transition"
+      >
+        Done
+      </button>
+    </div>
+  )
+}
+
+/* A queue-list or search-result row: mono number, bill/name, wait pill, and
+   always-present quick Call, Recall, and Cancel actions — both Call and
+   Recall stay visible regardless of the entry's state (up next, already on
+   call, whatever), so staff decide which to tap; the backend applies the
+   right one (call vs. recall) based on the entry's actual status. */
+function QueueRow({ entry, now, highlight = false, pending, onCall, onCancel }: {
   entry: QueueEntryDTO
   now: number
   highlight?: boolean
+  pending: boolean
+  onCall: () => void
+  onCancel: () => void
 }) {
+  const notReady = entry.status === 'waiting' && entry.kitchenStatus !== 'ready'
   return (
     <div className={`rounded-2xl border p-2.5 flex items-center gap-3 ${
       highlight ? 'bg-accent-50 border-accent-300' : 'bg-white border-slate-200 shadow-sm'
@@ -364,12 +560,40 @@ function QueueRow({ entry, now, highlight = false }: {
         <p className="font-bold text-slate-800 truncate">
           {entry.billNumber ? `Bill #${entry.billNumber}` : '—'}
         </p>
-        <p className="text-sm text-slate-400 truncate">
-          {entry.customerName || 'No name'}
-          {entry.notes && <span className="text-amber-600"> · ⚠ {entry.notes}</span>}
-        </p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <span className="text-sm text-slate-400 truncate">{entry.customerName || 'No name'}</span>
+          <ElapsedPill mins={minutesSince(entry.joinedAt, now)} />
+        </div>
+        {entry.notes && <p className="text-xs text-amber-600 truncate">⚠ {entry.notes}</p>}
+        {notReady && <p className="text-xs text-slate-400">Still in kitchen</p>}
       </div>
-      <ElapsedPill mins={minutesSince(entry.joinedAt, now)} />
+      <div className="flex flex-col gap-2 shrink-0 w-[92px]">
+        <div className="grid grid-cols-2 gap-1">
+          <button
+            type="button"
+            disabled={pending || notReady}
+            onClick={onCall}
+            title={notReady ? 'Not ready in kitchen yet' : 'Call this order'}
+            className="h-9 rounded-lg border border-slate-200 bg-white text-slate-600 text-[10px] font-bold flex flex-col items-center justify-center gap-0.5 shadow-sm active:bg-slate-50 active:scale-95 transition disabled:opacity-40"
+          >
+            <Phone className="size-3.5" />
+            Call
+          </button>
+          <button
+            type="button"
+            disabled={pending || notReady}
+            onClick={onCall}
+            title={notReady ? 'Not ready in kitchen yet' : 'Recall this order'}
+            className="h-9 rounded-lg border border-slate-200 bg-white text-slate-600 text-[10px] font-bold flex flex-col items-center justify-center gap-0.5 shadow-sm active:bg-slate-50 active:scale-95 transition disabled:opacity-40"
+          >
+            <BellRing className="size-3.5" />
+            Recall
+          </button>
+        </div>
+        <div className="[&>button]:w-full">
+          <RowCancel disabled={pending} onConfirm={onCancel} />
+        </div>
+      </div>
     </div>
   )
 }
