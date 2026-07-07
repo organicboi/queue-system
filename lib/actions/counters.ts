@@ -429,7 +429,9 @@ export interface CounterEntryActionResult {
 }
 
 // Order counter creates new queue entries — the walk-up "take an order, hand
-// out a queue number" stage that feeds every other counter type.
+// out a queue number" stage that feeds every other counter type. Delivery
+// counters may also create one directly (skipping the kitchen stage) when
+// staff search for a bill that never made it into the queue.
 export async function counterCreateEntryAction(
   branchId: string,
   counterToken: string,
@@ -441,7 +443,9 @@ export async function counterCreateEntryAction(
 
   const counter = await verifyCounterToken(counterToken)
   if (!counter || counter.branch_id !== branchId) return { error: 'Invalid or inactive counter' }
-  if (counter.type !== 'order') return { error: 'Only order counters can create new entries' }
+  if (counter.type !== 'order' && counter.type !== 'delivery') {
+    return { error: 'Only order or delivery counters can create new entries' }
+  }
 
   const supabase = createSupabaseServiceClient()
 
@@ -451,7 +455,9 @@ export async function counterCreateEntryAction(
   if (numErr || numData == null) return { error: 'Failed to assign queue number' }
 
   const queueNumber = numData as number
-  const needsKitchen = await hasActiveKitchenCounter(branchId)
+  // A delivery counter creating an entry is registering an order that's
+  // already made — skip the kitchen stage so it's immediately callable.
+  const needsKitchen = counter.type === 'delivery' ? false : await hasActiveKitchenCounter(branchId)
 
   const { data, error } = await supabase
     .from('queue_entries')
@@ -481,7 +487,7 @@ export async function counterCreateEntryAction(
     type: 'joined',
     queue_number: queueNumber,
     bill_number: billNumber.trim(),
-    message: `Queue #${queueNumber} joined — Bill ${billNumber.trim()} (order counter)`,
+    message: `Queue #${queueNumber} joined — Bill ${billNumber.trim()} (${counter.type} counter)`,
   })
 
   revalidatePath('/dashboard')

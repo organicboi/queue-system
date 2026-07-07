@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useRealtimeQueue } from '@/lib/hooks/useRealtimeQueue'
 import { useCounterHeartbeat } from '@/lib/hooks/useCounterPresence'
@@ -8,12 +8,13 @@ import {
   counterCallEntryAction,
   counterCompleteEntryAction,
   counterCancelEntryAction,
+  counterCreateEntryAction,
 } from '@/lib/actions/counters'
-import { Truck, Phone, CheckCircle2, PackageCheck, ChefHat, SkipForward, BellRing, Search, X, Delete } from 'lucide-react'
+import { Truck, Phone, CheckCircle2, PackageCheck, ChefHat, SkipForward, BellRing, Search, X, Delete, XCircle, Ticket } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatTime } from '@/lib/queueUtils'
 import { CounterPresenceAlert } from '@/components/counter/CounterPresenceAlert'
-import { ConsoleFrame, ConsoleLoading, TaskSplit, ElapsedPill, ConfirmCancel, RowCancel, useNow, minutesSince } from '@/components/counter/console'
+import { ConsoleFrame, ConsoleLoading, TaskSplit, ElapsedPill, useNow, minutesSince, useTapGuard } from '@/components/counter/console'
 import type { QueueEntryDTO } from '@/lib/db/types'
 
 const MAX_SEARCH_LENGTH = 20
@@ -36,8 +37,25 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
   const [pending, startTransition] = useTransition()
   const [search, setSearch] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
+  const searchBarRef = useRef<HTMLDivElement>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
   useCounterHeartbeat(counterToken, presenceEnabled)
   const now = useNow()
+
+  // Bottom sheet dismisses on outside tap via a plain document listener
+  // (not an intercepting overlay div) so it never blocks or dims the
+  // search results sitting behind/above it.
+  useEffect(() => {
+    if (!searchFocused) return
+    function handlePointerDown(e: PointerEvent) {
+      const target = e.target as Node
+      if (searchBarRef.current?.contains(target)) return
+      if (sheetRef.current?.contains(target)) return
+      setSearchFocused(false)
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [searchFocused])
 
   const atCounter = entries.find(e => e.status === 'in-progress')
 
@@ -100,6 +118,26 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
     })
   }
 
+  // No matching order for the searched bill — register it here (skipping
+  // the kitchen stage) and call it immediately, so it shows up active in
+  // the left panel exactly like tapping Call on an existing entry.
+  function handleCreateToken() {
+    const trimmed = search.trim()
+    if (!trimmed) return
+    startTransition(async () => {
+      const result = await counterCreateEntryAction(branchId, counterToken, trimmed)
+      if (result.error || !result.entry) {
+        toast.error(result.error ?? 'Failed to create token')
+        return
+      }
+      const callResult = await counterCallEntryAction(result.entry.id, branchId, counterToken)
+      if (callResult.error) toast.error(callResult.error)
+      toast.success(`Queue #${result.entry.queueNumber} — Bill ${result.entry.billNumber} created`)
+      setSearch('')
+      setSearchFocused(false)
+    })
+  }
+
   return (
     <ConsoleFrame
       icon={Truck}
@@ -138,6 +176,7 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
                     paused={isPaused}
                     onCall={() => handleCallOrRecall(next)}
                     onRecall={() => handleCallOrRecall(next)}
+                    onCancel={() => handleCancel(next)}
                   />
                 ) : (
                   <EmptyHero inKitchen={inKitchen} />
@@ -146,11 +185,8 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
             </AnimatePresence>
           }
           list={
-            <>
-              {searchFocused && (
-                <div className="fixed inset-0 z-10" onClick={() => setSearchFocused(false)} />
-              )}
-              <div className="relative shrink-0 mb-2 rounded-xl border border-slate-200 bg-white focus-within:border-accent-400 focus-within:ring-4 focus-within:ring-accent-600/10 transition-colors z-20">
+            <div className="relative flex-1 min-h-0 flex flex-col">
+              <div ref={searchBarRef} className="relative shrink-0 mb-2 rounded-xl border border-slate-200 bg-white focus-within:border-accent-400 focus-within:ring-4 focus-within:ring-accent-600/10 transition-colors">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
                 <input
                   type="text"
@@ -170,20 +206,6 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
                     <X className="size-4" />
                   </button>
                 )}
-
-                {searchFocused && (
-                  <div
-                    onClick={(e) => e.stopPropagation()}
-                    className="absolute top-full inset-x-0 mt-2 z-20 rounded-2xl border border-slate-200 bg-white shadow-xl p-2.5"
-                  >
-                    <SearchNumpad
-                      onDigit={(d) => setSearch((prev) => (prev + d).slice(0, MAX_SEARCH_LENGTH))}
-                      onBackspace={() => setSearch((prev) => prev.slice(0, -1))}
-                      onClear={() => setSearch('')}
-                      onClose={() => setSearchFocused(false)}
-                    />
-                  </div>
-                )}
               </div>
 
               {search ? (
@@ -196,12 +218,25 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin space-y-2 px-0.5 pb-1">
                     {searchResults.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 px-4">
-                        <div className="size-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center mb-3">
-                          <Search className="size-6 text-slate-300" />
+                      <div className="rounded-2xl border border-dashed border-accent-300 bg-accent-50/40 p-3 flex flex-col gap-3">
+                        <div className="flex items-center gap-3">
+                          <span className="size-12 rounded-xl bg-white border border-accent-200 text-accent-700 flex items-center justify-center shrink-0">
+                            <Ticket className="size-5" />
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-slate-800 truncate">Bill #{search}</p>
+                            <p className="text-sm text-slate-400">No matching order — create a new token</p>
+                          </div>
                         </div>
-                        <p className="text-sm font-semibold text-slate-500">No matches</p>
-                        <p className="text-xs mt-1">Try a different queue #, bill #, or name</p>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={handleCreateToken}
+                          className="w-full h-12 rounded-xl bg-accent-600 text-white text-sm font-bold flex items-center justify-center gap-2 select-none transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0 shadow-[0_6px_16px_-6px_rgba(5,150,105,0.5)] active:bg-accent-700"
+                        >
+                          <Ticket className="size-4.5" />
+                          Create Token
+                        </button>
                       </div>
                     ) : (
                       <AnimatePresence initial={false}>
@@ -302,7 +337,27 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
                   </div>
                 </>
               )}
-            </>
+
+              <AnimatePresence>
+                {searchFocused && (
+                  <motion.div
+                    ref={sheetRef}
+                    initial={{ y: '100%' }}
+                    animate={{ y: 0 }}
+                    exit={{ y: '100%' }}
+                    transition={{ duration: 0.25, ease: 'easeOut' }}
+                    className="absolute inset-x-0 bottom-0 z-30 rounded-t-3xl border border-slate-200 bg-white shadow-2xl p-3.5"
+                  >
+                    <SearchNumpad
+                      onDigit={(d) => setSearch((prev) => (prev + d).slice(0, MAX_SEARCH_LENGTH))}
+                      onBackspace={() => setSearch((prev) => prev.slice(0, -1))}
+                      onClear={() => setSearch('')}
+                      onClose={() => setSearchFocused(false)}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           }
         />
       )}
@@ -310,7 +365,9 @@ export function DeliveryCounter({ branchId, counterId, counterName, counterToken
   )
 }
 
-/* Out for delivery: flat white hero, tap-to-call, one accent CTA. */
+/* Out for delivery: bill card (60% info / 40% Call+Recall split, design
+   spec §2) stacked above the Delivered CTA. Dismiss sits pinned to the
+   card's top-right corner so it survives the info section scrolling. */
 function OutForDeliveryHero({ entry, now, pending, onDeliver, onCall, onRecall, onCancel }: {
   entry: QueueEntryDTO
   now: number
@@ -322,140 +379,172 @@ function OutForDeliveryHero({ entry, now, pending, onDeliver, onCall, onRecall, 
 }) {
   const mins = minutesSince(entry.startedAt ?? entry.joinedAt, now)
   return (
-    <div className="h-full min-h-0 rounded-3xl bg-white border border-slate-200 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.25)] flex flex-col p-5 gap-3">
-      <div className="flex items-center gap-2">
-        <span className="size-2 rounded-full bg-accent-600 animate-pulse" />
-        <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Out for Delivery</span>
-        <span className="ms-auto"><ElapsedPill mins={mins} /></span>
+    <div className="h-full min-h-0 flex flex-col gap-3">
+      {/* Bill card: 60% of the split */}
+      <div className="flex-3 min-h-0 relative rounded-3xl bg-white border border-slate-200 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.25)] overflow-hidden">
+        <DismissCorner disabled={pending} onConfirm={onCancel} />
+        <div className="h-full overflow-y-auto p-5 pr-32 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-accent-600 animate-pulse" />
+            <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Out for Delivery</span>
+            <span className="ms-auto"><ElapsedPill mins={mins} /></span>
+          </div>
+
+          <div className="min-h-0">
+            <p className="font-mono font-black tabular-nums text-slate-900 leading-[0.82] text-[clamp(3rem,13vh,6rem)]" dir="ltr">
+              {entry.queueNumber}
+            </p>
+            <p className="text-2xl font-bold text-slate-800 mt-2">{entry.billNumber ? `Bill #${entry.billNumber}` : 'No bill #'}</p>
+            <p className="text-slate-500 truncate">{entry.customerName || 'No name'}</p>
+            {((entry.callCount ?? 0) > 1 || (entry.recallCount ?? 0) > 0) && (
+              <p className="text-slate-400 text-xs mt-1">
+                Called {entry.callCount ?? 0}×{(entry.recallCount ?? 0) > 0 && ` · Recalled ${entry.recallCount}×`}
+              </p>
+            )}
+          </div>
+
+          {entry.phone ? (
+            <a
+              href={`tel:${entry.phone}`}
+              className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 active:bg-slate-100 active:scale-[0.98] transition-all"
+            >
+              <div className="size-10 rounded-lg bg-slate-700 flex items-center justify-center shrink-0">
+                <Phone className="size-4.5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Tap to Call</p>
+                <p className="text-lg font-bold text-slate-800 leading-tight tabular-nums" dir="ltr">{entry.phone}</p>
+              </div>
+            </a>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-slate-400 px-1">
+              <Phone className="size-4" />
+              No phone number
+            </div>
+          )}
+
+          {entry.notes && (
+            <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+              <span className="shrink-0">⚠</span>
+              <span className="leading-5">{entry.notes}</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="min-h-0">
-        <p className="font-mono font-black tabular-nums text-slate-900 leading-[0.82] text-[clamp(3.5rem,15vh,7rem)]" dir="ltr">
-          {entry.queueNumber}
-        </p>
-        <p className="text-2xl font-bold text-slate-800 mt-2">{entry.billNumber ? `Bill #${entry.billNumber}` : 'No bill #'}</p>
-        <p className="text-slate-500 truncate">{entry.customerName || 'No name'}</p>
-        {((entry.callCount ?? 0) > 1 || (entry.recallCount ?? 0) > 0) && (
-          <p className="text-slate-400 text-xs mt-1">
-            Called {entry.callCount ?? 0}×{(entry.recallCount ?? 0) > 0 && ` · Recalled ${entry.recallCount}×`}
-          </p>
-        )}
-      </div>
-
-      {entry.phone ? (
-        <a
-          href={`tel:${entry.phone}`}
-          className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 active:bg-slate-100 active:scale-[0.98] transition-all"
-        >
-          <div className="size-10 rounded-lg bg-slate-700 flex items-center justify-center shrink-0">
-            <Phone className="size-4.5 text-white" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Tap to Call</p>
-            <p className="text-lg font-bold text-slate-800 leading-tight tabular-nums" dir="ltr">{entry.phone}</p>
-          </div>
-        </a>
-      ) : (
-        <div className="flex items-center gap-2 text-sm text-slate-400 px-1">
-          <Phone className="size-4" />
-          No phone number
-        </div>
-      )}
-
-      {entry.notes && (
-        <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
-          <span className="shrink-0">⚠</span>
-          <span className="leading-5">{entry.notes}</span>
-        </div>
-      )}
-
-      <div className="mt-auto space-y-2.5">
-        <div className="grid grid-cols-3 gap-2.5">
-          <button
-            type="button"
-            disabled={pending}
-            onClick={onCall}
-            className="h-12 rounded-2xl bg-white border border-slate-200 text-slate-700 text-sm font-bold flex items-center justify-center gap-2 select-none transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0 shadow-sm active:bg-slate-50"
-          >
-            <Phone className="size-4.5" />
-            Call
-          </button>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={onRecall}
-            className="h-12 rounded-2xl bg-white border border-slate-200 text-slate-700 text-sm font-bold flex items-center justify-center gap-2 select-none transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0 shadow-sm active:bg-slate-50"
-          >
-            <BellRing className="size-4.5" />
-            Recall
-          </button>
-          <ConfirmCancel disabled={pending} onConfirm={onCancel} />
-        </div>
+      {/* Call / Recall: 40% of the split, two separate button cards */}
+      <div className="flex-2 min-h-0 grid grid-cols-2 gap-3">
         <button
           type="button"
           disabled={pending}
-          onClick={onDeliver}
-          className="w-full h-14 rounded-2xl bg-accent-600 text-white text-base font-bold flex items-center justify-center gap-2 select-none transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0 shadow-[0_6px_16px_-6px_rgba(5,150,105,0.5)] active:bg-accent-700"
+          onClick={onCall}
+          className="h-full min-h-0 rounded-2xl bg-slate-700 text-white flex flex-col items-center justify-center gap-1.5 select-none transition-all active:scale-[0.97] active:bg-slate-800 disabled:opacity-40 shadow-[0_4px_10px_-4px_rgba(15,23,42,0.35)]"
         >
-          <CheckCircle2 className="size-5" />
-          Delivered
+          <Phone className="size-6" />
+          <span className="text-sm font-bold">Call</span>
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onRecall}
+          className="h-full min-h-0 rounded-2xl bg-slate-700 text-white flex flex-col items-center justify-center gap-1.5 select-none transition-all active:scale-[0.97] active:bg-slate-800 disabled:opacity-40 shadow-[0_4px_10px_-4px_rgba(15,23,42,0.35)]"
+        >
+          <BellRing className="size-6" />
+          <span className="text-sm font-bold">Recall</span>
         </button>
       </div>
+
+      <button
+        type="button"
+        disabled={pending}
+        onClick={onDeliver}
+        className="w-full h-14 rounded-2xl bg-accent-600 text-white text-base font-bold flex items-center justify-center gap-2 select-none shrink-0 transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0 shadow-[0_6px_16px_-6px_rgba(5,150,105,0.5)] active:bg-accent-700"
+      >
+        <CheckCircle2 className="size-5" />
+        Delivered
+      </button>
     </div>
   )
 }
 
-/* Up next: flat white hero, primary CTA to call, secondary to recall. */
-function UpNextHero({ entry, pending, paused, onCall, onRecall }: {
+/* Two-tap-guarded Dismiss folded into the bill card's own top-right
+   corner (design spec §2) — a ribbon clipped by the card's rounded-3xl
+   edge, not a floating circle badge, so it reads as part of the card. */
+function DismissCorner({ onConfirm, disabled }: { onConfirm: () => void; disabled?: boolean }) {
+  const { armed, tap } = useTapGuard(onConfirm)
+  return (
+    <button
+      type="button"
+      onClick={tap}
+      disabled={disabled}
+      className={`absolute top-0 right-0 z-10 h-11 px-4 rounded-bl-2xl flex items-center justify-center gap-1.5 text-xs font-bold select-none transition-all active:scale-[0.97] disabled:opacity-40 ${
+        armed ? 'bg-red-500 text-white' : 'bg-red-50 text-red-600 active:bg-red-100'
+      }`}
+    >
+      {armed ? 'Confirm' : <><X className="size-4" /> Cancel</>}
+    </button>
+  )
+}
+
+/* Up next: same bill-card shape as OutForDeliveryHero (design spec §2)
+   for a consistent left panel whether or not the order has been called
+   yet — 60% info incl. Dismiss corner, 40% Call/Recall split. */
+function UpNextHero({ entry, pending, paused, onCall, onRecall, onCancel }: {
   entry: QueueEntryDTO
   pending: boolean
   paused: boolean
   onCall: () => void
   onRecall: () => void
+  onCancel: () => void
 }) {
   return (
-    <div className="h-full min-h-0 rounded-3xl bg-white border border-slate-200 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.25)] flex flex-col p-5">
-      <div className="flex items-center">
-        <span className="inline-flex items-center h-7 rounded-full bg-accent-50 text-accent-700 border border-accent-200 px-2.5 text-xs font-bold">
-          Up Next
-        </span>
+    <div className="h-full min-h-0 flex flex-col gap-3">
+      {/* Bill card: 60% of the split */}
+      <div className="flex-3 min-h-0 relative rounded-3xl bg-white border border-slate-200 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.25)] overflow-hidden">
+        <DismissCorner disabled={pending || paused} onConfirm={onCancel} />
+        <div className="h-full overflow-y-auto p-5 pr-32 flex flex-col justify-center">
+          <span className="inline-flex items-center self-start h-7 rounded-full bg-accent-50 text-accent-700 border border-accent-200 px-2.5 text-xs font-bold">
+            Up Next
+          </span>
+
+          <p className="font-mono font-black tabular-nums text-slate-900 leading-[0.82] text-[clamp(3.5rem,16vh,7rem)] mt-3" dir="ltr">
+            {entry.queueNumber}
+          </p>
+          <p className="text-2xl font-bold text-slate-800 mt-2">{entry.billNumber ? `Bill #${entry.billNumber}` : 'No bill #'}</p>
+          <p className="text-slate-500 truncate">{entry.customerName || 'No name'}</p>
+          {entry.notes && (
+            <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+              <span className="shrink-0">⚠</span>
+              <span className="leading-5">{entry.notes}</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col justify-center">
-        <p className="font-mono font-black tabular-nums text-slate-900 leading-[0.82] text-[clamp(4.5rem,20vh,9rem)]" dir="ltr">
-          {entry.queueNumber}
-        </p>
-        <p className="text-2xl font-bold text-slate-800 mt-2">{entry.billNumber ? `Bill #${entry.billNumber}` : 'No bill #'}</p>
-        <p className="text-slate-500 truncate">{entry.customerName || 'No name'}</p>
-        {entry.notes && (
-          <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
-            <span className="shrink-0">⚠</span>
-            <span className="leading-5">{entry.notes}</span>
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-2.5">
+      {/* Call / Recall: 40% of the split, two separate button cards */}
+      <div className="flex-2 min-h-0 grid grid-cols-2 gap-3">
         <button
           type="button"
           disabled={pending || paused}
           onClick={onCall}
-          className="w-full h-14 rounded-2xl bg-accent-600 text-white text-base font-bold flex items-center justify-center gap-2 select-none transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0 shadow-[0_6px_16px_-6px_rgba(5,150,105,0.5)] active:bg-accent-700"
+          className="h-full min-h-0 rounded-2xl bg-slate-700 text-white flex flex-col items-center justify-center gap-1.5 select-none transition-all active:scale-[0.97] active:bg-slate-800 disabled:opacity-40 shadow-[0_4px_10px_-4px_rgba(15,23,42,0.35)]"
         >
-          <SkipForward className="size-5" />
-          Call #{entry.queueNumber}
+          <SkipForward className="size-6" />
+          <span className="text-sm font-bold">Call</span>
         </button>
         <button
           type="button"
           disabled={pending || paused}
           onClick={onRecall}
-          className="w-full h-11 rounded-2xl bg-white border border-slate-200 text-slate-700 text-sm font-bold flex items-center justify-center gap-2 select-none transition-all duration-[250ms] ease-out active:translate-y-px disabled:opacity-40 disabled:active:translate-y-0 shadow-sm active:bg-slate-50"
+          className="h-full min-h-0 rounded-2xl bg-slate-700 text-white flex flex-col items-center justify-center gap-1.5 select-none transition-all active:scale-[0.97] active:bg-slate-800 disabled:opacity-40 shadow-[0_4px_10px_-4px_rgba(15,23,42,0.35)]"
         >
-          <BellRing className="size-4.5" />
-          Recall
+          <BellRing className="size-6" />
+          <span className="text-sm font-bold">Recall</span>
         </button>
-        {paused && <p className="text-center text-xs font-semibold text-amber-600 mt-2">Queue is paused</p>}
       </div>
+      {paused && (
+        <p className="text-center text-xs font-semibold text-amber-600 shrink-0">Queue is paused</p>
+      )}
     </div>
   )
 }
@@ -478,10 +567,12 @@ function EmptyHero({ inKitchen }: { inKitchen: number }) {
   )
 }
 
-/* Compact numpad dropdown anchored under the search bar — deliberately small
-   so the hero and the list both stay visible and usable behind it, instead
-   of the pad taking over the whole task panel. Suppresses the OS keyboard,
-   matching Order's bill-entry pad. */
+/* Numpad bottom sheet — same compact key layout as before, now docked to
+   the bottom of the list panel instead of dropping below the search bar.
+   No Done button: the freed row goes to slightly taller keys, and the
+   sheet only closes via the corner Close button or an outside tap
+   (handled by the pointerdown listener in the parent). Suppresses the OS
+   keyboard, matching Order's bill-entry pad. */
 function SearchNumpad({ onDigit, onBackspace, onClear, onClose }: {
   onDigit: (d: string) => void
   onBackspace: () => void
@@ -490,13 +581,24 @@ function SearchNumpad({ onDigit, onBackspace, onClear, onClose }: {
 }) {
   return (
     <div className="w-full max-w-64 mx-auto">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Search</p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="size-9 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center active:bg-slate-200 active:scale-95 transition"
+        >
+          <X className="size-5" />
+        </button>
+      </div>
       <div className="grid grid-cols-3 gap-1.5">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
           <button
             key={d}
             type="button"
             onClick={() => onDigit(d)}
-            className="h-10 rounded-lg bg-slate-700 text-white text-base font-bold flex items-center justify-center select-none active:bg-slate-800 active:scale-95 transition"
+            className="h-12 rounded-lg bg-slate-700 text-white text-lg font-bold flex items-center justify-center select-none active:bg-slate-800 active:scale-95 transition"
           >
             {d}
           </button>
@@ -504,14 +606,14 @@ function SearchNumpad({ onDigit, onBackspace, onClear, onClose }: {
         <button
           type="button"
           onClick={onClear}
-          className="h-10 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-bold flex items-center justify-center select-none active:bg-red-100 active:scale-95 transition"
+          className="h-12 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-bold flex items-center justify-center select-none active:bg-red-100 active:scale-95 transition"
         >
           Clear
         </button>
         <button
           type="button"
           onClick={() => onDigit('0')}
-          className="h-10 rounded-lg bg-slate-700 text-white text-base font-bold flex items-center justify-center select-none active:bg-slate-800 active:scale-95 transition"
+          className="h-12 rounded-lg bg-slate-700 text-white text-lg font-bold flex items-center justify-center select-none active:bg-slate-800 active:scale-95 transition"
         >
           0
         </button>
@@ -519,27 +621,22 @@ function SearchNumpad({ onDigit, onBackspace, onClear, onClose }: {
           type="button"
           onClick={onBackspace}
           aria-label="Backspace"
-          className="h-10 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center select-none active:bg-slate-300 active:scale-95 transition"
+          className="h-12 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center select-none active:bg-slate-300 active:scale-95 transition"
         >
-          <Delete className="size-4.5" />
+          <Delete className="size-5" />
         </button>
       </div>
-      <button
-        type="button"
-        onClick={onClose}
-        className="mt-1.5 w-full h-9 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-bold flex items-center justify-center gap-1 active:bg-slate-50 transition"
-      >
-        Done
-      </button>
     </div>
   )
 }
 
 /* A queue-list or search-result row: mono number, bill/name, wait pill, and
-   always-present quick Call, Recall, and Cancel actions — both Call and
-   Recall stay visible regardless of the entry's state (up next, already on
-   call, whatever), so staff decide which to tap; the backend applies the
-   right one (call vs. recall) based on the entry's actual status. */
+   always-present quick Call, Recall, and Cancel actions as three equal-width
+   horizontal pills spanning the full card — sized for a tablet, not a
+   cramped side column, so a busy thumb doesn't mis-tap. Both Call and Recall
+   stay visible regardless of the entry's state (up next, already on call,
+   whatever), so staff decide which to tap; the backend applies the right
+   one (call vs. recall) based on the entry's actual status. */
 function QueueRow({ entry, now, highlight = false, pending, onCall, onCancel }: {
   entry: QueueEntryDTO
   now: number
@@ -549,50 +646,59 @@ function QueueRow({ entry, now, highlight = false, pending, onCall, onCancel }: 
   onCancel: () => void
 }) {
   const notReady = entry.status === 'waiting' && entry.kitchenStatus !== 'ready'
+  const { armed, tap: tapCancel } = useTapGuard(onCancel)
   return (
-    <div className={`rounded-2xl border p-2.5 flex items-center gap-3 ${
+    <div className={`rounded-2xl border p-3 flex flex-col gap-3 ${
       highlight ? 'bg-accent-50 border-accent-300' : 'bg-white border-slate-200 shadow-sm'
     }`}>
-      <span className="size-12 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center font-mono font-black text-xl tabular-nums shrink-0" dir="ltr">
-        {entry.queueNumber}
-      </span>
-      <div className="flex-1 min-w-0">
-        <p className="font-bold text-slate-800 truncate">
-          {entry.billNumber ? `Bill #${entry.billNumber}` : '—'}
-        </p>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <span className="text-sm text-slate-400 truncate">{entry.customerName || 'No name'}</span>
-          <ElapsedPill mins={minutesSince(entry.joinedAt, now)} />
+      <div className="flex items-center gap-3">
+        <span className="size-12 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center font-mono font-black text-xl tabular-nums shrink-0" dir="ltr">
+          {entry.queueNumber}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-slate-800 truncate">
+            {entry.billNumber ? `Bill #${entry.billNumber}` : '—'}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-sm text-slate-400 truncate">{entry.customerName || 'No name'}</span>
+            <ElapsedPill mins={minutesSince(entry.joinedAt, now)} />
+          </div>
+          {entry.notes && <p className="text-xs text-amber-600 truncate">⚠ {entry.notes}</p>}
+          {notReady && <p className="text-xs text-slate-400">Still in kitchen</p>}
         </div>
-        {entry.notes && <p className="text-xs text-amber-600 truncate">⚠ {entry.notes}</p>}
-        {notReady && <p className="text-xs text-slate-400">Still in kitchen</p>}
       </div>
-      <div className="flex flex-col gap-2 shrink-0 w-[92px]">
-        <div className="grid grid-cols-2 gap-1">
-          <button
-            type="button"
-            disabled={pending || notReady}
-            onClick={onCall}
-            title={notReady ? 'Not ready in kitchen yet' : 'Call this order'}
-            className="h-9 rounded-lg border border-slate-200 bg-white text-slate-600 text-[10px] font-bold flex flex-col items-center justify-center gap-0.5 shadow-sm active:bg-slate-50 active:scale-95 transition disabled:opacity-40"
-          >
-            <Phone className="size-3.5" />
-            Call
-          </button>
-          <button
-            type="button"
-            disabled={pending || notReady}
-            onClick={onCall}
-            title={notReady ? 'Not ready in kitchen yet' : 'Recall this order'}
-            className="h-9 rounded-lg border border-slate-200 bg-white text-slate-600 text-[10px] font-bold flex flex-col items-center justify-center gap-0.5 shadow-sm active:bg-slate-50 active:scale-95 transition disabled:opacity-40"
-          >
-            <BellRing className="size-3.5" />
-            Recall
-          </button>
-        </div>
-        <div className="[&>button]:w-full">
-          <RowCancel disabled={pending} onConfirm={onCancel} />
-        </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          disabled={pending || notReady}
+          onClick={onCall}
+          title={notReady ? 'Not ready in kitchen yet' : 'Call this order'}
+          className="h-12 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:bg-slate-50 active:scale-[0.97] transition disabled:opacity-40"
+        >
+          <Phone className="size-4" />
+          Call
+        </button>
+        <button
+          type="button"
+          disabled={pending || notReady}
+          onClick={onCall}
+          title={notReady ? 'Not ready in kitchen yet' : 'Recall this order'}
+          className="h-12 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:bg-slate-50 active:scale-[0.97] transition disabled:opacity-40"
+        >
+          <BellRing className="size-4" />
+          Recall
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={tapCancel}
+          className={`h-12 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 select-none transition-all active:scale-[0.97] disabled:opacity-40 ${
+            armed ? 'bg-red-500 text-white shadow-sm' : 'bg-white border border-red-200 text-red-600 shadow-sm active:bg-red-50'
+          }`}
+        >
+          {armed ? 'Confirm' : <><XCircle className="size-4" /> Cancel</>}
+        </button>
       </div>
     </div>
   )
