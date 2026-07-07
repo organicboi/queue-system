@@ -39,7 +39,7 @@ export async function printViaRawBT(el: HTMLElement, targetWidthPx = 576): Promi
     const canvas = await html2canvas(el, { scale, backgroundColor: "#ffffff" })
     const dataUrl = canvas.toDataURL("image/png")
 
-    const intentUrl = `intent:${encodeURIComponent(dataUrl)}#Intent;scheme=rawbt;package=${RAWBT_PACKAGE};end;`
+    const intentUrl = `intent:${encodeURI(dataUrl)}#Intent;scheme=rawbt;package=${RAWBT_PACKAGE};end;`
     window.location.href = intentUrl
   } finally {
     el.classList.remove("rawbt-capturing")
