@@ -97,7 +97,7 @@ export function buildReceiptHtml(content: string): string {
 <head>
 <meta charset="utf-8"/>
 <style>
-  @page { size: 80mm 53mm; margin: 0; }
+  @page { size: 80mm 80mm; margin: 0; }
   body { margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; color: #000; }
 </style>
 </head>
