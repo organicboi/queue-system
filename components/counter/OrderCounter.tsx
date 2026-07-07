@@ -129,9 +129,9 @@ export function OrderCounter({
 
   return (
     <>
-      {/* Print styles — 80mm thermal */}
+      {/* Print styles — 80mm thermal, fixed 45mm ticket + tear margin */}
       <style>{`
-        @page { size: 80mm 30mm; margin: 0; }
+        @page { size: 80mm 53mm; margin: 0; }
         #order-print.rawbt-capturing { display: block !important; position: fixed; left: -9999px; top: 0; }
         @media print {
           * { box-sizing: border-box; }
@@ -143,13 +143,24 @@ export function OrderCounter({
       <div id="order-print" style={{ display: 'none' }}>
         {printEntry && (
           <div style={{
-            width: '80mm', padding: '1.5mm 4mm',
+            width: '80mm', boxSizing: 'border-box',
             fontFamily: "'Courier New', Courier, monospace",
             color: '#000', textAlign: 'center',
           }}>
-            <p style={{ fontSize: '9pt', fontWeight: '700', margin: '0 0 1mm', letterSpacing: '0.5px' }}>{branchName}</p>
-            <p style={{ fontSize: '32pt', fontWeight: '900', lineHeight: '1', margin: '0 0 1mm', letterSpacing: '-1px' }}>#{printEntry.queueNumber}</p>
-            <p style={{ fontSize: '9pt', fontWeight: '600', margin: '0' }}>Bill {printEntry.billNumber}</p>
+            {/* Fixed 45mm ticket — locks the image aspect ratio so RawBT always
+                prints exactly 80mm × 45mm regardless of content length. */}
+            <div style={{
+              height: '45mm', boxSizing: 'border-box', padding: '2mm 4mm',
+              display: 'flex', flexDirection: 'column',
+              justifyContent: 'center', alignItems: 'center',
+            }}>
+              <p style={{ fontSize: '11pt', fontWeight: '700', margin: '0 0 1.5mm', letterSpacing: '0.5px' }}>{branchName}</p>
+              <p style={{ fontSize: '40pt', fontWeight: '900', lineHeight: '1', margin: '0 0 1.5mm', letterSpacing: '-1px' }}>#{printEntry.queueNumber}</p>
+              <p style={{ fontSize: '11pt', fontWeight: '600', margin: '0 0 1mm' }}>Bill {printEntry.billNumber}</p>
+              <p style={{ fontSize: '8pt', color: '#555', margin: '0' }}>{formatTime(printEntry.joinedAt)}</p>
+            </div>
+            {/* Blank tail so the auto-cut / tear-off never clips the text. */}
+            <div style={{ height: '8mm' }} />
           </div>
         )}
       </div>
