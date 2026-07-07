@@ -131,7 +131,7 @@ export function OrderCounter({
     <>
       {/* Print styles — 80mm thermal */}
       <style>{`
-        @page { size: 80mm 45mm; margin: 0; }
+        @page { size: 80mm 30mm; margin: 0; }
         #order-print.rawbt-capturing { display: block !important; position: fixed; left: -9999px; top: 0; }
         @media print {
           * { box-sizing: border-box; }
@@ -143,17 +143,13 @@ export function OrderCounter({
       <div id="order-print" style={{ display: 'none' }}>
         {printEntry && (
           <div style={{
-            width: '80mm', padding: '2mm 4mm',
+            width: '80mm', padding: '1.5mm 4mm',
             fontFamily: "'Courier New', Courier, monospace",
             color: '#000', textAlign: 'center',
           }}>
-            <p style={{ fontSize: '11pt', fontWeight: '700', margin: '0 0 0.5mm', letterSpacing: '0.5px' }}>{branchName}</p>
-            <p style={{ fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '2px', color: '#555', margin: '0 0 1.5mm' }}>Queue Ticket</p>
-            <div style={{ borderTop: '1px dashed #888', margin: '0 0 1.5mm' }} />
-            <p style={{ fontSize: '36pt', fontWeight: '900', lineHeight: '1', margin: '0 0 1.5mm', letterSpacing: '-1px' }}>#{printEntry.queueNumber}</p>
-            <div style={{ borderTop: '1px dashed #888', margin: '0 0 1.5mm' }} />
-            <p style={{ fontSize: '10pt', fontWeight: '600', margin: '0 0 0.5mm' }}>Bill {printEntry.billNumber}</p>
-            <p style={{ fontSize: '7pt', color: '#777', margin: '0' }}>{formatTime(printEntry.joinedAt)}</p>
+            <p style={{ fontSize: '9pt', fontWeight: '700', margin: '0 0 1mm', letterSpacing: '0.5px' }}>{branchName}</p>
+            <p style={{ fontSize: '32pt', fontWeight: '900', lineHeight: '1', margin: '0 0 1mm', letterSpacing: '-1px' }}>#{printEntry.queueNumber}</p>
+            <p style={{ fontSize: '9pt', fontWeight: '600', margin: '0' }}>Bill {printEntry.billNumber}</p>
           </div>
         )}
       </div>
