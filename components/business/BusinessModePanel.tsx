@@ -252,7 +252,7 @@ export function BusinessModePanel({
     <>
       {/* Print styles — 80 mm thermal */}
       <style>{`
-        @page { size: 80mm 110mm; margin: 0; }
+        @page { size: 80mm 45mm; margin: 0; }
         @media print {
           * { box-sizing: border-box; }
           .no-print { display: none !important; }
@@ -264,20 +264,17 @@ export function BusinessModePanel({
       <div id="business-mode-print" style={{ display: 'none' }}>
         {printEntry && (
           <div style={{
-            width: '80mm', padding: '5mm 4mm 6mm',
+            width: '80mm', padding: '2mm 4mm',
             fontFamily: "'Courier New', Courier, monospace",
             color: '#000', textAlign: 'center',
           }}>
-            <p style={{ fontSize: '13pt', fontWeight: '700', margin: '0 0 1.5mm', letterSpacing: '0.5px' }}>{businessName}</p>
-            <p style={{ fontSize: '7pt', textTransform: 'uppercase', letterSpacing: '2.5px', color: '#555', margin: '0 0 4mm' }}>{branchName} — Queue Ticket</p>
-            <div style={{ borderTop: '1px dashed #888', margin: '0 0 4mm' }} />
-            <p style={{ fontSize: '7pt', textTransform: 'uppercase', letterSpacing: '1.5px', color: '#777', margin: '0 0 2mm' }}>Queue Number</p>
-            <p style={{ fontSize: '52pt', fontWeight: '900', lineHeight: '1', margin: '0 0 4mm', letterSpacing: '-1px' }}>#{printEntry.queueNumber}</p>
-            <div style={{ borderTop: '1px dashed #888', margin: '0 0 4mm' }} />
-            <p style={{ fontSize: '11pt', fontWeight: '600', margin: '0 0 2mm' }}>Bill {printEntry.billNumber}</p>
-            <p style={{ fontSize: '8pt', color: '#777', margin: '0 0 5mm' }}>{formatTime(printEntry.joinedAt)}</p>
-            <div style={{ borderTop: '1px dashed #888', margin: '0 0 3mm' }} />
-            <p style={{ fontSize: '7pt', color: '#999', margin: '0' }}>Thank you for your patience</p>
+            <p style={{ fontSize: '11pt', fontWeight: '700', margin: '0 0 0.5mm', letterSpacing: '0.5px' }}>{businessName}</p>
+            <p style={{ fontSize: '6pt', textTransform: 'uppercase', letterSpacing: '2px', color: '#555', margin: '0 0 1.5mm' }}>{branchName} — Queue Ticket</p>
+            <div style={{ borderTop: '1px dashed #888', margin: '0 0 1.5mm' }} />
+            <p style={{ fontSize: '36pt', fontWeight: '900', lineHeight: '1', margin: '0 0 1.5mm', letterSpacing: '-1px' }}>#{printEntry.queueNumber}</p>
+            <div style={{ borderTop: '1px dashed #888', margin: '0 0 1.5mm' }} />
+            <p style={{ fontSize: '10pt', fontWeight: '600', margin: '0 0 0.5mm' }}>Bill {printEntry.billNumber}</p>
+            <p style={{ fontSize: '7pt', color: '#777', margin: '0' }}>{formatTime(printEntry.joinedAt)}</p>
           </div>
         )}
       </div>
