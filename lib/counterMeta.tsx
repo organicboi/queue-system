@@ -1,4 +1,4 @@
-import { ClipboardList, Receipt, ChefHat, Truck } from 'lucide-react'
+import { ClipboardList, Receipt, ChefHat, Truck, Megaphone } from 'lucide-react'
 import type { CounterType } from '@/lib/db/types'
 
 export interface CounterTypeMeta {
@@ -12,7 +12,7 @@ export interface CounterTypeMeta {
 // Pipeline order: a customer places an order, it optionally goes through
 // kitchen prep, then billing, then optionally delivery. Order and Billing are
 // the two stages every business needs; Kitchen and Delivery are opt-in.
-export const COUNTER_TYPE_ORDER: CounterType[] = ['order', 'kitchen', 'billing', 'delivery']
+export const COUNTER_TYPE_ORDER: CounterType[] = ['order', 'kitchen', 'billing', 'delivery', 'call']
 
 // Design system v5, §2.5 — color signals status, not category. Counter type
 // is differentiated by icon shape + label only; no per-type hue (that would
@@ -22,4 +22,5 @@ export const COUNTER_META: Record<CounterType, CounterTypeMeta> = {
   kitchen:  { label: 'Kitchen',  icon: <ChefHat className="size-4" />,       color: 'text-slate-600', bg: 'bg-slate-100', optional: true  },
   billing:  { label: 'Billing',  icon: <Receipt className="size-4" />,       color: 'text-slate-600', bg: 'bg-slate-100', optional: false },
   delivery: { label: 'Delivery', icon: <Truck className="size-4" />,         color: 'text-slate-600', bg: 'bg-slate-100', optional: true  },
+  call:     { label: 'Call',     icon: <Megaphone className="size-4" />,     color: 'text-slate-600', bg: 'bg-slate-100', optional: true  },
 }

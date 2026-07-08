@@ -1,6 +1,6 @@
 // ── Primitive types ───────────────────────────────────────────
 export type UserRole = 'admin' | 'branch_user'
-export type CounterType = 'order' | 'billing' | 'kitchen' | 'delivery'
+export type CounterType = 'order' | 'billing' | 'kitchen' | 'delivery' | 'call'
 export type QueueStatus = 'waiting' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
 export type KitchenStatus = 'pending' | 'preparing' | 'ready'
 export type QueueSource = 'admin' | 'self-join' | 'kiosk' | 'api'

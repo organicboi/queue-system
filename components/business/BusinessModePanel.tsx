@@ -167,6 +167,12 @@ export function BusinessModePanel({
     }
   }, [tab, addStep])
 
+  // Preload the receipt logo so html2canvas captures it on the first print.
+  useEffect(() => {
+    const img = new Image()
+    img.src = '/tech-logo.png'
+  }, [])
+
   useEffect(() => {
     if (!printEntry) return
     const timer = setTimeout(async () => {
@@ -273,10 +279,12 @@ export function BusinessModePanel({
             {/* Fixed 80mm-tall ticket — locks image aspect ratio so RawBT always
                 prints 80mm × 80mm; content is centered, leaving blank offset at
                 the top and bottom so the auto-cut / tear never clips text. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/tech-logo.png" alt="" style={{ width: '28mm', height: 'auto', margin: '0 0 3mm' }} />
             <p style={{ fontSize: '13pt', fontWeight: '700', margin: '0 0 3mm', letterSpacing: '0.5px' }}>{businessName} — {branchName}</p>
             <p style={{ fontSize: '60pt', fontWeight: '900', lineHeight: '1', margin: '0 0 3mm', letterSpacing: '-1px' }}>#{printEntry.queueNumber}</p>
             <p style={{ fontSize: '18pt', fontWeight: '700', margin: '0 0 2mm' }}>Bill {printEntry.billNumber}</p>
-            <p style={{ fontSize: '9pt', fontWeight: '400', color: '#555', margin: '0' }}>{formatTime(printEntry.joinedAt)}</p>
+            <p style={{ fontSize: '11pt', fontWeight: '700', color: '#000', margin: '0' }}>{formatTime(printEntry.joinedAt)}</p>
           </div>
         )}
       </div>

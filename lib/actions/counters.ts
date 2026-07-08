@@ -295,8 +295,8 @@ export async function counterCallEntryAction(
 ): Promise<{ error?: string }> {
   const counter = await verifyCounterToken(counterToken)
   if (!counter || counter.branch_id !== branchId) return { error: 'Invalid or inactive counter' }
-  if (counter.type !== 'billing' && counter.type !== 'delivery') {
-    return { error: 'Only billing or delivery counters can call/recall orders' }
+  if (counter.type !== 'billing' && counter.type !== 'delivery' && counter.type !== 'call') {
+    return { error: 'Only billing, delivery, or call counters can call/recall orders' }
   }
 
   const supabase = createSupabaseServiceClient()
@@ -388,8 +388,8 @@ export async function counterCompleteEntryAction(
 ): Promise<{ error?: string }> {
   const counter = await verifyCounterToken(counterToken)
   if (!counter || counter.branch_id !== branchId) return { error: 'Invalid or inactive counter' }
-  if (counter.type !== 'billing' && counter.type !== 'delivery') {
-    return { error: 'Only billing or delivery counters can complete orders' }
+  if (counter.type !== 'billing' && counter.type !== 'delivery' && counter.type !== 'call') {
+    return { error: 'Only billing, delivery, or call counters can complete orders' }
   }
 
   const supabase = createSupabaseServiceClient()
@@ -443,8 +443,8 @@ export async function counterCreateEntryAction(
 
   const counter = await verifyCounterToken(counterToken)
   if (!counter || counter.branch_id !== branchId) return { error: 'Invalid or inactive counter' }
-  if (counter.type !== 'order' && counter.type !== 'delivery') {
-    return { error: 'Only order or delivery counters can create new entries' }
+  if (counter.type !== 'order' && counter.type !== 'delivery' && counter.type !== 'call') {
+    return { error: 'Only order, delivery, or call counters can create new entries' }
   }
 
   const supabase = createSupabaseServiceClient()
@@ -455,9 +455,11 @@ export async function counterCreateEntryAction(
   if (numErr || numData == null) return { error: 'Failed to assign queue number' }
 
   const queueNumber = numData as number
-  // A delivery counter creating an entry is registering an order that's
+  // A delivery or call counter creating an entry is registering a bill that's
   // already made — skip the kitchen stage so it's immediately callable.
-  const needsKitchen = counter.type === 'delivery' ? false : await hasActiveKitchenCounter(branchId)
+  const needsKitchen = counter.type === 'delivery' || counter.type === 'call'
+    ? false
+    : await hasActiveKitchenCounter(branchId)
 
   const { data, error } = await supabase
     .from('queue_entries')
@@ -540,7 +542,7 @@ export interface CounterActionResult {
 const CreateCounterSchema = z.object({
   branchId: z.string().uuid(),
   name: z.string().min(1, 'Counter name is required').max(100),
-  type: z.enum(['order', 'billing', 'kitchen', 'delivery']),
+  type: z.enum(['order', 'billing', 'kitchen', 'delivery', 'call']),
 })
 
 // ── Create counter ────────────────────────────────────────────
@@ -636,7 +638,7 @@ const UpdateCounterSchema = z.object({
   counterId: z.string().uuid(),
   branchId: z.string().uuid(),
   name: z.string().min(1).max(100).optional(),
-  type: z.enum(['order', 'billing', 'kitchen', 'delivery']).optional(),
+  type: z.enum(['order', 'billing', 'kitchen', 'delivery', 'call']).optional(),
 })
 
 export async function updateCounterAction(

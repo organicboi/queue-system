@@ -6,6 +6,7 @@ import { OrderCounter } from '@/components/counter/OrderCounter'
 import { BillingCounter } from '@/components/counter/BillingCounter'
 import { KitchenCounter } from '@/components/counter/KitchenCounter'
 import { DeliveryCounter } from '@/components/counter/DeliveryCounter'
+import { CallCounter } from '@/components/counter/CallCounter'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,7 @@ export default async function CounterPage({ params }: Props) {
   if (counter.type === 'billing')  return <BillingCounter branchId={counter.branchId} counterId={counter.id} counterName={counter.name} counterToken={token} presenceEnabled={presenceEnabled} />
   if (counter.type === 'kitchen')  return <KitchenCounter branchId={counter.branchId} counterId={counter.id} counterName={counter.name} counterToken={token} acceptingOrders={counter.acceptingOrders} presenceEnabled={presenceEnabled} />
   if (counter.type === 'delivery') return <DeliveryCounter branchId={counter.branchId} counterId={counter.id} counterName={counter.name} counterToken={token} presenceEnabled={presenceEnabled} />
+  if (counter.type === 'call')     return <CallCounter branchId={counter.branchId} counterId={counter.id} counterName={counter.name} counterToken={token} presenceEnabled={presenceEnabled} />
 
   notFound()
 }

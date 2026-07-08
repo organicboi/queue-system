@@ -102,6 +102,7 @@ export function CountersManager({ branchId, initialCounters, presenceEnabled = f
                   <option value="order">Order — take orders &amp; issue queue numbers</option>
                   <option value="kitchen">Kitchen — food preparation (optional)</option>
                   <option value="delivery">Delivery — pickup &amp; delivery (optional)</option>
+                  <option value="call">Call — page any bill number directly (optional)</option>
                 </select>
               </div>
               {createState.error && <p className="text-sm text-red-600">{createState.error}</p>}

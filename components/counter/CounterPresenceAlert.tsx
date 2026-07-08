@@ -16,6 +16,7 @@ const TYPE_LABEL: Record<CounterType, string> = {
   billing: 'Billing',
   kitchen: 'Kitchen',
   delivery: 'Delivery',
+  call: 'Call',
 }
 
 // Warns staff at one counter when another active counter in the same
