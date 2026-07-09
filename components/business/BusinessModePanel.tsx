@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useRealtimeQueue } from '@/lib/hooks/useRealtimeQueue'
 import { toast } from 'sonner'
-import { formatTime, formatRelativeTime } from '@/lib/queueUtils'
+import { formatTime, formatDate, formatRelativeTime } from '@/lib/queueUtils'
 import type { QueueEntryDTO } from '@/lib/db/types'
 import { flipNumber } from '@/lib/animations'
 import { silentPrint, buildReceiptHtml } from '@/lib/silentPrint'
@@ -284,7 +284,7 @@ export function BusinessModePanel({
             <p style={{ fontSize: '13pt', fontWeight: '700', margin: '0 0 3mm', letterSpacing: '0.5px' }}>{businessName} — {branchName}</p>
             <p style={{ fontSize: '60pt', fontWeight: '900', lineHeight: '1', margin: '0 0 3mm', letterSpacing: '-1px' }}>#{printEntry.queueNumber}</p>
             <p style={{ fontSize: '18pt', fontWeight: '700', margin: '0 0 2mm' }}>Bill {printEntry.billNumber}</p>
-            <p style={{ fontSize: '11pt', fontWeight: '700', color: '#000', margin: '0' }}>{formatTime(printEntry.joinedAt)}</p>
+            <p style={{ fontSize: '11pt', fontWeight: '700', color: '#000', margin: '0' }}>{formatDate(printEntry.joinedAt)} · {formatTime(printEntry.joinedAt)}</p>
           </div>
         )}
       </div>

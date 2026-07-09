@@ -9,7 +9,7 @@ import { useCounterHeartbeat } from '@/lib/hooks/useCounterPresence'
 import { counterCreateEntryAction, counterCancelEntryAction } from '@/lib/actions/counters'
 import { CounterPresenceAlert } from '@/components/counter/CounterPresenceAlert'
 import { ConsoleFrame, ConsoleLoading, KeypadKey, RowCancel, STATUS_PILL } from '@/components/counter/console'
-import { formatTime } from '@/lib/queueUtils'
+import { formatTime, formatDate } from '@/lib/queueUtils'
 import { silentPrint, buildReceiptHtml } from '@/lib/silentPrint'
 import { isAndroid, printViaRawBT } from '@/lib/rawbtPrint'
 import type { QueueEntryDTO } from '@/lib/db/types'
@@ -164,7 +164,7 @@ export function OrderCounter({
             <p style={{ fontSize: '14pt', fontWeight: '700', margin: '0 0 3mm', letterSpacing: '0.5px' }}>{branchName}</p>
             <p style={{ fontSize: '60pt', fontWeight: '900', lineHeight: '1', margin: '0 0 3mm', letterSpacing: '-1px' }}>#{printEntry.queueNumber}</p>
             <p style={{ fontSize: '18pt', fontWeight: '700', margin: '0 0 2mm' }}>Bill {printEntry.billNumber}</p>
-            <p style={{ fontSize: '11pt', fontWeight: '700', color: '#000', margin: '0' }}>{formatTime(printEntry.joinedAt)}</p>
+            <p style={{ fontSize: '11pt', fontWeight: '700', color: '#000', margin: '0' }}>{formatDate(printEntry.joinedAt)} · {formatTime(printEntry.joinedAt)}</p>
           </div>
         )}
       </div>
