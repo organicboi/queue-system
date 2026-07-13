@@ -8,13 +8,24 @@ import { AdTicker } from "@/components/display/AdTicker"
 import { useSupabaseQueue } from "@/lib/useSupabaseQueue"
 import { flipNumber } from "@/lib/animations"
 import { createSupabaseBrowserClient } from "@/lib/db/browser"
+import { useFitScale } from "@/lib/hooks/useFitScale"
 import type { TVTheme } from "@/components/display/displayThemes"
 import type { AnnouncementLang, AdDTO, TickerMessageDTO } from "@/lib/db/types"
+
+// TTS engines read a plain number as a cardinal ("5397845" → "five million,
+// three hundred ninety-seven thousand..."), which is slow and easy to
+// mishear at a counter. Three digits or more gets read out one at a time
+// instead ("5, 3, 9, 7, 8, 4, 5") — short queue numbers are unaffected.
+function formatForSpeech(value: number | string): string {
+  const str = String(value)
+  return str.length >= 3 ? str.split("").join(", ") : str
+}
 
 interface CalledInfo {
   queueNumber: number
   billNumber: string
   callCount: number
+  announceBillNumber: boolean
   key: number
 }
 
@@ -35,6 +46,21 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
   const [calledInfo, setCalledInfo] = useState<CalledInfo | null>(null)
   const [audioReady, setAudioReady] = useState(false)
   const audioCtxRef = useRef<AudioContext | null>(null)
+
+  // Shrink-to-fit sizing for the two giant numbers — queue numbers are
+  // short, but bill numbers (Call page) can run much longer, so the visible
+  // size is measured against the real container instead of trusting a fixed
+  // vw-based clamp() to always be small enough.
+  const servingWrapRef = useRef<HTMLDivElement>(null)
+  const servingTextRef = useRef<HTMLParagraphElement>(null)
+  const servingScale = useFitScale(servingWrapRef, servingTextRef, currentServingNumber || "—")
+
+  const callingWrapRef = useRef<HTMLDivElement>(null)
+  const callingTextRef = useRef<HTMLParagraphElement>(null)
+  const callingValue = calledInfo
+    ? (calledInfo.announceBillNumber ? calledInfo.billNumber : calledInfo.queueNumber)
+    : ""
+  const callingScale = useFitScale(callingWrapRef, callingTextRef, callingValue)
 
   useEffect(() => {
     if (typeof window !== "undefined" && "AndroidTTS" in window) {
@@ -76,11 +102,14 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
     } catch {}
   }, [])
 
-  const announce = useCallback((queueNumber: number) => {
+  const announce = useCallback((value: number | string, announceBillNumber = false) => {
     if (typeof window === "undefined") return
 
-    const enText = `Token Number ${queueNumber}, please proceed to the counter.`
-    const arText = `رقم التذكرة ${queueNumber}، يرجى التوجه إلى المنضدة.`
+    const spoken = formatForSpeech(value)
+    const enLabel = announceBillNumber ? "Bill Number" : "Token Number"
+    const arLabel = announceBillNumber ? "رقم الفاتورة" : "رقم التذكرة"
+    const enText = `${enLabel} ${spoken}, please proceed to the counter.`
+    const arText = `${arLabel} ${spoken}، يرجى التوجه إلى المنضدة.`
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ("AndroidTTS" in window) {
@@ -148,22 +177,26 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
     const ch = supabase
       .channel(`queue-display-signals-${branchId}`)
       .on("broadcast", { event: "customer-called" }, ({ payload }) => {
+        const announceBillNumber = !!payload.announceBillNumber
         setCalledInfo((prev) => ({
           queueNumber: payload.queueNumber as number,
           billNumber: payload.billNumber as string,
           callCount: payload.callCount as number,
+          announceBillNumber,
           key: (prev?.key ?? 0) + 1,
         }))
-        announce(payload.queueNumber as number)
+        announce(announceBillNumber ? payload.billNumber as string : payload.queueNumber as number, announceBillNumber)
       })
       .on("broadcast", { event: "customer-recalled" }, ({ payload }) => {
+        const announceBillNumber = !!payload.announceBillNumber
         setCalledInfo((prev) => ({
           queueNumber: payload.queueNumber as number,
           billNumber: payload.billNumber as string,
           callCount: prev?.callCount ?? 0,
+          announceBillNumber,
           key: (prev?.key ?? 0) + 1,
         }))
-        announce(payload.queueNumber as number)
+        announce(announceBillNumber ? payload.billNumber as string : payload.queueNumber as number, announceBillNumber)
       })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
@@ -276,21 +309,26 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
                 Now Serving
               </p>
             </div>
-            <div className="flex flex-col items-center mt-4">
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={currentServingNumber}
-                  variants={flipNumber}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  dir="ltr"
-                  className="font-black tabular-nums"
-                  style={{ fontSize: "clamp(6rem, 16vw, 16rem)", lineHeight: 0.9, color: theme.servingNumber }}
-                >
-                  {currentServingNumber || "—"}
-                </motion.p>
-              </AnimatePresence>
+            <div ref={servingWrapRef} className="w-full px-6 flex justify-center overflow-hidden mt-4">
+              <div style={{ transform: `scale(${servingScale})`, transformOrigin: "center" }}>
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={currentServingNumber}
+                    ref={servingTextRef}
+                    variants={flipNumber}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    dir="ltr"
+                    className="font-black tabular-nums"
+                    style={{ fontSize: "clamp(6rem, 16vw, 16rem)", lineHeight: 0.9, whiteSpace: "nowrap", color: theme.servingNumber }}
+                  >
+                    {currentServingNumber || "—"}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
+            </div>
+            <div className="flex flex-col items-center">
               {currentEntry ? (
                 <motion.p
                   key={currentEntry.id}
@@ -329,16 +367,21 @@ export function TVDisplay({ theme, businessName, businessType, tickerText, branc
                     </p>
                   </div>
                   {/* One-shot flash on call, per design-system v5 §5.5 — no loops. */}
-                  <motion.p
-                    initial={{ scale: 0.92 }}
-                    animate={{ scale: [0.92, 1.04, 1] }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                    dir="ltr"
-                    className="font-black tabular-nums mt-6"
-                    style={{ fontSize: "clamp(6rem, 16vw, 16rem)", lineHeight: 0.9, color: theme.callingNum }}
-                  >
-                    {calledInfo.queueNumber}
-                  </motion.p>
+                  <div ref={callingWrapRef} className="w-full px-6 flex justify-center overflow-hidden mt-6">
+                    <div style={{ transform: `scale(${callingScale})`, transformOrigin: "center" }}>
+                      <motion.p
+                        ref={callingTextRef}
+                        initial={{ scale: 0.92 }}
+                        animate={{ scale: [0.92, 1.04, 1] }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                        dir="ltr"
+                        className="font-black tabular-nums"
+                        style={{ fontSize: "clamp(6rem, 16vw, 16rem)", lineHeight: 0.9, whiteSpace: "nowrap", color: theme.callingNum }}
+                      >
+                        {callingValue}
+                      </motion.p>
+                    </div>
+                  </div>
                   <div className="mt-8 flex flex-col items-center gap-1">
                     <p dir="rtl" className="font-medium" style={{ fontSize: "clamp(0.9rem, 1.6vw, 1.4rem)", color: theme.callingSub }}>
                       يرجى التوجه إلى المنضدة

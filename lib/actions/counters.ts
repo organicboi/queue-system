@@ -64,7 +64,7 @@ async function releaseStrandedKitchenEntries(
 async function broadcastDisplaySignal(
   branchId: string,
   event: 'customer-called' | 'customer-recalled',
-  payload: { queueNumber: number; billNumber: string; callCount: number }
+  payload: { queueNumber: number; billNumber: string; callCount: number; announceBillNumber?: boolean }
 ) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -363,6 +363,7 @@ export async function counterCallEntryAction(
     queueNumber: entry.queue_number,
     billNumber: entry.bill_number,
     callCount: newCallCount,
+    announceBillNumber: counter.type === 'call',
   })
 
   await supabase.from('activity_logs').insert({
