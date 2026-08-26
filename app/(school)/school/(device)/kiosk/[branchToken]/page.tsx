@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Viewport } from 'next'
-import { getSchoolKioskPacket } from '@/lib/dal/school'
+import { getSchoolKioskPacket, getSchoolKioskFeed } from '@/lib/dal/school'
 import { SchoolKiosk } from '@/components/school/SchoolKiosk'
 
 export const dynamic = 'force-dynamic'
@@ -24,6 +24,10 @@ export default async function SchoolKioskPage({ params }: Props) {
   const packet = await getSchoolKioskPacket(branchToken)
   if (packet.status !== 'ok') notFound()
 
+  // Server-rendered so the recent-ticket rail is populated on the first paint
+  // — a kiosk that boots showing an empty list reads as a broken kiosk.
+  const feed = await getSchoolKioskFeed(branchToken)
+
   if ((packet.departments ?? []).length === 0) {
     return (
       <div className="flex h-dvh w-screen items-center justify-center bg-slate-100 p-8 text-center">
@@ -45,6 +49,7 @@ export default async function SchoolKioskPage({ params }: Props) {
       settings={packet.settings ?? null}
       silentPrintEnabled={packet.silentPrint ?? false}
       printerName={packet.printerName ?? ''}
+      initialFeed={feed}
     />
   )
 }

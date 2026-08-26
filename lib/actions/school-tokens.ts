@@ -147,6 +147,184 @@ export async function schoolIssueTokenAction(
   return { token: toSchoolTokenDTO(data as DbSchoolToken) }
 }
 
+// ── Kiosk: amend a token it issued ────────────────────────────
+// The kiosk owns the lobby end of the queue, so it can correct the two
+// mistakes that happen there: the wrong department tapped, and priority
+// forgotten (or tapped by accident). It deliberately cannot touch a token a
+// counter has already called — undoing a clerk's work from an unattended
+// lobby terminal is not a correction, it's a race.
+interface VerifiedBranch {
+  id: string
+  customer_id: string
+}
+
+async function verifySchoolBranch(branchToken: string): Promise<VerifiedBranch | null> {
+  const supabase = createSupabaseServiceClient()
+  const { data } = await supabase
+    .from('branches')
+    .select('id, customer_id, is_active')
+    .eq('branch_token', branchToken)
+    .maybeSingle()
+
+  if (!data || !(data as { is_active: boolean }).is_active) return null
+  return data as VerifiedBranch
+}
+
+// Scoped on every axis the client could otherwise choose for itself: the row
+// must belong to this branch and to today's service date, so a leaked id from
+// yesterday or from another school is not addressable.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadKioskToken(supabase: any, branchId: string, tokenId: string) {
+  const { data: serviceDate } = await supabase.rpc('school_service_date', {
+    p_branch_id: branchId,
+  })
+  const { data } = await supabase
+    .from('school_tokens')
+    .select('*')
+    .eq('id', tokenId)
+    .eq('branch_id', branchId)
+    .eq('service_date', serviceDate as string)
+    .maybeSingle()
+
+  return (data as DbSchoolToken | null) ?? null
+}
+
+// 'waiting' and 'held' are the only states still owned by the pool. Anything
+// else is a counter's business.
+function amendable(row: DbSchoolToken): string | null {
+  if (row.status === 'called') return `${row.token_code} is at a counter right now`
+  if (row.status === 'waiting' || row.status === 'held') return null
+  return `${row.token_code} is already ${row.status}`
+}
+
+export async function schoolKioskCancelTokenAction(
+  branchToken: string,
+  tokenId: string
+): Promise<SchoolTokenResult> {
+  const branch = await verifySchoolBranch(branchToken)
+  if (!branch) return { error: 'Kiosk is not registered' }
+
+  const supabase = createSupabaseServiceClient()
+  const row = await loadKioskToken(supabase, branch.id, tokenId)
+  if (!row) return { error: 'That token was not issued today' }
+
+  const blocked = amendable(row)
+  if (blocked) return { error: blocked }
+
+  // Cancelled, never deleted: the number stays spent so the department's
+  // series has no gap, and the day's report still shows it was handed out.
+  const { data: updated, error } = await supabase
+    .from('school_tokens')
+    .update({ status: 'cancelled', counter_id: null })
+    .eq('id', row.id)
+    .select()
+    .single()
+
+  if (error || !updated) return { error: `Could not cancel ${row.token_code}` }
+
+  const token = toSchoolTokenDTO(updated as DbSchoolToken)
+  await logSchoolActivity(supabase, {
+    customerId: branch.customer_id,
+    branchId: branch.id,
+    tokenId: token.id,
+    departmentId: token.departmentId,
+    source: 'kiosk',
+    type: 'cancelled',
+    tokenCode: token.tokenCode,
+    message: `${token.tokenCode} cancelled at the kiosk`,
+  })
+
+  return { token }
+}
+
+export async function schoolKioskSetPriorityAction(
+  branchToken: string,
+  tokenId: string,
+  isPriority: boolean
+): Promise<SchoolTokenResult> {
+  const branch = await verifySchoolBranch(branchToken)
+  if (!branch) return { error: 'Kiosk is not registered' }
+
+  const supabase = createSupabaseServiceClient()
+  const row = await loadKioskToken(supabase, branch.id, tokenId)
+  if (!row) return { error: 'That token was not issued today' }
+
+  const blocked = amendable(row)
+  if (blocked) return { error: blocked }
+  if (row.is_priority === isPriority) return { token: toSchoolTokenDTO(row) }
+
+  const { data: updated, error } = await supabase
+    .from('school_tokens')
+    .update({ is_priority: isPriority })
+    .eq('id', row.id)
+    .select()
+    .single()
+
+  if (error || !updated) return { error: `Could not update ${row.token_code}` }
+  return { token: toSchoolTokenDTO(updated as DbSchoolToken) }
+}
+
+// Moving a token between departments keeps the code it was printed with — the
+// visitor is holding that paper, and reissuing a number they can't see is how
+// someone ends up waiting for a token that was never called. Same trade the
+// counter's transfer makes, and it re-uses the same column so a report can
+// tell a corrected tap from an intended route.
+export async function schoolKioskMoveTokenAction(
+  branchToken: string,
+  tokenId: string,
+  targetDepartmentId: string
+): Promise<SchoolTokenResult> {
+  const branch = await verifySchoolBranch(branchToken)
+  if (!branch) return { error: 'Kiosk is not registered' }
+
+  const supabase = createSupabaseServiceClient()
+  const row = await loadKioskToken(supabase, branch.id, tokenId)
+  if (!row) return { error: 'That token was not issued today' }
+
+  const blocked = amendable(row)
+  if (blocked) return { error: blocked }
+  if (row.department_id === targetDepartmentId) return { token: toSchoolTokenDTO(row) }
+
+  const { data: dept } = await supabase
+    .from('school_departments')
+    .select('id, name_en')
+    .eq('id', targetDepartmentId)
+    .eq('branch_id', branch.id)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (!dept) return { error: 'That department is not available at this branch' }
+
+  const { data: updated, error } = await supabase
+    .from('school_tokens')
+    .update({
+      department_id: targetDepartmentId,
+      transferred_from_department_id: row.department_id,
+      status: 'waiting',
+      counter_id: null,
+      called_at: null,
+    })
+    .eq('id', row.id)
+    .select()
+    .single()
+
+  if (error || !updated) return { error: `Could not move ${row.token_code}` }
+
+  const token = toSchoolTokenDTO(updated as DbSchoolToken)
+  await logSchoolActivity(supabase, {
+    customerId: branch.customer_id,
+    branchId: branch.id,
+    tokenId: token.id,
+    departmentId: targetDepartmentId,
+    source: 'kiosk',
+    type: 'transferred',
+    tokenCode: token.tokenCode,
+    message: `${token.tokenCode} moved to ${(dept as { name_en: string }).name_en} at the kiosk`,
+  })
+
+  return { token }
+}
+
 // ── NEXT ──────────────────────────────────────────────────────
 export async function schoolCallNextAction(counterToken: string): Promise<SchoolTokenResult> {
   const counter = await verifySchoolCounter(counterToken)

@@ -252,6 +252,17 @@ export interface SchoolBoardDepartment {
   waiting: number
 }
 
+// What the lobby kiosk polls: the tail of today's tokens for its recent-ticket
+// rail, plus the queue depth each service tile reports.
+export interface SchoolKioskFeed {
+  status: 'ok' | 'not-found'
+  serviceDate?: string
+  recent?: SchoolTokenDTO[]
+  waitingByDepartment?: Record<string, number>
+  waitingTotal?: number
+  issuedToday?: number
+}
+
 export interface SchoolBoardPacket {
   status: 'ok' | 'expired' | 'not-found'
   screenId?: string

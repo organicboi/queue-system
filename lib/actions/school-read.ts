@@ -5,6 +5,8 @@ import {
   toSchoolTokenDTO,
   type SchoolTokenDTO, type SchoolBoardPacket, type DbSchoolToken,
 } from '@/lib/db/school-types'
+import { getSchoolKioskFeed } from '@/lib/dal/school'
+import type { SchoolKioskFeed } from '@/lib/db/school-types'
 
 // Client-callable reads for the device surfaces.
 //
@@ -144,4 +146,11 @@ export async function fetchSchoolCounterViewAction(counterToken: string): Promis
       .map((d) => ({ id: d.id, nameEn: d.name_en, nameAr: d.name_ar, prefix: d.prefix, color: d.color })),
     servedToday: servedToday ?? 0,
   }
+}
+
+// ── Kiosk: today's tokens ─────────────────────────────────────
+// Thin wrapper so the kiosk can re-poll what its page was server-rendered
+// with. The query itself lives in the DAL, where the page reads it too.
+export async function fetchSchoolKioskFeedAction(branchToken: string): Promise<SchoolKioskFeed> {
+  return getSchoolKioskFeed(branchToken)
 }

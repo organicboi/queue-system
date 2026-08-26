@@ -6,7 +6,7 @@ import {
   toSchoolTokenDTO, toSchoolActivityLogDTO,
   type SchoolSettingsDTO, type SchoolDepartmentDTO, type SchoolCounterDTO,
   type SchoolTokenDTO, type SchoolActivityLogDTO, type SchoolBoardPacket,
-  type SchoolDashboardStats, type SchoolDepartmentStats,
+  type SchoolDashboardStats, type SchoolDepartmentStats, type SchoolKioskFeed,
   type DbSchoolSettings, type DbSchoolDepartment, type DbSchoolCounter,
   type DbSchoolToken, type DbSchoolActivityLog,
 } from '@/lib/db/school-types'
@@ -275,5 +275,68 @@ export async function getSchoolDashboardStats(branchId: string): Promise<SchoolD
     cancelled: tokens.filter((t) => t.status === 'cancelled').length,
     avgWaitMinutes: avgOf(tokens),
     byDepartment,
+  }
+}
+
+// ── Kiosk feed ────────────────────────────────────────────────
+// The rail on the lobby kiosk: the tail of today's tokens, newest first — the
+// rail exists to correct the tap that just happened, so the row someone is
+// reaching for is the top one, not the oldest in the queue.
+//
+// Not cache()d: the kiosk polls this through a server action and needs the
+// current row set, not the one memoised for the request that rendered it.
+const KIOSK_RECENT_LIMIT = 30
+
+export async function getSchoolKioskFeed(branchToken: string): Promise<SchoolKioskFeed> {
+  const supabase = createSupabaseServiceClient()
+
+  const { data: branch } = await supabase
+    .from('branches')
+    .select('id, is_active')
+    .eq('branch_token', branchToken)
+    .maybeSingle()
+
+  if (!branch || !(branch as { is_active: boolean }).is_active) return { status: 'not-found' }
+  const branchId = (branch as { id: string }).id
+
+  const { data: serviceDate } = await supabase.rpc('school_service_date', { p_branch_id: branchId })
+
+  const [{ data: recent }, { data: waiting }, { count: issuedToday }] = await Promise.all([
+    supabase
+      .from('school_tokens')
+      .select('*')
+      .eq('branch_id', branchId)
+      .eq('service_date', serviceDate as string)
+      .order('joined_at', { ascending: false })
+      .limit(KIOSK_RECENT_LIMIT),
+    // Only the department column: this is a depth count per tile, and pulling
+    // whole rows for a queue that can be hundreds long is wasted bandwidth on
+    // a 6-second poll.
+    supabase
+      .from('school_tokens')
+      .select('department_id')
+      .eq('branch_id', branchId)
+      .eq('service_date', serviceDate as string)
+      .in('status', ['waiting', 'held']),
+    supabase
+      .from('school_tokens')
+      .select('*', { count: 'exact', head: true })
+      .eq('branch_id', branchId)
+      .eq('service_date', serviceDate as string),
+  ])
+
+  const waitingRows = (waiting ?? []) as { department_id: string }[]
+  const waitingByDepartment: Record<string, number> = {}
+  for (const row of waitingRows) {
+    waitingByDepartment[row.department_id] = (waitingByDepartment[row.department_id] ?? 0) + 1
+  }
+
+  return {
+    status: 'ok',
+    serviceDate: serviceDate as string,
+    recent: ((recent ?? []) as DbSchoolToken[]).map(toSchoolTokenDTO),
+    waitingByDepartment,
+    waitingTotal: waitingRows.length,
+    issuedToday: issuedToday ?? 0,
   }
 }

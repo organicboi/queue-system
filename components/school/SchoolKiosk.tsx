@@ -1,13 +1,24 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Accessibility, Loader2, Printer, TriangleAlert } from 'lucide-react'
-import { schoolIssueTokenAction } from '@/lib/actions/school-tokens'
+import { toast } from 'sonner'
+import {
+  Accessibility, ArrowRightLeft, Check, ChevronDown, Loader2, Printer, Star,
+  Ticket, TriangleAlert, Users,
+} from 'lucide-react'
+import { ConfirmCancel, useNow, minutesSince, formatElapsed } from '@/components/counter/console'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  schoolIssueTokenAction, schoolKioskCancelTokenAction,
+  schoolKioskMoveTokenAction, schoolKioskSetPriorityAction,
+} from '@/lib/actions/school-tokens'
+import { fetchSchoolKioskFeedAction } from '@/lib/actions/school-read'
 import { printSchoolTicket } from '@/lib/school/printTicket'
 import { formatDate, formatTime } from '@/lib/queueUtils'
 import type {
-  SchoolDepartmentDTO, SchoolSettingsDTO, SchoolTokenDTO, SchoolLanguage,
+  SchoolDepartmentDTO, SchoolSettingsDTO, SchoolTokenDTO, SchoolTokenStatus,
+  SchoolLanguage, SchoolKioskFeed,
 } from '@/lib/db/school-types'
 
 interface Props {
@@ -17,42 +28,122 @@ interface Props {
   settings: SchoolSettingsDTO | null
   silentPrintEnabled: boolean
   printerName: string
+  initialFeed: SchoolKioskFeed
 }
+
+const FEED_POLL_MS = 6000
+const RECENT_LIMIT = 30
 
 const COPY = {
   en: {
     prompt: 'Please select a service',
+    promptHint: 'Touch a service to take a number',
     priority: 'Priority assistance',
     priorityHint: 'Senior citizens and visitors needing assistance',
+    priorityArmed: 'Next ticket will be priority',
     yourToken: 'Your token number',
     watch: 'Please watch the screen for your number',
     printing: 'Printing your ticket…',
     printFailed: 'The printer is unavailable. Please note your number.',
     issuing: 'Issuing…',
+    waitingHere: 'waiting',
+    noneWaiting: 'no queue',
+    recent: 'Today’s tickets',
+    recentEmpty: 'Tickets issued here will appear in this list.',
+    heroEmpty: 'Your ticket will appear here',
+    inQueue: 'in queue',
+    issuedToday: 'issued today',
+    reprint: 'Reprint',
+    move: 'Move',
+    moveTitle: 'Move to another service',
+    makePriority: 'Mark priority',
+    clearPriority: 'Clear priority',
+    priorityTag: 'Priority',
+    cancel: 'Cancel',
   },
   ar: {
     prompt: 'يرجى اختيار الخدمة',
+    promptHint: 'المس الخدمة للحصول على رقم',
     priority: 'مساعدة ذوي الأولوية',
     priorityHint: 'كبار السن والزوار الذين يحتاجون إلى مساعدة',
+    priorityArmed: 'التذكرة التالية ذات أولوية',
     yourToken: 'رقم تذكرتك',
     watch: 'يرجى متابعة الشاشة لظهور رقمك',
     printing: 'جارٍ طباعة التذكرة…',
     printFailed: 'الطابعة غير متاحة. يرجى تدوين رقمك.',
     issuing: 'جارٍ الإصدار…',
+    waitingHere: 'في الانتظار',
+    noneWaiting: 'لا يوجد انتظار',
+    recent: 'تذاكر اليوم',
+    recentEmpty: 'ستظهر التذاكر الصادرة هنا في هذه القائمة.',
+    heroEmpty: 'ستظهر تذكرتك هنا',
+    inQueue: 'في الطابور',
+    issuedToday: 'صدرت اليوم',
+    reprint: 'إعادة طباعة',
+    move: 'نقل',
+    moveTitle: 'النقل إلى خدمة أخرى',
+    makePriority: 'تعيين كأولوية',
+    clearPriority: 'إلغاء الأولوية',
+    priorityTag: 'أولوية',
+    cancel: 'إلغاء التذكرة',
   },
 } as const
 
+const STATUS: Record<SchoolTokenStatus, { en: string; ar: string; className: string }> = {
+  waiting: { en: 'Waiting', ar: 'في الانتظار', className: 'bg-slate-100 text-slate-600 border-slate-200' },
+  called: { en: 'Called', ar: 'تم النداء', className: 'bg-accent-50 text-accent-700 border-accent-200' },
+  held: { en: 'On hold', ar: 'معلّق', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  served: { en: 'Served', ar: 'تمت الخدمة', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  'no-show': { en: 'No-show', ar: 'لم يحضر', className: 'bg-orange-50 text-orange-700 border-orange-200' },
+  cancelled: { en: 'Cancelled', ar: 'ملغاة', className: 'bg-slate-100 text-slate-400 border-slate-200' },
+}
+
+// A queued ticket carries its own department: a reprint from the recent list
+// can be for a service other than the one last tapped.
+interface PrintJob {
+  key: number
+  token: SchoolTokenDTO
+  department: SchoolDepartmentDTO
+}
+
+/*
+ * Lobby kiosk.
+ *
+ * The service grid is mounted for the whole session and never swapped out —
+ * issuing a number is a side effect, not a page transition. That is the single
+ * decision the rest of this file follows from: the visitor behind you can tap
+ * while your ticket is still coming out of the printer, so printing runs off a
+ * queue instead of blocking the tap, and the ticket you just took is shown in
+ * the rail rather than over the grid.
+ *
+ * The rail also carries today's tickets with the two corrections that belong at
+ * the lobby end of the queue — wrong service, and priority missed — plus a
+ * reprint for the ticket the printer ate. What a counter has already called is
+ * read-only here; see schoolKioskCancelTokenAction for why.
+ */
 export function SchoolKiosk({
   branchToken, branchName, departments, settings, silentPrintEnabled, printerName,
+  initialFeed,
 }: Props) {
   const languages: SchoolLanguage[] = settings?.languages?.length ? settings.languages : ['en']
   const [lang, setLang] = useState<SchoolLanguage>(languages[0])
   const [priority, setPriority] = useState(false)
-  const [issued, setIssued] = useState<{ token: SchoolTokenDTO; department: SchoolDepartmentDTO } | null>(null)
-  const [printState, setPrintState] = useState<'idle' | 'printing' | 'failed'>('idle')
-  const [error, setError] = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+  const [issuingId, setIssuingId] = useState<string | null>(null)
+  const [hero, setHero] = useState<{ token: SchoolTokenDTO; department: SchoolDepartmentDTO } | null>(null)
+  const [feed, setFeed] = useState<SchoolKioskFeed>(initialFeed)
+  const [busyTokenId, setBusyTokenId] = useState<string | null>(null)
+  const [moveFor, setMoveFor] = useState<SchoolTokenDTO | null>(null)
+  // One open action tray at a time: the rail stays a list, not a stack of forms.
+  const [openRow, setOpenRow] = useState<string | null>(null)
+  const [printing, setPrinting] = useState<PrintJob | null>(null)
+  // Token ids with a print still owed, so the card can say "printing…" for the
+  // gap between the tap and the job actually reaching the head of the chain.
+  const [printBusy, setPrintBusy] = useState<string[]>([])
+  const [printFailedFor, setPrintFailedFor] = useState<string | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
+  const printChain = useRef<Promise<void>>(Promise.resolve())
+  const jobKey = useRef(0)
+  const now = useNow(15000)
 
   const t = COPY[lang]
   const rtl = lang === 'ar'
@@ -61,6 +152,58 @@ export function SchoolKiosk({
   const printEnabled = settings?.printEnabled ?? true
   const schoolName =
     (rtl ? settings?.schoolNameAr : settings?.schoolNameEn) || settings?.schoolNameEn || branchName
+
+  const deptById = useMemo(
+    () => new Map(departments.map((d) => [d.id, d])),
+    [departments]
+  )
+  const deptName = useCallback(
+    (d: SchoolDepartmentDTO | undefined) =>
+      !d ? '' : rtl ? d.nameAr || d.nameEn : d.nameEn,
+    [rtl]
+  )
+
+  const recent = feed.recent ?? []
+  const waitingByDepartment = feed.waitingByDepartment ?? {}
+
+  // ── Feed ────────────────────────────────────────────────────
+  // The school tables are service-role-only, so the kiosk can't subscribe with
+  // the publishable key; it polls, exactly like the counter console.
+  const refresh = useCallback(async () => {
+    const next = await fetchSchoolKioskFeedAction(branchToken)
+    if (next.status === 'ok') setFeed(next)
+  }, [branchToken])
+
+  useEffect(() => {
+    const id = setInterval(refresh, FEED_POLL_MS)
+    return () => clearInterval(id)
+  }, [refresh])
+
+  // ── Printing ────────────────────────────────────────────────
+  const enqueuePrint = useCallback((token: SchoolTokenDTO, department: SchoolDepartmentDTO) => {
+    jobKey.current += 1
+    const job: PrintJob = { key: jobKey.current, token, department }
+    setPrintBusy((b) => [...b, token.id])
+
+    // Chained rather than pumped from an effect: each job owns the single
+    // hidden ticket node for the whole of its capture, so a second visitor
+    // tapping mid-print can't swap the DOM out from under html2canvas.
+    printChain.current = printChain.current.then(async () => {
+      setPrinting(job)
+      // One paint so the ticket for THIS job exists before it's rasterised,
+      // and so a preloaded logo has decoded.
+      await new Promise((r) => setTimeout(r, 120))
+      const el = printRef.current
+      const method = el
+        ? await printSchoolTicket(el, { silentPrintEnabled, printerName })
+        : 'failed'
+      setPrintFailedFor(method === 'failed' ? job.token.tokenCode : null)
+      setPrinting(null)
+      setPrintBusy((b) => b.filter((id) => id !== token.id))
+    })
+  }, [silentPrintEnabled, printerName])
+
+  const heroPrinting = !!hero && printBusy.includes(hero.token.id)
 
   // Preload the logo: the first print fires within ~100ms of the tap, too fast
   // for a cold image decode, and html2canvas would capture an empty box.
@@ -72,49 +215,114 @@ export function SchoolKiosk({
     img.src = url
   }, [settings?.logoUrl])
 
-  // Auto-reset so the next visitor always meets a clean screen.
+  // Auto-reset so the next visitor always meets a neutral screen. The grid
+  // itself never went anywhere, so this only clears what was personal to the
+  // last visitor: their number, their priority tap, their language.
   useEffect(() => {
-    if (!issued) return
+    if (!hero) return
     const timer = setTimeout(() => {
-      setIssued(null)
+      setHero(null)
       setPriority(false)
-      setPrintState('idle')
+      setPrintFailedFor(null)
       setLang(languages[0])
     }, idleSeconds * 1000)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [issued, idleSeconds])
+  }, [hero, idleSeconds])
 
-  function selectDepartment(department: SchoolDepartmentDTO) {
-    if (pending || issued) return
-    setError(null)
+  // ── Issue ───────────────────────────────────────────────────
+  async function selectDepartment(department: SchoolDepartmentDTO) {
+    if (issuingId) return
+    setIssuingId(department.id)
+    setPrintFailedFor(null)
 
-    startTransition(async () => {
-      const result = await schoolIssueTokenAction(
-        branchToken,
-        department.id,
-        priority || department.isPriority
-      )
-      if (result.error || !result.token) {
-        setError(result.error ?? 'Please ask for assistance')
-        return
-      }
+    const result = await schoolIssueTokenAction(
+      branchToken,
+      department.id,
+      priority || department.isPriority
+    )
+    setIssuingId(null)
 
-      // The token is committed before printing is attempted, and it stays on
-      // screen regardless — a printer failure must never leave a visitor with
-      // no number at all.
-      setIssued({ token: result.token, department })
+    if (result.error || !result.token) {
+      toast.error(result.error ?? 'Please ask for assistance')
+      return
+    }
 
-      if (!printEnabled) return
-      setPrintState('printing')
-      // One paint so the hidden ticket exists before it's rasterised.
-      await new Promise((r) => setTimeout(r, 100))
-      const el = printRef.current
-      if (!el) { setPrintState('failed'); return }
-      const method = await printSchoolTicket(el, { silentPrintEnabled, printerName })
-      setPrintState(method === 'failed' ? 'failed' : 'idle')
+    // Committed before printing is attempted, and shown regardless — a printer
+    // failure must never leave a visitor with no number at all.
+    const token = result.token
+    setHero({ token, department })
+    setPriority(false)
+
+    // Optimistic, so the rail moves on the same frame as the tap; the next
+    // poll reconciles it against the server.
+    setFeed((f) => ({
+      ...f,
+      recent: [token, ...(f.recent ?? [])].slice(0, RECENT_LIMIT),
+      waitingTotal: (f.waitingTotal ?? 0) + 1,
+      issuedToday: (f.issuedToday ?? 0) + 1,
+      waitingByDepartment: {
+        ...(f.waitingByDepartment ?? {}),
+        [department.id]: (f.waitingByDepartment?.[department.id] ?? 0) + 1,
+      },
+    }))
+
+    if (printEnabled) enqueuePrint(token, department)
+    refresh()
+  }
+
+  // ── Row actions ─────────────────────────────────────────────
+  const runOnToken = useCallback(async (
+    token: SchoolTokenDTO,
+    fn: () => Promise<{ token?: SchoolTokenDTO; error?: string }>,
+    success: string
+  ) => {
+    setBusyTokenId(token.id)
+    const result = await fn()
+    setBusyTokenId(null)
+    if (result.error) toast.error(result.error)
+    else toast.success(success)
+    await refresh()
+    return result
+  }, [refresh])
+
+  function cancelToken(token: SchoolTokenDTO) {
+    setOpenRow(null)
+    runOnToken(
+      token,
+      () => schoolKioskCancelTokenAction(branchToken, token.id),
+      `${token.tokenCode} cancelled`
+    ).then((r) => {
+      if (!r.error && hero?.token.id === token.id) setHero(null)
     })
   }
+
+  function togglePriority(token: SchoolTokenDTO) {
+    runOnToken(
+      token,
+      () => schoolKioskSetPriorityAction(branchToken, token.id, !token.isPriority),
+      token.isPriority ? `${token.tokenCode} is no longer priority` : `${token.tokenCode} marked priority`
+    )
+  }
+
+  function moveToken(token: SchoolTokenDTO, target: SchoolDepartmentDTO) {
+    setMoveFor(null)
+    setOpenRow(null)
+    runOnToken(
+      token,
+      () => schoolKioskMoveTokenAction(branchToken, token.id, target.id),
+      `${token.tokenCode} moved to ${target.nameEn}`
+    )
+  }
+
+  function reprint(token: SchoolTokenDTO) {
+    const department = deptById.get(token.departmentId)
+    if (!department) return
+    setPrintFailedFor(null)
+    enqueuePrint(token, department)
+  }
+
+  const printedTicket = printing ?? (hero ? { key: -1, ...hero } : null)
 
   return (
     <div dir={rtl ? 'rtl' : 'ltr'} className="flex h-dvh w-screen flex-col overflow-hidden bg-slate-100">
@@ -127,14 +335,36 @@ export function SchoolKiosk({
         }
       `}</style>
 
-      {/* Header */}
-      <header className="no-print flex shrink-0 items-center gap-4 bg-slate-900 px-6 py-4 text-white">
+      {/* ── Header ───────────────────────────────────────────── */}
+      <header className="no-print flex shrink-0 items-center gap-4 bg-slate-900 px-5 py-3.5 text-white md:px-6">
+        {settings?.logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={settings.logoUrl}
+            alt=""
+            className="size-11 shrink-0 rounded-xl bg-white/10 object-contain p-1"
+          />
+        )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-xl font-bold md:text-2xl">{schoolName}</p>
           <p className="truncate text-sm text-slate-400">{branchName}</p>
         </div>
+
+        <div className="hidden shrink-0 items-center gap-2 sm:flex">
+          <HeaderStat
+            icon={<Users className="size-4" />}
+            value={feed.waitingTotal ?? 0}
+            label={t.inQueue}
+          />
+          <HeaderStat
+            icon={<Ticket className="size-4" />}
+            value={feed.issuedToday ?? 0}
+            label={t.issuedToday}
+          />
+        </div>
+
         {languages.length > 1 && (
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 gap-1.5 rounded-2xl bg-white/10 p-1">
             {languages.map((l) => (
               <button
                 key={l}
@@ -142,8 +372,8 @@ export function SchoolKiosk({
                 onClick={() => setLang(l)}
                 className={
                   l === lang
-                    ? 'rounded-xl bg-accent-600 px-5 py-2.5 text-base font-semibold text-white'
-                    : 'rounded-xl border border-slate-600 px-5 py-2.5 text-base font-medium text-slate-300 active:bg-slate-800'
+                    ? 'rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-900 md:text-base'
+                    : 'rounded-xl px-4 py-2 text-sm font-medium text-slate-300 active:bg-white/10 md:text-base'
                 }
               >
                 {l === 'en' ? 'English' : 'العربية'}
@@ -153,131 +383,204 @@ export function SchoolKiosk({
         )}
       </header>
 
-      <main className="no-print flex min-h-0 flex-1 flex-col p-4 md:p-6">
-        <AnimatePresence mode="wait">
-          {issued ? (
-            <motion.div
-              key="issued"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-1 flex-col items-center justify-center text-center"
-            >
-              <p className="text-xl font-medium text-slate-500 md:text-2xl">{t.yourToken}</p>
-              <p
-                dir="ltr"
-                className="font-mono font-black tabular-nums text-accent-700"
-                style={{ fontSize: 'clamp(6rem, 24vw, 20rem)', lineHeight: 1 }}
-              >
-                {issued.token.tokenCode}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-slate-800 md:text-3xl">
-                {rtl ? issued.department.nameAr || issued.department.nameEn : issued.department.nameEn}
-              </p>
-              <p className="mt-4 text-lg text-slate-500 md:text-xl">{t.watch}</p>
+      <div className="no-print flex min-h-0 flex-1 flex-col gap-4 p-4 lg:flex-row lg:gap-5 lg:p-6">
+        {/* ── Service grid — mounted for the whole session ───── */}
+        <main className="flex min-h-0 flex-1 flex-col">
+          <div className="mb-3 flex shrink-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h1 className="text-2xl font-bold text-slate-800 md:text-3xl">{t.prompt}</h1>
+            <p className="text-sm text-slate-500 md:text-base">{t.promptHint}</p>
+          </div>
 
-              {printState === 'printing' && (
-                <p className="mt-6 flex items-center gap-2 text-base text-slate-500">
-                  <Printer className="size-4" />
-                  {t.printing}
-                </p>
-              )}
-              {printState === 'failed' && (
-                <p className="mt-6 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-base font-medium text-amber-700">
-                  <TriangleAlert className="size-4" />
-                  {t.printFailed}
-                </p>
-              )}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="select"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex min-h-0 flex-1 flex-col"
-            >
-              <p className="mb-4 shrink-0 text-center text-2xl font-semibold text-slate-700 md:text-3xl">
-                {t.prompt}
-              </p>
-
-              {error && (
-                <p className="mb-3 shrink-0 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-center text-base font-medium text-red-700">
-                  {error}
-                </p>
-              )}
-
-              <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
-                {departments.map((dept) => (
-                  <button
-                    key={dept.id}
-                    type="button"
-                    disabled={pending}
-                    onClick={() => selectDepartment(dept)}
-                    className="flex min-h-24 items-center gap-4 rounded-2xl px-6 py-5 text-start text-white transition-transform active:scale-[0.98] disabled:opacity-50"
-                    style={{ backgroundColor: dept.color }}
-                  >
-                    <span
-                      dir="ltr"
-                      className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-white/20 font-mono text-2xl font-black"
-                    >
-                      {dept.prefix}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xl font-bold md:text-2xl">
-                        {rtl ? dept.nameAr || dept.nameEn : dept.nameEn}
-                      </span>
-                      {!rtl && dept.nameAr && (
-                        <span dir="rtl" className="block truncate text-base text-white/80">
-                          {dept.nameAr}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {priorityEnabled && (
+          <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-1 gap-3 overflow-y-auto pb-1 sm:grid-cols-2 2xl:grid-cols-3">
+            {departments.map((dept) => {
+              const queued = waitingByDepartment[dept.id] ?? 0
+              const secondary = rtl ? dept.nameEn : dept.nameAr
+              return (
                 <button
+                  key={dept.id}
                   type="button"
-                  onClick={() => setPriority((v) => !v)}
-                  className={
-                    priority
-                      ? 'mt-3 flex shrink-0 items-center gap-4 rounded-2xl border-4 border-amber-500 bg-amber-50 px-6 py-4 text-start'
-                      : 'mt-3 flex shrink-0 items-center gap-4 rounded-2xl border-2 border-slate-300 bg-white px-6 py-4 text-start active:bg-slate-50'
-                  }
+                  disabled={!!issuingId}
+                  onClick={() => selectDepartment(dept)}
+                  className="group relative flex min-h-28 items-center gap-4 overflow-hidden rounded-3xl px-5 py-4 text-start text-white shadow-lg shadow-slate-900/10 ring-1 ring-inset ring-white/20 transition duration-150 active:scale-[0.97] disabled:opacity-60"
+                  style={{ backgroundColor: dept.color }}
                 >
-                  <Accessibility className={priority ? 'size-8 text-amber-600' : 'size-8 text-slate-400'} />
-                  <span className="min-w-0 flex-1">
-                    <span className={priority ? 'block text-xl font-bold text-amber-800' : 'block text-xl font-semibold text-slate-700'}>
-                      {t.priority}
-                    </span>
-                    <span className="block truncate text-sm text-slate-500">{t.priorityHint}</span>
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/10"
+                  />
+                  <span
+                    dir="ltr"
+                    className="relative flex size-16 shrink-0 items-center justify-center rounded-2xl bg-white/25 font-mono text-3xl font-black shadow-inner"
+                  >
+                    {dept.prefix}
                   </span>
-                  {priority && (
-                    <span className="shrink-0 rounded-full bg-amber-500 px-3 py-1 text-sm font-bold text-white">
-                      ✓
+
+                  <span className="relative min-w-0 flex-1">
+                    <span className="block truncate text-xl font-bold md:text-2xl">
+                      {deptName(dept)}
+                    </span>
+                    {secondary && (
+                      <span
+                        dir={rtl ? 'ltr' : 'rtl'}
+                        style={{ textAlign: rtl ? 'right' : 'left' }}
+                        className="block truncate text-base text-white/75"
+                      >
+                        {secondary}
+                      </span>
+                    )}
+                  </span>
+
+                  <span className="relative shrink-0 text-end">
+                    <span className="block font-mono text-2xl font-black tabular-nums leading-none">
+                      {queued}
+                    </span>
+                    <span className="mt-1 block text-xs font-semibold uppercase tracking-wide text-white/70">
+                      {queued === 0 ? t.noneWaiting : t.waitingHere}
+                    </span>
+                  </span>
+
+                  {dept.isPriority && (
+                    <span className="absolute end-3 top-3 rounded-full bg-white/25 p-1.5">
+                      <Accessibility className="size-4" />
+                    </span>
+                  )}
+
+                  {issuingId === dept.id && (
+                    <span className="absolute inset-0 grid place-items-center bg-black/30">
+                      <Loader2 className="size-10 animate-spin" />
                     </span>
                   )}
                 </button>
-              )}
+              )
+            })}
+          </div>
 
-              {pending && (
-                <p className="mt-3 flex shrink-0 items-center justify-center gap-2 text-base text-slate-500">
-                  <Loader2 className="size-4 animate-spin" />
-                  {t.issuing}
-                </p>
-              )}
-            </motion.div>
+          {priorityEnabled && (
+            <button
+              type="button"
+              onClick={() => setPriority((v) => !v)}
+              className={
+                priority
+                  ? 'mt-3 flex shrink-0 items-center gap-4 rounded-2xl border-2 border-amber-400 bg-amber-50 px-5 py-3.5 text-start shadow-sm ring-4 ring-amber-100'
+                  : 'mt-3 flex shrink-0 items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-start shadow-sm active:bg-slate-50'
+              }
+            >
+              <Accessibility className={priority ? 'size-8 shrink-0 text-amber-600' : 'size-8 shrink-0 text-slate-400'} />
+              <span className="min-w-0 flex-1">
+                <span className={priority ? 'block text-lg font-bold text-amber-900' : 'block text-lg font-semibold text-slate-700'}>
+                  {t.priority}
+                </span>
+                <span className="block truncate text-sm text-slate-500">
+                  {priority ? t.priorityArmed : t.priorityHint}
+                </span>
+              </span>
+              <span
+                className={
+                  priority
+                    ? 'grid size-9 shrink-0 place-items-center rounded-full bg-amber-500 text-white'
+                    : 'grid size-9 shrink-0 place-items-center rounded-full border-2 border-slate-200 text-transparent'
+                }
+              >
+                <Check className="size-5" />
+              </span>
+            </button>
           )}
-        </AnimatePresence>
-      </main>
+        </main>
+
+        {/* ── Rail: the ticket just taken, then today's list ─── */}
+        <aside className="flex min-h-0 max-h-[46vh] shrink-0 flex-col gap-3 lg:max-h-none lg:w-[380px] xl:w-[420px]">
+          <IssuedCard
+            hero={hero}
+            t={t}
+            rtl={rtl}
+            printing={heroPrinting}
+            printFailed={!!hero && printFailedFor === hero.token.tokenCode}
+            deptName={deptName}
+          />
+
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">{t.recent}</h2>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 font-mono text-xs font-bold tabular-nums text-slate-600">
+                {feed.issuedToday ?? recent.length}
+              </span>
+            </header>
+
+            {recent.length === 0 ? (
+              <p className="flex flex-1 items-center justify-center px-6 text-center text-sm text-slate-400">
+                {t.recentEmpty}
+              </p>
+            ) : (
+              <ul className="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
+                {recent.map((token) => (
+                  <RecentRow
+                    key={token.id}
+                    token={token}
+                    department={deptById.get(token.departmentId)}
+                    deptName={deptName}
+                    lang={lang}
+                    t={t}
+                    now={now}
+                    open={openRow === token.id}
+                    busy={busyTokenId === token.id}
+                    disabled={!!busyTokenId}
+                    printEnabled={printEnabled}
+                    canMove={departments.length > 1}
+                    onToggle={() => setOpenRow((id) => (id === token.id ? null : token.id))}
+                    onReprint={() => reprint(token)}
+                    onTogglePriority={() => togglePriority(token)}
+                    onMove={() => setMoveFor(token)}
+                    onCancel={() => cancelToken(token)}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        </aside>
+      </div>
+
+      {/* ── Move a ticket to another service ─────────────────── */}
+      <Dialog open={!!moveFor} onOpenChange={(open) => !open && setMoveFor(null)}>
+        <DialogContent className="max-w-lg" dir={rtl ? 'rtl' : 'ltr'}>
+          <DialogHeader>
+            <DialogTitle>
+              {t.moveTitle}
+              {moveFor && (
+                <span dir="ltr" className="ms-2 font-mono text-accent-700">{moveFor.tokenCode}</span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid max-h-[60vh] grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+            {departments
+              .filter((d) => d.id !== moveFor?.departmentId)
+              .map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => moveFor && moveToken(moveFor, d)}
+                  className="flex items-center gap-3 rounded-2xl px-4 py-3 text-start text-white shadow-sm transition active:scale-[0.97]"
+                  style={{ backgroundColor: d.color }}
+                >
+                  <span
+                    dir="ltr"
+                    className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/25 font-mono text-lg font-black"
+                  >
+                    {d.prefix}
+                  </span>
+                  <span className="min-w-0 truncate text-base font-bold">{deptName(d)}</span>
+                </button>
+              ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 80 mm × 80 mm thermal ticket. Square on purpose: it locks the image
           aspect ratio so RawBT always rasterises to the same size, and the
-          centred content leaves tear offset so the cutter never clips. */}
+          centred content leaves tear offset so the cutter never clips.
+          Renders the job being printed, not the last one issued — a reprint
+          from the rail may be for an older ticket. */}
       <div id="school-ticket" ref={printRef} style={{ display: 'none' }}>
-        {issued && (
+        {printedTicket && (
           <div
             style={{
               width: '80mm', height: '80mm', boxSizing: 'border-box', padding: '6mm 4mm',
@@ -300,16 +603,16 @@ export function SchoolKiosk({
               {settings?.schoolNameEn || branchName}
             </p>
             <p style={{ fontSize: '52pt', fontWeight: 900, lineHeight: 1, margin: '0 0 2mm' }}>
-              {issued.token.tokenCode}
+              {printedTicket.token.tokenCode}
             </p>
             <p style={{ fontSize: '13pt', fontWeight: 700, margin: '0 0 1mm' }}>
-              {issued.department.nameEn}
+              {printedTicket.department.nameEn}
             </p>
-            {issued.token.isPriority && (
+            {printedTicket.token.isPriority && (
               <p style={{ fontSize: '10pt', fontWeight: 700, margin: '0 0 1mm' }}>PRIORITY</p>
             )}
             <p style={{ fontSize: '9pt', fontWeight: 700, margin: '0 0 1mm' }}>
-              {formatDate(issued.token.joinedAt)} · {formatTime(issued.token.joinedAt)}
+              {formatDate(printedTicket.token.joinedAt)} · {formatTime(printedTicket.token.joinedAt)}
             </p>
             {settings?.ticketFooterEn && (
               <p style={{ fontSize: '8pt', margin: 0 }}>{settings.ticketFooterEn}</p>
@@ -321,5 +624,254 @@ export function SchoolKiosk({
         )}
       </div>
     </div>
+  )
+}
+
+// ── Pieces ────────────────────────────────────────────────────
+
+function HeaderStat({ icon, value, label }: {
+  icon: React.ReactNode
+  value: number
+  label: string
+}) {
+  return (
+    <span className="flex items-center gap-2 rounded-2xl bg-white/10 px-3.5 py-2">
+      <span className="text-slate-400">{icon}</span>
+      <span className="font-mono text-lg font-black tabular-nums leading-none">{value}</span>
+      <span className="text-xs font-medium text-slate-400">{label}</span>
+    </span>
+  )
+}
+
+// `as const` narrows every value to its own literal, which makes the two
+// language objects mutually unassignable. The rail only needs the keys.
+type Copy = Record<keyof typeof COPY['en'], string>
+
+/* The number the last visitor took. Sits beside the grid rather than over it
+   so the queue never stops moving while someone reads it. */
+function IssuedCard({ hero, t, rtl, printing, printFailed, deptName }: {
+  hero: { token: SchoolTokenDTO; department: SchoolDepartmentDTO } | null
+  t: Copy
+  rtl: boolean
+  printing: boolean
+  printFailed: boolean
+  deptName: (d: SchoolDepartmentDTO | undefined) => string
+}) {
+  return (
+    <div className="shrink-0 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <AnimatePresence mode="wait">
+        {hero ? (
+          <motion.div
+            key={hero.token.id}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            className="px-5 py-4 text-center"
+          >
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+              {t.yourToken}
+            </p>
+            <p
+              dir="ltr"
+              className="font-mono font-black leading-none tabular-nums text-accent-700"
+              style={{ fontSize: 'clamp(3.5rem, 7vw, 6rem)' }}
+            >
+              {hero.token.tokenCode}
+            </p>
+            <p className="mt-2 truncate text-xl font-bold text-slate-800">
+              {deptName(hero.department)}
+            </p>
+            {hero.token.isPriority && (
+              <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-800">
+                <Accessibility className="size-4" />
+                {t.priorityTag}
+              </span>
+            )}
+            <p className="mt-2 text-sm text-slate-500">{t.watch}</p>
+
+            {printing && (
+              <p className="mt-3 flex items-center justify-center gap-2 text-sm text-slate-500">
+                <Printer className="size-4 animate-pulse" />
+                {t.printing}
+              </p>
+            )}
+            {printFailed && (
+              <p className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+                <TriangleAlert className="size-4 shrink-0" />
+                {t.printFailed}
+              </p>
+            )}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="empty"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex flex-col items-center gap-2 px-5 py-8 text-center"
+          >
+            <Ticket className={rtl ? 'size-9 -scale-x-100 text-slate-300' : 'size-9 text-slate-300'} />
+            <p className="text-sm font-medium text-slate-400">{t.heroEmpty}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+/* One ticket in the rail.
+ *
+ * Collapsed, a row is a record: number, service, how long it has been waiting.
+ * The four corrections live behind a tap, because four labelled buttons on
+ * every row turned a 30-ticket list into a wall of chrome — and on the tickets
+ * a counter has already taken, none of them are even live. Only one row opens
+ * at a time, so the tray reads as "this ticket", and its buttons get real
+ * kiosk-sized targets instead of the 8 mm ones they were squeezed into.
+ */
+function RecentRow({
+  token, department, deptName, lang, t, now, open, busy, disabled,
+  printEnabled, canMove, onToggle, onReprint, onTogglePriority, onMove, onCancel,
+}: {
+  token: SchoolTokenDTO
+  department: SchoolDepartmentDTO | undefined
+  deptName: (d: SchoolDepartmentDTO | undefined) => string
+  lang: SchoolLanguage
+  t: Copy
+  now: number
+  open: boolean
+  busy: boolean
+  disabled: boolean
+  printEnabled: boolean
+  canMove: boolean
+  onToggle: () => void
+  onReprint: () => void
+  onTogglePriority: () => void
+  onMove: () => void
+  onCancel: () => void
+}) {
+  const status = STATUS[token.status]
+  // Only what's still in the pool is the kiosk's to change; once a counter has
+  // it, the rail is a read-only record.
+  const editable = token.status === 'waiting' || token.status === 'held'
+  const mins = minutesSince(token.joinedAt, now)
+
+  const line = (
+    <>
+      <span className="flex items-center gap-2.5">
+        <span
+          className="size-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: department?.color ?? '#94a3b8' }}
+        />
+        <span dir="ltr" className="shrink-0 font-mono text-base font-black tabular-nums text-slate-800">
+          {token.tokenCode}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm text-slate-500">
+          {deptName(department)}
+        </span>
+        {token.isPriority && <Accessibility className="size-4 shrink-0 text-amber-600" />}
+        {/* "Waiting" is what almost every row says, so it earns no pill — the
+            elapsed timer below already reads as waiting. Only the states worth
+            noticing are called out. */}
+        {token.status !== 'waiting' && (
+          <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-bold ${status.className}`}>
+            {status[lang]}
+          </span>
+        )}
+        {editable && (
+          <ChevronDown
+            className={
+              open
+                ? 'size-4 shrink-0 rotate-180 text-slate-400 transition-transform'
+                : 'size-4 shrink-0 text-slate-300 transition-transform'
+            }
+          />
+        )}
+      </span>
+      <span dir="ltr" className="mt-0.5 block ps-5 text-xs font-medium tabular-nums text-slate-400">
+        {formatTime(token.joinedAt)} · {formatElapsed(mins, false)}
+      </span>
+    </>
+  )
+
+  return (
+    <li className={busy ? 'opacity-50' : undefined}>
+      {editable ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className={`w-full select-none px-4 py-2.5 text-start transition active:bg-slate-50 ${
+            open ? 'bg-slate-50' : ''
+          }`}
+        >
+          {line}
+        </button>
+      ) : (
+        <div className="px-4 py-2.5">{line}</div>
+      )}
+
+      <AnimatePresence initial={false}>
+        {open && editable && (
+          <motion.div
+            key="tray"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="overflow-hidden bg-slate-50"
+          >
+            <div className="grid grid-cols-2 gap-2 px-4 pb-3">
+              {printEnabled && (
+                <RowAction label={t.reprint} onTap={onReprint} disabled={disabled}>
+                  <Printer className="size-4" />
+                </RowAction>
+              )}
+              <RowAction
+                label={token.isPriority ? t.clearPriority : t.makePriority}
+                onTap={onTogglePriority}
+                disabled={disabled}
+                active={token.isPriority}
+              >
+                <Star className={token.isPriority ? 'size-4 fill-current' : 'size-4'} />
+              </RowAction>
+              {canMove && (
+                <RowAction label={t.move} onTap={onMove} disabled={disabled}>
+                  <ArrowRightLeft className="size-4" />
+                </RowAction>
+              )}
+              <ConfirmCancel onConfirm={onCancel} disabled={disabled} label={t.cancel} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </li>
+  )
+}
+
+/* Labelled icon buttons: a kiosk gets tapped by people who never see a
+   tooltip, so the label is rendered, not hovered. Sized to match
+   ConfirmCancel, which shares the tray with them. */
+function RowAction({ label, onTap, disabled, active, children }: {
+  label: string
+  onTap: () => void
+  disabled?: boolean
+  active?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onTap}
+      disabled={disabled}
+      className={`flex h-8 select-none items-center justify-center gap-1 rounded-lg px-2.5 text-xs font-bold shadow-sm transition active:scale-95 disabled:opacity-40 ${
+        active
+          ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-200'
+          : 'border border-slate-200 bg-white text-slate-600 active:bg-slate-50'
+      }`}
+    >
+      {children}
+      {label}
+    </button>
   )
 }
