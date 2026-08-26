@@ -64,6 +64,10 @@ export interface DbLicenseKey {
   used_at: string | null
   expires_at: string | null
   notes: string
+  // Which product redeeming this key entitles the customer to. Copied onto
+  // customers.vertical by onboardAction.
+  vertical: CustomerVertical
+  customer_id: string | null
   created_at: string
 }
 
@@ -267,6 +271,8 @@ export interface LicenseKeyDTO {
   usedAt: string | null
   expiresAt: string | null
   notes: string
+  vertical: CustomerVertical
+  customerId: string | null
   createdAt: string
 }
 

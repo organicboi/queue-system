@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession, getProfile } from '@/lib/dal/session'
 import { getBranches, getActiveBranchId } from '@/lib/dal/branches'
+import { verticalHome } from '@/lib/verticals'
 import { Sidebar } from '@/components/admin/Sidebar'
 import { TopBar } from '@/components/admin/TopBar'
 
@@ -10,9 +11,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const profile = await getProfile()
   if (!profile) redirect('/onboard')
-  // School tenants have their own product under /school; the business queue
-  // pages would show them an empty, irrelevant dashboard.
-  if (profile.vertical === 'school') redirect('/school/dashboard')
+  // School tenants have their own product under /school; the hotel queue pages
+  // would show them an empty, irrelevant dashboard.
+  if (profile.vertical === 'school') redirect(verticalHome(profile.vertical, profile.role))
   if (profile.role !== 'admin') redirect('/branch')
 
   const [branches, activeBranchId] = await Promise.all([

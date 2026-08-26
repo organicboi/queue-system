@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getSession, getProfile } from '@/lib/dal/session'
+import { verticalHome } from '@/lib/verticals'
 import { getAssignedBranch } from '@/lib/dal/users'
 import { getCounters } from '@/lib/dal/counters'
 import { BranchSidebar } from '@/components/branch/BranchSidebar'
@@ -11,6 +12,9 @@ export default async function BranchOperatorLayout({ children }: { children: Rea
 
   const profile = await getProfile()
   if (!profile) redirect('/onboard')
+  // Checked before the role branch below: a school branch_user belongs in the
+  // school product, not on the hotel operator console.
+  if (profile.vertical === 'school') redirect(verticalHome(profile.vertical, profile.role))
   if (profile.role === 'admin') redirect('/dashboard')
 
   const branch = await getAssignedBranch(profile)

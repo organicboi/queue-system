@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { VERTICALS, DEFAULT_VERTICAL, verticalMeta } from '@/lib/verticals'
+import type { CustomerVertical } from '@/lib/db/types'
 import { createCustomerAction, toggleCustomerActiveAction, changePlanAction } from '@/lib/actions/distributor'
 import { Plus, Power, Copy, Check, Key } from 'lucide-react'
 import { toast } from 'sonner'
@@ -24,6 +26,10 @@ const INIT: { error?: string; licenseKey?: string } = {}
 export function DistributorCustomersManager({ customers, plans }: Props) {
   const [open, setOpen] = useState(false)
   const [planId, setPlanId] = useState(plans[0]?.id ?? '')
+  // The key issued with this customer carries the system, and the customer row
+  // is stamped with it too — so the tenant lands in the right product the very
+  // first time they sign in.
+  const [vertical, setVertical] = useState<CustomerVertical>(DEFAULT_VERTICAL)
   const [copied, setCopied] = useState(false)
   const [state, formAction, pending] = useActionState(createCustomerAction, INIT)
 
@@ -96,6 +102,25 @@ export function DistributorCustomersManager({ customers, plans }: Props) {
                   <input type="hidden" name="planId" value={planId} />
                 </div>
                 <div className="space-y-1.5">
+                  <Label>System</Label>
+                  <Select
+                    value={vertical}
+                    onValueChange={(v) => setVertical(v as CustomerVertical)}
+                  >
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Select system" /></SelectTrigger>
+                    <SelectContent>
+                      {VERTICALS.map(v => (
+                        <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <input type="hidden" name="vertical" value={vertical} />
+                  <p className="text-xs text-muted-foreground">
+                    {verticalMeta(vertical).description}. This customer can only sign in
+                    to the system chosen here.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
                   <Label htmlFor="businessName">Business Name</Label>
                   <Input id="businessName" name="businessName" placeholder="Acme Corp" required />
                   <p className="text-[11px] text-muted-foreground">The client can update this after signing in.</p>
@@ -123,6 +148,19 @@ export function DistributorCustomersManager({ customers, plans }: Props) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">{c.name}</p>
                 <div className="flex items-center gap-2 mt-0.5">
+                  {/* Which product this tenant signs in to. Read-only here: it is
+                      set by the key they redeemed, and a live tenant already has
+                      rows in that product's tables. */}
+                  <span
+                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                      c.vertical === 'school'
+                        ? 'bg-violet-100 text-violet-700'
+                        : 'bg-sky-100 text-sky-700'
+                    }`}
+                    title={verticalMeta(c.vertical).label}
+                  >
+                    {verticalMeta(c.vertical).short.toUpperCase()}
+                  </span>
                   {c.planName && <span className="text-xs text-muted-foreground">{c.planName}</span>}
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                     c.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'

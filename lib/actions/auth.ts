@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/db/server'
 import { getProfile } from '@/lib/dal/session'
+import { verticalHome } from '@/lib/verticals'
 
 export interface AuthResult {
   error?: string
@@ -31,10 +32,11 @@ export async function loginAction(_prev: AuthResult, formData: FormData): Promis
   if (error) return { error: 'Invalid email or password' }
 
   const profile = await getProfile()
-  // A school tenant never sees the business queue product, and vice versa —
-  // the two share tenancy and login but nothing else.
-  if (profile?.vertical === 'school') redirect('/school/dashboard')
-  redirect(profile?.role === 'branch_user' ? '/branch' : '/dashboard')
+  // A school tenant never sees the hotel queue product, and vice versa — the
+  // two share tenancy and login but nothing else. verticalHome() is the single
+  // definition of where each lands, shared with every cross-product guard so
+  // the two can never disagree and bounce a user back and forth.
+  redirect(verticalHome(profile?.vertical, profile?.role))
 }
 
 // ── Logout ────────────────────────────────────────────────────
@@ -73,7 +75,7 @@ export async function onboardAction(_prev: AuthResult, formData: FormData): Prom
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: licenseRow } = await service
     .from('license_keys')
-    .select('id, plan_id, used_by, expires_at, customer_id, plans(name)')
+    .select('id, plan_id, used_by, expires_at, customer_id, vertical, plans(name)')
     .eq('key', parsed.data.licenseKey)
     .single() as { data: any }
 
@@ -106,6 +108,9 @@ export async function onboardAction(_prev: AuthResult, formData: FormData): Prom
         business_name: parsed.data.businessName,
         slug,
         plan_id: licenseRow.plan_id,
+        // The key decides the product. This is the only place a customer's
+        // vertical is set on the standalone path.
+        vertical: licenseRow.vertical ?? 'business',
         onboarded_at: new Date().toISOString(),
       })
       .select().single()
@@ -153,7 +158,13 @@ export async function onboardAction(_prev: AuthResult, formData: FormData): Prom
   // account behind it actually exists at this point, so a mid-flow failure
   // above never leaves a customer looking onboarded with nobody behind it.
   if (isPreLinked) {
-    await service.from('customers').update({ onboarded_at: new Date().toISOString() }).eq('id', customerId)
+    // The vertical is re-asserted from the key rather than trusted from the
+    // customer row: setLicenseKeyVerticalAction writes both, but a key issued
+    // before that action existed carries the authoritative value.
+    await service.from('customers').update({
+      onboarded_at: new Date().toISOString(),
+      vertical: licenseRow.vertical ?? 'business',
+    }).eq('id', customerId)
   }
 
   // 5. Mark license key as used
@@ -169,7 +180,10 @@ export async function onboardAction(_prev: AuthResult, formData: FormData): Prom
       .insert({ customer_id: customerId, name: 'Main Branch', location_note: 'Default branch' })
       .select().single()
 
-    if (branch) {
+    // queue_state is the hotel product's per-branch serving pointer. A school
+    // branch serves from N windows at once and never reads it, so it is only
+    // created for the product that uses it.
+    if (branch && (licenseRow.vertical ?? 'business') !== 'school') {
       await service.from('queue_state').insert({ customer_id: customerId, branch_id: branch.id })
     }
   }

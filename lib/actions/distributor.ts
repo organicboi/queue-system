@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createSupabaseServiceClient } from '@/lib/db/server'
 import { requireDistributor } from '@/lib/dal/session'
-import type { DistributorStats } from '@/lib/db/types'
+import type { CustomerVertical, DistributorStats } from '@/lib/db/types'
+import { DEFAULT_VERTICAL, VERTICALS, isVertical } from '@/lib/verticals'
 
 const LICENSE_KEY_VALIDITY_DAYS = 30
 
@@ -13,9 +14,16 @@ function defaultLicenseKeyExpiry(): string {
 }
 
 // ── Create customer + issue license key ───────────────────────
+const VerticalSchema = z
+  .enum(VERTICALS.map((v) => v.value) as [CustomerVertical, ...CustomerVertical[]])
+  .default(DEFAULT_VERTICAL)
+
 const CreateCustomerSchema = z.object({
   businessName: z.string().min(1, 'Business name is required').max(100),
   planId: z.string().min(1, 'Please select a plan'),
+  // Which product this customer is being sold. Chosen here, at the point of
+  // sale, rather than patched onto the customer after onboarding.
+  vertical: VerticalSchema,
 })
 
 export async function createCustomerAction(
@@ -27,6 +35,7 @@ export async function createCustomerAction(
   const parsed = CreateCustomerSchema.safeParse({
     businessName: formData.get('businessName'),
     planId: formData.get('planId'),
+    vertical: formData.get('vertical') ?? undefined,
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
@@ -44,6 +53,7 @@ export async function createCustomerAction(
       business_name: parsed.data.businessName,
       slug,
       plan_id: parsed.data.planId,
+      vertical: parsed.data.vertical,
     })
     .select().single()
 
@@ -55,7 +65,9 @@ export async function createCustomerAction(
     .insert({ customer_id: customer.id, name: 'Main Branch' })
     .select().single()
 
-  if (branch) {
+  // queue_state is the hotel product's per-branch serving pointer; a school
+  // branch serves from N windows at once and never reads it.
+  if (branch && parsed.data.vertical !== 'school') {
     await service.from('queue_state').insert({ customer_id: customer.id, branch_id: branch.id })
   }
 
@@ -71,6 +83,7 @@ export async function createCustomerAction(
     key,
     plan_id: parsed.data.planId,
     customer_id: customer.id,
+    vertical: parsed.data.vertical,
     notes: `Created for ${parsed.data.businessName}`,
     expires_at: defaultLicenseKeyExpiry(),
   })
@@ -89,9 +102,11 @@ export async function createCustomerAction(
 // ── Generate license key ──────────────────────────────────────
 export async function generateLicenseKeyAction(
   planId: string,
-  notes?: string
+  notes?: string,
+  vertical: CustomerVertical = DEFAULT_VERTICAL
 ): Promise<{ error?: string; key?: string }> {
   await requireDistributor()
+  if (!isVertical(vertical)) return { error: 'Unknown system' }
   const service = createSupabaseServiceClient()
 
   const key = [
@@ -104,6 +119,7 @@ export async function generateLicenseKeyAction(
   const { data, error } = await service.from('license_keys').insert({
     key,
     plan_id: planId,
+    vertical,
     notes: notes ?? '',
     expires_at: defaultLicenseKeyExpiry(),
   }).select().single()
@@ -111,7 +127,52 @@ export async function generateLicenseKeyAction(
   if (error || !data) return { error: 'Failed to generate key' }
 
   revalidatePath('/distributor')
+  revalidatePath('/distributor/keys')
   return { key: data.key }
+}
+
+// ── Change the system on an unused key ────────────────────────
+// Only while the key is unredeemed. Once used_by is set the tenant exists and
+// may already hold rows in that product's tables, so flipping the key would
+// leave the customer's vertical and its data disagreeing — the customer would
+// open an empty product with its real data stranded in the other one.
+export async function setLicenseKeyVerticalAction(
+  keyId: string,
+  vertical: CustomerVertical
+): Promise<{ error?: string }> {
+  await requireDistributor()
+  if (!isVertical(vertical)) return { error: 'Unknown system' }
+
+  const service = createSupabaseServiceClient()
+
+  const { data: existing } = await service
+    .from('license_keys')
+    .select('id, used_by, customer_id')
+    .eq('id', keyId)
+    .maybeSingle()
+
+  if (!existing) return { error: 'Key not found' }
+  if ((existing as { used_by: string | null }).used_by) {
+    return { error: 'This key has already been redeemed — its system is locked' }
+  }
+
+  const { error } = await service
+    .from('license_keys')
+    .update({ vertical })
+    .eq('id', keyId)
+
+  if (error) return { error: 'Could not change the system for this key' }
+
+  // A pre-created customer must move with its key, or redeeming it would hand
+  // the customer a product its own row disagrees with.
+  const customerId = (existing as { customer_id: string | null }).customer_id
+  if (customerId) {
+    await service.from('customers').update({ vertical }).eq('id', customerId)
+  }
+
+  revalidatePath('/distributor/keys')
+  revalidatePath('/distributor/customers')
+  return {}
 }
 
 // ── Toggle customer active ────────────────────────────────────
