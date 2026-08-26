@@ -30,6 +30,10 @@ export interface SchoolCounterView {
   serviceDate?: string
   current?: SchoolTokenDTO | null
   waiting?: SchoolTokenDTO[]
+  // Called, nobody came. Kept out of `waiting` so the lane stays a true queue,
+  // but surfaced separately: a visitor who missed their call and came back is
+  // routine, and without this the console shows no trace of them at all.
+  noShows?: SchoolTokenDTO[]
   departments?: { id: string; nameEn: string; nameAr: string; prefix: string; color: string }[]
   // Every active department of the branch — what staff may issue a walk-in
   // token against. Wider than `departments` (which is only what this window
@@ -64,8 +68,10 @@ export async function fetchSchoolCounterViewAction(counterToken: string): Promis
 
   const departmentIds = ((links ?? []) as { department_id: string }[]).map((l) => l.department_id)
 
-  const [{ data: departments }, { data: allDepartments }, { data: current }, { data: waiting }, { count: servedToday }] =
-    await Promise.all([
+  const [
+    { data: departments }, { data: allDepartments }, { data: current },
+    { data: waiting }, { data: noShows }, { count: servedToday },
+  ] = await Promise.all([
       departmentIds.length
         ? supabase
             .from('school_departments')
@@ -95,6 +101,17 @@ export async function fetchSchoolCounterViewAction(counterToken: string): Promis
             .order('joined_at', { ascending: true })
             .limit(40)
         : Promise.resolve({ data: [] }),
+      departmentIds.length
+        ? supabase
+            .from('school_tokens')
+            .select('*')
+            .eq('branch_id', c.branch_id)
+            .eq('service_date', serviceDate as string)
+            .in('department_id', departmentIds)
+            .eq('status', 'no-show')
+            .order('called_at', { ascending: false })
+            .limit(20)
+        : Promise.resolve({ data: [] }),
       supabase
         .from('school_tokens')
         .select('*', { count: 'exact', head: true })
@@ -118,6 +135,7 @@ export async function fetchSchoolCounterViewAction(counterToken: string): Promis
     serviceDate: serviceDate as string,
     current: current ? toSchoolTokenDTO(current as DbSchoolToken) : null,
     waiting: ((waiting ?? []) as DbSchoolToken[]).map(toSchoolTokenDTO),
+    noShows: ((noShows ?? []) as DbSchoolToken[]).map(toSchoolTokenDTO),
     departments: deptRows
       .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
       .map((d) => ({ id: d.id, nameEn: d.name_en, nameAr: d.name_ar, prefix: d.prefix, color: d.color })),

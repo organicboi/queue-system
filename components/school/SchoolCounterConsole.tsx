@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import {
-  MonitorCheck, Delete, PhoneCall, BellRing, CheckCircle2, PauseCircle, ArrowRightLeft, Plus,
+  MonitorCheck, PhoneCall, BellRing, CheckCircle2, PauseCircle, ArrowRightLeft, Plus,
 } from 'lucide-react'
 import {
-  ConsoleFrame, ConsoleLoading, TaskSplit, KeypadKey, ElapsedPill,
+  ConsoleFrame, ConsoleLoading, TaskSplit, ElapsedPill,
   ConfirmCancel, useNow, minutesSince,
 } from '@/components/counter/console'
 import {
@@ -25,10 +25,13 @@ const POLL_MS = 5000
 const HEARTBEAT_MS = 20000
 
 /*
- * The calling station — the brochure's "software keypad", running on any
- * operator PC. Type a token and Call, or just press Next and let the system
- * pick. The same page is the receiver for a USB calling keypad, which the OS
- * presents as a keyboard (see the keydown handler below).
+ * The calling station, running on any operator PC.
+ *
+ * Ordered by how often a clerk actually does it: press Next, tap the token you
+ * want out of the lane, or hand a walk-in a new one. A token number can still
+ * be typed, for a queue deeper than the lane shows and for whatever a USB
+ * calling keypad sends — that hardware enumerates as a keyboard and lands in
+ * the window keydown handler below, independent of anything on screen.
  */
 export function SchoolCounterConsole({ counterToken, initial }: {
   counterToken: string
@@ -64,6 +67,7 @@ export function SchoolCounterConsole({ counterToken, initial }: {
   const waiting = view.waiting ?? []
   const departments = view.departments ?? []
   const issuable = view.issuable ?? []
+  const noShows = view.noShows ?? []
   const deptById = new Map(departments.map((d) => [d.id, d]))
 
   const run = useCallback((
@@ -119,9 +123,8 @@ export function SchoolCounterConsole({ counterToken, initial }: {
    * Hardware calling keypad. A USB keypad enumerates as a plain keyboard, so
    * no driver or endpoint is needed — the keystrokes land here. Two things
    * this has to get right:
-   *   - the on-screen display field is focusable (inputMode="none" hides the
-   *     OS keyboard but doesn't stop focus), so events from an input are
-   *     ignored to avoid double-entry;
+   *   - the token field is focusable and handles its own typing, so events
+   *     originating in an input are ignored here to avoid double-entry;
    *   - keys are read as a stream, not per-keystroke state, so a keypad that
    *     sends its digits in a burst behaves the same as a person typing.
    */
@@ -290,58 +293,67 @@ export function SchoolCounterConsole({ counterToken, initial }: {
               )}
             </div>
 
-            {/* Keypad — design system v5 §5.4. Pinned LTR: 1-2-3 / 4-5-6 is a
-                physical convention that does not mirror. */}
-            <div dir="ltr" className="flex min-h-0 flex-1 flex-col gap-2">
-              <div className="shrink-0 rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-2.5 focus-within:border-accent-400 focus-within:ring-4 focus-within:ring-accent-600/10">
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, MAX_CODE_LENGTH))}
-                  inputMode="none"
-                  placeholder="Token no."
-                  aria-label="Token number"
-                  className="w-full bg-transparent text-center font-mono text-3xl font-black tabular-nums text-slate-800 outline-none placeholder:font-sans placeholder:text-base placeholder:font-medium placeholder:text-slate-400"
-                />
-              </div>
+            {/*
+             * NEXT is the whole job: it is what a clerk presses for all but a
+             * handful of visitors, so it gets the largest target on the screen.
+             * The 3x4 keypad that used to live here took ~60% of the console to
+             * serve a case that is now one tap in the waiting lane — and it
+             * could never type a letter, so it couldn't even reach F101 on a
+             * touchscreen. The USB calling keypad is unaffected: it enumerates
+             * as a keyboard and lands in the window keydown handler above,
+             * which never went through these buttons.
+             */}
+            <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+              <button
+                type="button"
+                disabled={pending || departments.length === 0}
+                onClick={callNext}
+                className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-3xl bg-accent-600 text-white shadow-sm transition active:translate-y-px active:bg-accent-700 disabled:opacity-40"
+              >
+                <BellRing className="size-9" />
+                <span className="text-2xl font-black tracking-tight">Next</span>
+                <span className="text-xs font-medium text-accent-50/80">
+                  {waiting.length > 0
+                    ? `${waiting.length} waiting`
+                    : 'Nobody is waiting'}
+                </span>
+              </button>
 
-              <div className="grid min-h-0 flex-1 grid-cols-4 gap-2">
-                <div className="col-span-3 grid min-h-0 grid-cols-3 grid-rows-4 gap-2">
-                  {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
-                    <KeypadKey key={d} onTap={() => setCode((p) => (p + d).slice(0, MAX_CODE_LENGTH))}>
-                      {d}
-                    </KeypadKey>
-                  ))}
-                  <KeypadKey variant="danger" onTap={() => setCode('')}>
-                    Clear
-                  </KeypadKey>
-                  <KeypadKey onTap={() => setCode((p) => (p + '0').slice(0, MAX_CODE_LENGTH))}>
-                    0
-                  </KeypadKey>
-                  <KeypadKey variant="muted" onTap={() => setCode((p) => p.slice(0, -1))}>
-                    <Delete className="size-6" />
-                  </KeypadKey>
-                </div>
+              <button
+                type="button"
+                disabled={pending || issuable.length === 0}
+                onClick={() => setIssueOpen(true)}
+                className="flex h-14 shrink-0 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white text-sm font-bold text-slate-700 transition active:translate-y-px hover:border-accent-400 hover:text-accent-700 disabled:opacity-40"
+              >
+                <Plus className="size-5" />
+                New token for a walk-in
+              </button>
 
-                <div className="grid min-h-0 grid-rows-2 gap-2">
-                  <button
-                    type="button"
-                    disabled={pending || !code.trim()}
-                    onClick={callTyped}
-                    className="flex min-h-0 flex-col items-center justify-center gap-1 rounded-2xl bg-slate-700 text-base font-bold text-white shadow-sm transition active:translate-y-px active:bg-slate-800 disabled:opacity-40"
-                  >
-                    <PhoneCall className="size-5" />
-                    Call
-                  </button>
-                  <button
-                    type="button"
-                    disabled={pending || departments.length === 0}
-                    onClick={callNext}
-                    className="flex min-h-0 flex-col items-center justify-center gap-1 rounded-2xl bg-accent-600 text-base font-bold text-white shadow-sm transition active:translate-y-px active:bg-accent-700 disabled:opacity-40"
-                  >
-                    <BellRing className="size-5" />
-                    Next
-                  </button>
+              {/* Kept for the two cases the lane can't cover: a queue deeper
+                  than the lane shows, and whatever a USB keypad types. Numeric
+                  inputMode so a touchscreen raises the OS pad on demand rather
+                  than a grid sitting there all day. */}
+              <div dir="ltr" className="flex shrink-0 items-stretch gap-2">
+                <div className="flex-1 rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-2 focus-within:border-accent-400 focus-within:ring-4 focus-within:ring-accent-600/10">
+                  <input
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, MAX_CODE_LENGTH))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); callTyped() } }}
+                    inputMode="numeric"
+                    placeholder="Find a token no."
+                    aria-label="Token number"
+                    className="w-full bg-transparent text-center font-mono text-2xl font-black tabular-nums text-slate-800 outline-none placeholder:font-sans placeholder:text-sm placeholder:font-medium placeholder:text-slate-400"
+                  />
                 </div>
+                <button
+                  type="button"
+                  disabled={pending || !code.trim()}
+                  onClick={callTyped}
+                  className="flex w-28 shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-slate-700 text-sm font-bold text-white shadow-sm transition active:translate-y-px active:bg-slate-800 disabled:opacity-30"
+                >
+                  <PhoneCall className="size-4" />
+                  Call
+                </button>
               </div>
             </div>
           </div>
@@ -356,17 +368,7 @@ export function SchoolCounterConsole({ counterToken, initial }: {
               <p className="ms-auto text-xs text-slate-400">
                 <span className="tabular-nums">{view.servedToday ?? 0}</span> served today
               </p>
-              {/* Walk-in issuance: hand a token to someone who never used the
-                  lobby kiosk, or can't. */}
-              <button
-                type="button"
-                disabled={pending || issuable.length === 0}
-                onClick={() => setIssueOpen(true)}
-                className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 transition active:scale-95 hover:border-accent-400 hover:text-accent-700 disabled:opacity-40"
-              >
-                <Plus className="size-3.5" />
-                New token
-              </button>
+
             </div>
 
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pe-1">
@@ -408,6 +410,43 @@ export function SchoolCounterConsole({ counterToken, initial }: {
                     </button>
                   )
                 })
+              )}
+
+              {/* Called, nobody came. They come back — a queue ticket is not a
+                  cancellation — and this is the only place the console admits
+                  they exist. One tap calls them again. */}
+              {noShows.length > 0 && (
+                <div className="mt-3 space-y-1.5 border-t border-slate-200 pt-3">
+                  <p className="px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                    No shows · {noShows.length}
+                  </p>
+                  {noShows.map((token) => {
+                    const dept = deptById.get(token.departmentId)
+                    return (
+                      <button
+                        key={token.id}
+                        type="button"
+                        disabled={pending}
+                        onClick={() => callCode(token.tokenCode)}
+                        className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-2 text-start transition active:scale-[0.99] hover:border-accent-400 hover:bg-accent-50 disabled:opacity-60"
+                      >
+                        <span
+                          dir="ltr"
+                          className="flex size-10 shrink-0 items-center justify-center rounded-xl font-mono text-xs font-black tabular-nums text-white opacity-60"
+                          style={{ backgroundColor: dept?.color ?? '#475569' }}
+                        >
+                          {token.tokenCode}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-semibold text-slate-600">
+                            {dept?.nameEn ?? 'Department'}
+                          </p>
+                          <p className="truncate text-[11px] text-slate-400">Didn&apos;t come · tap to call again</p>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               )}
             </div>
           </>
