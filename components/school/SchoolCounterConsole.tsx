@@ -220,18 +220,22 @@ export function SchoolCounterConsole({ counterToken, initial }: {
             <div
               className={
                 current
-                  ? 'shrink-0 rounded-2xl border border-accent-200 bg-accent-50 p-4'
-                  : 'shrink-0 rounded-2xl border border-slate-200 bg-white p-4'
+                  ? 'flex min-h-0 flex-1 flex-col rounded-2xl border border-accent-200 bg-accent-50 p-4'
+                  : 'flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-200 bg-white p-4'
               }
             >
-              <div className="flex items-center gap-3">
+              {/* Takes the slack the Next tile no longer does. The number is
+                  the one thing on this panel worth reading from a step back,
+                  so it scales with the space instead of a button doing it. */}
+              <div className="flex flex-1 items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
                     Now serving
                   </p>
                   <p
                     dir="ltr"
-                    className="font-mono text-5xl font-black tabular-nums leading-none text-slate-800"
+                    className="font-mono font-black tabular-nums leading-none text-slate-800"
+                    style={{ fontSize: 'clamp(2.75rem, 7vh, 5rem)' }}
                   >
                     {current?.tokenCode ?? '—'}
                   </p>
@@ -303,19 +307,24 @@ export function SchoolCounterConsole({ counterToken, initial }: {
              * as a keyboard and lands in the window keydown handler above,
              * which never went through these buttons.
              */}
-            <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+            {/*
+             * Bento: three tiles, sized by how often each is used rather than
+             * stretched to fill. Next is the largest — three of five columns,
+             * both rows — but capped, because a button the height of the screen
+             * reads as an empty panel, not as emphasis. Spare vertical space
+             * goes to the token number above, where it is information.
+             */}
+            <div className="grid h-44 shrink-0 grid-cols-5 grid-rows-2 gap-2.5">
               <button
                 type="button"
                 disabled={pending || departments.length === 0}
                 onClick={callNext}
-                className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-3xl bg-accent-600 text-white shadow-sm transition active:translate-y-px active:bg-accent-700 disabled:opacity-40"
+                className="col-span-3 row-span-2 flex flex-col items-center justify-center gap-1.5 rounded-3xl bg-accent-600 text-white shadow-sm transition active:translate-y-px active:bg-accent-700 disabled:opacity-40"
               >
-                <BellRing className="size-9" />
+                <BellRing className="size-8" />
                 <span className="text-2xl font-black tracking-tight">Next</span>
                 <span className="text-xs font-medium text-accent-50/80">
-                  {waiting.length > 0
-                    ? `${waiting.length} waiting`
-                    : 'Nobody is waiting'}
+                  {waiting.length > 0 ? `${waiting.length} waiting` : 'Nobody is waiting'}
                 </span>
               </button>
 
@@ -323,35 +332,37 @@ export function SchoolCounterConsole({ counterToken, initial }: {
                 type="button"
                 disabled={pending || issuable.length === 0}
                 onClick={() => setIssueOpen(true)}
-                className="flex h-14 shrink-0 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white text-sm font-bold text-slate-700 transition active:translate-y-px hover:border-accent-400 hover:text-accent-700 disabled:opacity-40"
+                className="col-span-2 flex flex-col items-center justify-center gap-1 rounded-3xl border-2 border-dashed border-slate-300 bg-white text-slate-700 transition active:translate-y-px hover:border-accent-400 hover:bg-accent-50/40 hover:text-accent-700 disabled:opacity-40"
               >
-                <Plus className="size-5" />
-                New token for a walk-in
+                <Plus className="size-6" />
+                <span className="text-sm font-bold leading-tight">New token</span>
+                <span className="text-[11px] font-medium text-slate-400">for a walk-in</span>
               </button>
 
-              {/* Kept for the two cases the lane can't cover: a queue deeper
-                  than the lane shows, and whatever a USB keypad types. Numeric
-                  inputMode so a touchscreen raises the OS pad on demand rather
-                  than a grid sitting there all day. */}
-              <div dir="ltr" className="flex shrink-0 items-stretch gap-2">
-                <div className="flex-1 rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-2 focus-within:border-accent-400 focus-within:ring-4 focus-within:ring-accent-600/10">
-                  <input
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, MAX_CODE_LENGTH))}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); callTyped() } }}
-                    inputMode="numeric"
-                    placeholder="Find a token no."
-                    aria-label="Token number"
-                    className="w-full bg-transparent text-center font-mono text-2xl font-black tabular-nums text-slate-800 outline-none placeholder:font-sans placeholder:text-sm placeholder:font-medium placeholder:text-slate-400"
-                  />
-                </div>
+              {/* The two cases the lane can't cover: a queue deeper than it
+                  shows, and whatever a USB keypad types. inputMode="numeric"
+                  raises the OS pad on demand rather than a grid sitting there
+                  all day. */}
+              <div
+                dir="ltr"
+                className="col-span-2 flex items-stretch gap-2 rounded-3xl border border-slate-200 bg-white p-1.5"
+              >
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, MAX_CODE_LENGTH))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); callTyped() } }}
+                  inputMode="numeric"
+                  placeholder="Token no."
+                  aria-label="Token number"
+                  className="min-w-0 flex-1 rounded-2xl bg-slate-50 px-3 text-center font-mono text-xl font-black tabular-nums text-slate-800 outline-none transition focus:bg-white focus:ring-2 focus:ring-accent-500/40 placeholder:font-sans placeholder:text-xs placeholder:font-medium placeholder:text-slate-400"
+                />
                 <button
                   type="button"
                   disabled={pending || !code.trim()}
                   onClick={callTyped}
-                  className="flex w-28 shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-slate-700 text-sm font-bold text-white shadow-sm transition active:translate-y-px active:bg-slate-800 disabled:opacity-30"
+                  className="flex w-20 shrink-0 items-center justify-center gap-1 rounded-2xl bg-slate-700 text-xs font-bold text-white transition active:translate-y-px active:bg-slate-800 disabled:opacity-25"
                 >
-                  <PhoneCall className="size-4" />
+                  <PhoneCall className="size-3.5" />
                   Call
                 </button>
               </div>
