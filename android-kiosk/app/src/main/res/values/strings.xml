@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">VibeQueue Display</string>
+
+    <!--
+        The page this device opens on boot. One APK, two roles: leave it on
+        /display for a TV board, point it at /school/kiosk/<branchToken> for a
+        ticket terminal. It is a resource rather than a constant so a build for
+        the other role is a one-line change here.
+    -->
+    <string name="start_url" translatable="false">https://queue-system-gray.vercel.app/display</string>
 </resources>

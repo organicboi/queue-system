@@ -14,7 +14,8 @@ import {
   schoolKioskMoveTokenAction, schoolKioskSetPriorityAction,
 } from '@/lib/actions/school-tokens'
 import { fetchSchoolKioskFeedAction } from '@/lib/actions/school-read'
-import { printSchoolTicket, SCHOOL_PAPER } from '@/lib/school/printTicket'
+import { printSchoolTicket, prepareTicketLogo, SCHOOL_PAPER } from '@/lib/school/printTicket'
+import type { TicketLogo } from '@/lib/school/printTicket'
 import { formatDate, formatTime } from '@/lib/queueUtils'
 import type {
   SchoolDepartmentDTO, SchoolSettingsDTO, SchoolTokenDTO, SchoolTokenStatus,
@@ -140,6 +141,7 @@ export function SchoolKiosk({
   // gap between the tap and the job actually reaching the head of the chain.
   const [printBusy, setPrintBusy] = useState<string[]>([])
   const [printFailedFor, setPrintFailedFor] = useState<string | null>(null)
+  const [ticketLogo, setTicketLogo] = useState<TicketLogo | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
   const printChain = useRef<Promise<void>>(Promise.resolve())
   const jobKey = useRef(0)
@@ -205,14 +207,18 @@ export function SchoolKiosk({
 
   const heroPrinting = !!hero && printBusy.includes(hero.token.id)
 
-  // Preload the logo: the first print fires within ~100ms of the tap, too fast
-  // for a cold image decode, and html2canvas would capture an empty box.
+  // Convert the logo to the 1-bit bitmap the head will actually print, once
+  // per kiosk session. This doubles as the preload it replaces: the first
+  // print fires within ~100ms of the tap, too fast for a cold image decode,
+  // and a data URL needs neither a fetch nor a CORS round-trip at capture time.
   useEffect(() => {
     const url = settings?.logoUrl
     if (!url) return
-    const img = new window.Image()
-    img.crossOrigin = 'anonymous'
-    img.src = url
+    let cancelled = false
+    prepareTicketLogo(url).then((logo) => {
+      if (!cancelled) setTicketLogo(logo)
+    })
+    return () => { cancelled = true }
   }, [settings?.logoUrl])
 
   // Auto-reset so the next visitor always meets a neutral screen. The grid
@@ -587,11 +593,11 @@ export function SchoolKiosk({
           <div
             style={{
               width: `${SCHOOL_PAPER.printableMm}mm`, boxSizing: 'border-box',
-              // 3 mm of lead-in, 12 mm of trailing feed: that bottom band is
+              // 3 mm of lead-in, then the trailing feed: that bottom band is
               // not padding for looks, it is the paper between the head and
               // the tear bar. Without it the date line is still under the bar
               // when the visitor tears, and the tear lands through the type.
-              padding: '3mm 2mm 12mm', margin: '0 auto',
+              padding: `3mm 2mm ${SCHOOL_PAPER.tearFeedMm}mm`, margin: '0 auto',
               fontFamily: "'Courier New', Courier, monospace",
               color: '#000', textAlign: 'center',
               display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -600,10 +606,13 @@ export function SchoolKiosk({
             {settings?.logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={settings.logoUrl}
+                src={ticketLogo?.src ?? settings.logoUrl}
                 alt=""
-                crossOrigin="anonymous"
-                style={{ width: '14mm', height: 'auto', margin: '0 0 2mm' }}
+                crossOrigin={ticketLogo ? undefined : 'anonymous'}
+                style={{
+                  width: `${ticketLogo?.widthMm ?? 14}mm`, height: 'auto',
+                  margin: '0 0 2mm',
+                }}
               />
             )}
             <p style={{ fontSize: '10pt', fontWeight: 700, lineHeight: 1.25, margin: '0 0 3mm' }}>

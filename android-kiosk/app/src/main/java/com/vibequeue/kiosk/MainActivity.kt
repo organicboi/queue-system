@@ -2,7 +2,10 @@ package com.vibequeue.kiosk
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -19,8 +22,25 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import java.util.Locale
 
-private const val DISPLAY_URL = "https://queue-system-gray.vercel.app/display"
 private const val RETRY_DELAY_MS = 5_000L
+
+// The only app this kiosk is allowed to hand off to. A WebView that will
+// launch whatever an `intent:` URL names is a launcher for anything installed,
+// driven by a remote page; naming the one package we actually print through
+// keeps that door shut.
+private const val RAWBT_PACKAGE = "ru.a402d.rawbtprinter"
+
+/*
+ * How long RawBT gets the foreground before the kiosk takes it back.
+ *
+ * RawBT is an Activity, so printing necessarily brings it forward and leaves
+ * the lobby terminal showing a printer app that the next visitor cannot get
+ * out of. Nothing in the web page can prevent that — the hand-off is what
+ * prints the ticket. So the kiosk reclaims the foreground itself once the job
+ * has had time to reach the printer. Long enough that the spool completes,
+ * short enough that the visitor barely registers the flash.
+ */
+private const val RECLAIM_FOREGROUND_MS = 2_500L
 
 class TtsInterface(context: Context) : TextToSpeech.OnInitListener {
     private val tts = TextToSpeech(context, this)
@@ -63,20 +83,89 @@ class MainActivity : Activity() {
             }
             addJavascriptInterface(ttsInterface, "AndroidTTS")
             webViewClient = object : WebViewClient() {
+                // A WebView cannot follow an `intent:` URL on its own — it
+                // fails with ERR_UNKNOWN_URL_SCHEME, which is what silently
+                // breaks RawBT printing inside a wrapper. Catch every
+                // non-http scheme here and hand it to Android instead.
+                override fun shouldOverrideUrlLoading(
+                    view: WebView,
+                    request: WebResourceRequest,
+                ): Boolean = when (request.url.scheme?.lowercase()) {
+                    "http", "https" -> false
+                    else -> {
+                        dispatchToPrinter(request.url)
+                        true
+                    }
+                }
+
                 override fun onReceivedError(
                     view: WebView,
                     request: WebResourceRequest,
                     error: WebResourceError,
                 ) {
-                    if (request.isForMainFrame) {
+                    // Only a failed page load is worth retrying. Reloading on
+                    // anything else would restart the kiosk under the visitor
+                    // every time a hand-off did not resolve.
+                    val isPageLoad = request.url.scheme?.lowercase() in setOf("http", "https")
+                    if (request.isForMainFrame && isPageLoad) {
                         handler.postDelayed({ view.reload() }, RETRY_DELAY_MS)
                     }
                 }
             }
-            loadUrl(DISPLAY_URL)
+            loadUrl(getString(R.string.start_url))
         }
 
         setContentView(webView)
+    }
+
+    /* Hands a print job to RawBT, then takes the screen back. */
+    private fun dispatchToPrinter(uri: Uri) {
+        val intent = try {
+            Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
+        } catch (_: Exception) {
+            return
+        }
+
+        // `parseUri` will happily carry an explicit component or selector out
+        // of the page's URL. Strip both and accept only RawBT: the page gets
+        // to say "print this", not "start that".
+        intent.component = null
+        intent.selector = null
+        if (intent.`package` != RAWBT_PACKAGE) return
+
+        try {
+            startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            // RawBT missing: the ticket is already committed server-side and
+            // shown on screen, so there is nothing to recover here — and no
+            // reason to leave the kiosk in the background either.
+            return
+        }
+        handler.postDelayed({ reclaimForeground() }, RECLAIM_FOREGROUND_MS)
+    }
+
+    /*
+     * Brings this activity back to the front. MainActivity is singleTask, so
+     * REORDER_TO_FRONT moves the existing instance rather than building a new
+     * one — the WebView keeps its page, its scroll position and the ticket the
+     * visitor is looking at.
+     */
+    private fun reclaimForeground() {
+        startActivity(
+            Intent(this, MainActivity::class.java).apply {
+                addFlags(
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                )
+            }
+        )
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Coming back from RawBT restores the system bars; hide them again or
+        // the kiosk ends up with a navigation bar and a way out of it.
+        hideSystemUI()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean =

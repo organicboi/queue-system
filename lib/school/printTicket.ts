@@ -33,7 +33,88 @@ export const SCHOOL_PAPER = {
   printableMm: 48,
   minHeightMm: 40,
   rawbtDots: 384,
+  // Blank paper printed after the last line so it clears the tear bar. Drop it
+  // to ~2 when an auto-cutter is doing the work — RawBT's own "lines
+  // scrolling" feed already advances the paper past the blade, and the two
+  // stack up into a long blank tail.
+  tearFeedMm: 12,
 } as const
+
+// The logo's box on the ticket. Constrained on both axes so a wide wordmark
+// and a square crest each end up as large as they can be without crowding the
+// number, instead of a fixed width that squeezes one of the two.
+const LOGO_MAX_MM = { width: 32, height: 14 }
+// Anything darker than this fraction of white becomes a dot. Chosen for
+// logos, which are flat shapes: a hard threshold keeps edges crisp where
+// dithering would turn a small crest into grey noise.
+const LOGO_THRESHOLD = 0.62
+
+export interface TicketLogo {
+  /** A 1-bit PNG, sized to the exact dot count it will print at. */
+  src: string
+  widthMm: number
+}
+
+/*
+ * Renders the school logo the way the printer will actually reproduce it.
+ *
+ * A thermal head has one bit per dot: it fires or it doesn't. Handing it a
+ * full-colour, anti-aliased PNG means RawBT does the conversion, and every
+ * mid-tone in the artwork — gradients, soft edges, a coloured crest — lands on
+ * the wrong side of its threshold at once, which is how a detailed logo prints
+ * as a solid black blob.
+ *
+ * So the conversion happens here instead, and at exactly the resolution the
+ * dots land on: the logo occupies `widthMm × 8` dots of the 384-dot head, so a
+ * bitmap of exactly that many pixels is drawn 1:1 into the html2canvas capture
+ * and reaches the printer un-resampled. Generate it any smaller and the
+ * capture's upscale re-introduces the grey edges this exists to remove.
+ */
+export async function prepareTicketLogo(url: string): Promise<TicketLogo | null> {
+  try {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.src = url
+    await img.decode()
+
+    const natural = img.naturalWidth || 1
+    const ratio = (img.naturalHeight || 1) / natural
+    let widthMm = LOGO_MAX_MM.width
+    if (widthMm * ratio > LOGO_MAX_MM.height) widthMm = LOGO_MAX_MM.height / ratio
+
+    const dpmm = SCHOOL_PAPER.rawbtDots / SCHOOL_PAPER.printableMm
+    const w = Math.max(1, Math.round(widthMm * dpmm))
+    const h = Math.max(1, Math.round(w * ratio))
+
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+
+    // Composite onto white first: a transparent PNG's alpha would otherwise
+    // read as luminance 0 and print as a solid black plate.
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, w, h)
+    ctx.drawImage(img, 0, 0, w, h)
+
+    const frame = ctx.getImageData(0, 0, w, h)
+    const px = frame.data
+    for (let i = 0; i < px.length; i += 4) {
+      const lum = (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]) / 255
+      const v = lum < LOGO_THRESHOLD ? 0 : 255
+      px[i] = px[i + 1] = px[i + 2] = v
+      px[i + 3] = 255
+    }
+    ctx.putImageData(frame, 0, 0)
+
+    return { src: canvas.toDataURL('image/png'), widthMm }
+  } catch {
+    // A tainted canvas or a dead URL: the caller falls back to the original
+    // image, which is what printed before this existed.
+    return null
+  }
+}
 
 const PAGE_STYLE_ID = 'school-page-size'
 

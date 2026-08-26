@@ -3,9 +3,11 @@
 # Project Account Configuration
 
 ## GitHub
-- **Account:** supersonicamg
-- **Email:** iamnotgonnagetoutofit@gmail.com
-- **Repo:** https://github.com/supersonicamg/queue-system
+- **Account:** organicboi
+- **Email:** organicboi@users.noreply.github.com
+- **Repo:** https://github.com/organicboi/queue-system
+- **Remote:** `git@github-organicboi:organicboi/queue-system.git` (SSH host alias — see
+  [docs/git-multi-account-setup.md](docs/git-multi-account-setup.md))
 
 ## Vercel
 - **Account:** supersonicamg
@@ -15,8 +17,8 @@
 
 ## Git Config (local — must match above)
 ```
-git config user.name "supersonicamg"
-git config user.email "iamnotgonnagetoutofit@gmail.com"
+git config user.name "organicboi"
+git config user.email "organicboi@users.noreply.github.com"
 ```
 
 ## Known Gotchas
