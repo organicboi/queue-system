@@ -48,6 +48,13 @@ export function useSchoolBoard(screenToken: string, initial: SchoolBoardPacket) 
     const supabase = createSupabaseBrowserClient()
 
     const bump = (payload: SchoolCallSignal) => {
+      // A signal with no token code can't be flashed or announced, and acting
+      // on one would blank the overlay on a board nobody is standing at. Still
+      // re-read, because whatever produced it did change the board's state.
+      if (!payload?.tokenCode) {
+        refresh()
+        return
+      }
       callKey.current += 1
       setLastCall({ ...payload, key: callKey.current })
       refresh()

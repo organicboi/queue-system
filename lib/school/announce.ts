@@ -23,7 +23,8 @@ export interface AnnounceInput {
 // Speech engines read "A102" as a word, and a bare number as a cardinal
 // ("one hundred and two"). Spell the prefix letters and read the digits
 // separately so it survives a noisy lobby.
-export function spellToken(code: string): string {
+export function spellToken(code: string | null | undefined): string {
+  if (!code) return ''
   const match = code.match(/^([A-Za-z]*)(\d*)$/)
   if (!match) return code.split('').join(', ')
   const [, letters, digits] = match
@@ -41,7 +42,8 @@ const ARABIC_LETTER_NAMES: Record<string, string> = {
   X: 'إكس', Y: 'واي', Z: 'زد',
 }
 
-export function spellTokenArabic(code: string): string {
+export function spellTokenArabic(code: string | null | undefined): string {
+  if (!code) return ''
   const match = code.match(/^([A-Za-z]*)(\d*)$/)
   if (!match) return code
   const [, letters, digits] = match
@@ -110,6 +112,10 @@ export class SchoolAnnouncer {
 
   announce({ tokenCode, counterEn, counterAr, lang, templateEn, templateAr }: AnnounceInput) {
     if (typeof window === 'undefined') return
+    // Nothing to say without a token code, and announcing "please proceed to
+    // Fees" with no number is worse than silence. Belt-and-braces with the
+    // server-side guard: this runs on a ceiling-mounted TV nobody can reload.
+    if (!tokenCode) return
 
     const enText = fill(templateEn, spellToken(tokenCode), counterEn)
     const arText = fill(templateAr, spellTokenArabic(tokenCode), counterAr || counterEn)

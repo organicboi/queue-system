@@ -158,9 +158,16 @@ export async function schoolCallNextAction(counterToken: string): Promise<School
   })
 
   if (error) return { error: 'Could not call the next token' }
-  if (!data) return { error: 'No one is waiting for this counter' }
 
-  const token = toSchoolTokenDTO(data as DbSchoolToken)
+  // A plpgsql function returning a composite type materialises `RETURN NULL`
+  // as a row with every column null — NOT as JSON null. That object is truthy,
+  // so a bare `!data` check passes an all-null token straight through: the
+  // board then receives a broadcast with tokenCode null and the announcer
+  // throws on it. Test the primary key, which is NOT NULL on a real row.
+  const row = data as DbSchoolToken | null
+  if (!row?.id) return { error: 'No one is waiting for this counter' }
+
+  const token = toSchoolTokenDTO(row)
   const dept = await departmentNames(supabase, token.departmentId)
 
   await broadcastSchoolCall(counter.branch_id, 'token-called', {
