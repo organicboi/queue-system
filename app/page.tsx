@@ -1,7 +1,10 @@
 import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/dal/session'
+import { getSession, getProfile } from '@/lib/dal/session'
 
 export default async function HomePage() {
   const session = await getSession()
-  redirect(session ? '/dashboard' : '/login')
+  if (!session) redirect('/login')
+
+  const profile = await getProfile()
+  redirect(profile?.vertical === 'school' ? '/school/dashboard' : '/dashboard')
 }

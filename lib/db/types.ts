@@ -9,6 +9,9 @@ export type AdMergeMode = 'replace' | 'prepend' | 'append'
 export type ScreenLayout = 'split-standard' | 'rates-wide' | 'rates-full' | 'ads-full' | 'portrait'
 export type ScreenTheme = 'standard' | 'dark' | 'vibrant' | 'minimal'
 export type AnnouncementLang = 'en' | 'ar' | 'both'
+// Which queue product a tenant runs. Set at onboarding; drives every
+// post-login redirect and the admin nav.
+export type CustomerVertical = 'business' | 'school'
 
 // ── DB Row Types (snake_case — exact DB columns) ──────────────
 export interface DbPlan {
@@ -46,6 +49,7 @@ export interface DbCustomer {
   plan_id: string | null
   plan_expires_at: string | null
   is_active: boolean
+  vertical: CustomerVertical
   branch_ad_mode: AdMergeMode
   onboarded_at: string | null
   created_at: string
@@ -249,6 +253,7 @@ export interface CustomerDTO {
   planId: string | null
   planExpiresAt: string | null
   isActive: boolean
+  vertical: CustomerVertical
   branchAdMode: AdMergeMode
   onboardedAt: string | null
   createdAt: string
@@ -281,6 +286,7 @@ export interface ProfileDTO {
   planId?: string | null
   planExpiresAt?: string | null
   customerActive?: boolean
+  vertical?: CustomerVertical
 }
 
 export interface BranchDTO {
@@ -631,6 +637,7 @@ export function toProfileDTO(row: DbProfile & {
   plan_id?: string | null
   plan_expires_at?: string | null
   customer_active?: boolean
+  vertical?: CustomerVertical
 }): ProfileDTO {
   return {
     id: row.id,
@@ -647,6 +654,7 @@ export function toProfileDTO(row: DbProfile & {
     planId: row.plan_id,
     planExpiresAt: row.plan_expires_at,
     customerActive: row.customer_active,
+    vertical: row.vertical ?? 'business',
   }
 }
 
@@ -665,6 +673,7 @@ export function toCustomerDTO(row: DbCustomer): CustomerDTO {
     planId: row.plan_id,
     planExpiresAt: row.plan_expires_at,
     isActive: row.is_active,
+    vertical: row.vertical ?? 'business',
     branchAdMode: row.branch_ad_mode,
     onboardedAt: row.onboarded_at,
     createdAt: row.created_at,

@@ -33,7 +33,8 @@ export const getProfile = cache(async (): Promise<ProfileDTO | null> => {
         logo_url,
         plan_id,
         plan_expires_at,
-        is_active
+        is_active,
+        vertical
       )
     `)
     .eq('id', session.user.id)
@@ -64,6 +65,7 @@ export const getProfile = cache(async (): Promise<ProfileDTO | null> => {
     plan_id: row.customers?.plan_id,
     plan_expires_at: row.customers?.plan_expires_at,
     customer_active: row.customers?.is_active,
+    vertical: row.customers?.vertical,
   })
 })
 

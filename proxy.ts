@@ -28,6 +28,15 @@ export async function proxy(request: NextRequest) {
 
   const { data: { session } } = await supabase.auth.getSession()
 
+  // School device surfaces authenticate with the long-lived token in their own
+  // URL (branch_token / screen_token / counter_token), exactly like
+  // /counter/[token] and /display/[token]. They must stay reachable without a
+  // Supabase session — a lobby kiosk and a ceiling-mounted TV never log in.
+  const isSchoolDevice =
+    pathname.startsWith('/school/kiosk') ||
+    pathname.startsWith('/school/display') ||
+    pathname.startsWith('/school/counter')
+
   // Protected customer-admin routes (require Supabase session)
   const isAdminRoute =
     pathname.startsWith('/dashboard') ||
@@ -35,7 +44,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/settings') ||
     pathname.startsWith('/users') ||
     pathname.startsWith('/analytics') ||
-    pathname.startsWith('/branch')
+    pathname.startsWith('/branch') ||
+    (pathname.startsWith('/school') && !isSchoolDevice)
 
   if (isAdminRoute && !session) {
     return NextResponse.redirect(new URL('/login', request.url))

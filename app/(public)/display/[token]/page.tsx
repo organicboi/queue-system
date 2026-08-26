@@ -1,4 +1,5 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { createSupabaseServiceClient } from '@/lib/db/server'
 import { getScreenByToken } from '@/lib/dal/screens'
 import { TVDisplay } from '@/components/display/TVDisplay'
 import { THEMES } from '@/components/display/displayThemes'
@@ -11,6 +12,20 @@ interface Props {
 
 export default async function DisplayPage({ params }: Props) {
   const { token } = await params
+
+  // The Android TV shell (android-kiosk) hardcodes a /display URL, so a school
+  // screen pointed at the old route lands here. Redirect rather than require
+  // an APK rebuild on every installed device.
+  const supabase = createSupabaseServiceClient()
+  const { data: screen } = await supabase
+    .from('screens')
+    .select('kind')
+    .eq('screen_token', token)
+    .maybeSingle()
+  if ((screen as { kind?: string } | null)?.kind === 'school') {
+    redirect(`/school/display/${token}`)
+  }
+
   const packet = await getScreenByToken(token)
 
   if (!packet || packet.status !== 'ok' || !packet.branchId) notFound()

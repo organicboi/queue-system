@@ -31,6 +31,9 @@ export async function loginAction(_prev: AuthResult, formData: FormData): Promis
   if (error) return { error: 'Invalid email or password' }
 
   const profile = await getProfile()
+  // A school tenant never sees the business queue product, and vice versa —
+  // the two share tenancy and login but nothing else.
+  if (profile?.vertical === 'school') redirect('/school/dashboard')
   redirect(profile?.role === 'branch_user' ? '/branch' : '/dashboard')
 }
 

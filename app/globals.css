@@ -113,3 +113,10 @@ body {
     display: none !important;
   }
 }
+
+/* School board ticker. Defined here rather than inline because Tailwind's
+   arbitrary animation syntax can name a keyframe but cannot declare one. */
+@keyframes school-marquee {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(-100%); }
+}
