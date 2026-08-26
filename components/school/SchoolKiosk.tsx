@@ -14,7 +14,7 @@ import {
   schoolKioskMoveTokenAction, schoolKioskSetPriorityAction,
 } from '@/lib/actions/school-tokens'
 import { fetchSchoolKioskFeedAction } from '@/lib/actions/school-read'
-import { printSchoolTicket } from '@/lib/school/printTicket'
+import { printSchoolTicket, SCHOOL_PAPER } from '@/lib/school/printTicket'
 import { formatDate, formatTime } from '@/lib/queueUtils'
 import type {
   SchoolDepartmentDTO, SchoolSettingsDTO, SchoolTokenDTO, SchoolTokenStatus,
@@ -327,11 +327,10 @@ export function SchoolKiosk({
   return (
     <div dir={rtl ? 'rtl' : 'ltr'} className="flex h-dvh w-screen flex-col overflow-hidden bg-slate-100">
       <style>{`
-        @page { size: 80mm 80mm; margin: 0; }
         #school-ticket.rawbt-capturing { display: block !important; position: fixed; left: -9999px; top: 0; }
         @media print {
           .no-print { display: none !important; }
-          #school-ticket { display: block !important; width: 80mm; }
+          #school-ticket { display: block !important; width: ${SCHOOL_PAPER.widthMm}mm; }
         }
       `}</style>
 
@@ -574,16 +573,19 @@ export function SchoolKiosk({
         </DialogContent>
       </Dialog>
 
-      {/* 80 mm × 80 mm thermal ticket. Square on purpose: it locks the image
-          aspect ratio so RawBT always rasterises to the same size, and the
-          centred content leaves tear offset so the cutter never clips.
+      {/* 57 mm thermal ticket, cut to length.
+          Width is the one fixed dimension — the roll's. Height is left to the
+          content so a long school name or a two-line footer lengthens the
+          ticket instead of being clipped, with a 100 mm floor that holds the
+          familiar shape and leaves the cutter its tear offset above and below.
           Renders the job being printed, not the last one issued — a reprint
           from the rail may be for an older ticket. */}
       <div id="school-ticket" ref={printRef} style={{ display: 'none' }}>
         {printedTicket && (
           <div
             style={{
-              width: '80mm', height: '80mm', boxSizing: 'border-box', padding: '6mm 4mm',
+              width: `${SCHOOL_PAPER.widthMm}mm`, minHeight: `${SCHOOL_PAPER.minHeightMm}mm`,
+              boxSizing: 'border-box', padding: '6mm 4mm',
               fontFamily: "'Courier New', Courier, monospace",
               color: '#000', textAlign: 'center',
               display: 'flex', flexDirection: 'column',
@@ -596,29 +598,29 @@ export function SchoolKiosk({
                 src={settings.logoUrl}
                 alt=""
                 crossOrigin="anonymous"
-                style={{ width: '24mm', height: 'auto', margin: '0 0 2mm' }}
+                style={{ width: '18mm', height: 'auto', margin: '0 0 2mm' }}
               />
             )}
-            <p style={{ fontSize: '12pt', fontWeight: 700, margin: '0 0 2mm' }}>
+            <p style={{ fontSize: '11pt', fontWeight: 700, lineHeight: 1.2, margin: '0 0 2mm' }}>
               {settings?.schoolNameEn || branchName}
             </p>
-            <p style={{ fontSize: '52pt', fontWeight: 900, lineHeight: 1, margin: '0 0 2mm' }}>
+            <p style={{ fontSize: '40pt', fontWeight: 900, lineHeight: 1, margin: '0 0 2mm' }}>
               {printedTicket.token.tokenCode}
             </p>
-            <p style={{ fontSize: '13pt', fontWeight: 700, margin: '0 0 1mm' }}>
+            <p style={{ fontSize: '11pt', fontWeight: 700, lineHeight: 1.2, margin: '0 0 1mm' }}>
               {printedTicket.department.nameEn}
             </p>
             {printedTicket.token.isPriority && (
-              <p style={{ fontSize: '10pt', fontWeight: 700, margin: '0 0 1mm' }}>PRIORITY</p>
+              <p style={{ fontSize: '9pt', fontWeight: 700, margin: '0 0 1mm' }}>PRIORITY</p>
             )}
-            <p style={{ fontSize: '9pt', fontWeight: 700, margin: '0 0 1mm' }}>
+            <p style={{ fontSize: '8pt', fontWeight: 700, margin: '0 0 1mm' }}>
               {formatDate(printedTicket.token.joinedAt)} · {formatTime(printedTicket.token.joinedAt)}
             </p>
             {settings?.ticketFooterEn && (
-              <p style={{ fontSize: '8pt', margin: 0 }}>{settings.ticketFooterEn}</p>
+              <p style={{ fontSize: '7.5pt', lineHeight: 1.3, margin: 0 }}>{settings.ticketFooterEn}</p>
             )}
             {settings?.ticketFooterAr && (
-              <p style={{ fontSize: '8pt', margin: 0 }} dir="rtl">{settings.ticketFooterAr}</p>
+              <p style={{ fontSize: '7.5pt', lineHeight: 1.3, margin: 0 }} dir="rtl">{settings.ticketFooterAr}</p>
             )}
           </div>
         )}
