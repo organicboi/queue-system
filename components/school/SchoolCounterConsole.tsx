@@ -86,12 +86,16 @@ export function SchoolCounterConsole({ counterToken, initial }: {
     )
   }, [counterToken, run])
 
+  const callCode = useCallback((value: string) => {
+    run(() => schoolCallCodeAction(counterToken, value), () => `Calling ${value.toUpperCase()}`)
+  }, [counterToken, run])
+
   const callTyped = useCallback(() => {
     const value = code.trim()
     if (!value) return
-    run(() => schoolCallCodeAction(counterToken, value), () => `Calling ${value.toUpperCase()}`)
+    callCode(value)
     setCode('')
-  }, [code, counterToken, run])
+  }, [code, callCode])
 
   const recall = useCallback(() => {
     run(() => schoolRecallAction(counterToken), () => 'Called again')
@@ -361,9 +365,15 @@ export function SchoolCounterConsole({ counterToken, initial }: {
                 waiting.map((token) => {
                   const dept = deptById.get(token.departmentId)
                   return (
-                    <div
+                    // Tapping the token you want is the gesture staff reach for
+                    // first, and on a touchscreen it is the only way to call a
+                    // token out of order — the keypad has no letter keys.
+                    <button
                       key={token.id}
-                      className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm"
+                      type="button"
+                      disabled={pending}
+                      onClick={() => callCode(token.tokenCode)}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 text-start shadow-sm transition active:scale-[0.99] hover:border-accent-400 hover:bg-accent-50 disabled:opacity-60"
                     >
                       <span
                         dir="ltr"
@@ -382,7 +392,7 @@ export function SchoolCounterConsole({ counterToken, initial }: {
                         </p>
                       </div>
                       <ElapsedPill mins={minutesSince(token.joinedAt, now)} />
-                    </div>
+                    </button>
                   )
                 })
               )}

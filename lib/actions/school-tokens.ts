@@ -201,13 +201,48 @@ export async function schoolCallCodeAction(
     p_branch_id: counter.branch_id,
   })
 
-  const { data: existing } = await supabase
-    .from('school_tokens')
-    .select('*')
-    .eq('branch_id', counter.branch_id)
-    .eq('service_date', serviceDate as string)
-    .eq('token_code', code)
-    .maybeSingle()
+  // Every token code carries a department prefix (F101), but the on-screen
+  // keypad is digits-only — a letter is untypeable on a touchscreen terminal.
+  // So bare digits are resolved against the departments THIS counter serves,
+  // which is unambiguous for the normal single-department window. A USB
+  // keyboard can still type the full code, and that path is matched exactly.
+  let existing: unknown = null
+
+  if (/^\d+$/.test(code)) {
+    const { data: assigned } = await supabase
+      .from('school_counter_departments')
+      .select('department_id')
+      .eq('counter_id', counter.id)
+
+    const deptIds = ((assigned ?? []) as { department_id: string }[]).map((a) => a.department_id)
+    if (deptIds.length === 0) return { error: 'This counter has no departments assigned yet' }
+
+    const { data: matches } = await supabase
+      .from('school_tokens')
+      .select('*')
+      .eq('branch_id', counter.branch_id)
+      .eq('service_date', serviceDate as string)
+      .eq('number', Number(code))
+      .in('department_id', deptIds)
+
+    const rows = (matches ?? []) as DbSchoolToken[]
+    if (rows.length > 1) {
+      // Two departments this counter serves both issued number 101.
+      return {
+        error: `${code} is ambiguous here — type the full code (${rows.map((r) => r.token_code).join(' or ')})`,
+      }
+    }
+    existing = rows[0] ?? null
+  } else {
+    const { data } = await supabase
+      .from('school_tokens')
+      .select('*')
+      .eq('branch_id', counter.branch_id)
+      .eq('service_date', serviceDate as string)
+      .eq('token_code', code)
+      .maybeSingle()
+    existing = data
+  }
 
   if (!existing) return { error: `Token ${code} was not issued today` }
 
