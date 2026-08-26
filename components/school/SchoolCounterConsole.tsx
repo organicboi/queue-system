@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import {
-  MonitorCheck, Delete, PhoneCall, BellRing, CheckCircle2, PauseCircle, ArrowRightLeft,
+  MonitorCheck, Delete, PhoneCall, BellRing, CheckCircle2, PauseCircle, ArrowRightLeft, Plus,
 } from 'lucide-react'
 import {
   ConsoleFrame, ConsoleLoading, TaskSplit, KeypadKey, ElapsedPill,
@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import {
   schoolCallNextAction, schoolCallCodeAction, schoolRecallAction,
   schoolDoneAction, schoolNoShowAction, schoolHoldAction, schoolTransferAction,
-  schoolCounterHeartbeatAction, schoolToggleCounterOpenAction,
+  schoolCounterHeartbeatAction, schoolToggleCounterOpenAction, schoolIssueAtCounterAction,
 } from '@/lib/actions/school-tokens'
 import { fetchSchoolCounterViewAction, type SchoolCounterView } from '@/lib/actions/school-read'
 
@@ -37,6 +37,7 @@ export function SchoolCounterConsole({ counterToken, initial }: {
   const [view, setView] = useState(initial)
   const [code, setCode] = useState('')
   const [transferOpen, setTransferOpen] = useState(false)
+  const [issueOpen, setIssueOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const now = useNow()
 
@@ -62,6 +63,7 @@ export function SchoolCounterConsole({ counterToken, initial }: {
   const current = view.current
   const waiting = view.waiting ?? []
   const departments = view.departments ?? []
+  const issuable = view.issuable ?? []
   const deptById = new Map(departments.map((d) => [d.id, d]))
 
   const run = useCallback((
@@ -354,6 +356,17 @@ export function SchoolCounterConsole({ counterToken, initial }: {
               <p className="ms-auto text-xs text-slate-400">
                 <span className="tabular-nums">{view.servedToday ?? 0}</span> served today
               </p>
+              {/* Walk-in issuance: hand a token to someone who never used the
+                  lobby kiosk, or can't. */}
+              <button
+                type="button"
+                disabled={pending || issuable.length === 0}
+                onClick={() => setIssueOpen(true)}
+                className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 transition active:scale-95 hover:border-accent-400 hover:text-accent-700 disabled:opacity-40"
+              >
+                <Plus className="size-3.5" />
+                New token
+              </button>
             </div>
 
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pe-1">
@@ -399,6 +412,21 @@ export function SchoolCounterConsole({ counterToken, initial }: {
             </div>
           </>
         }
+      />
+
+      <IssueDialog
+        open={issueOpen}
+        departments={issuable}
+        counterDepartmentIds={departments.map((d) => d.id)}
+        pending={pending}
+        onClose={() => setIssueOpen(false)}
+        onPick={(departmentId, isPriority) => {
+          setIssueOpen(false)
+          run(
+            () => schoolIssueAtCounterAction(counterToken, departmentId, isPriority),
+            (r) => `Issued ${(r as { token?: { tokenCode: string } }).token?.tokenCode ?? ''}`
+          )
+        }}
       />
 
       <TransferDialog
@@ -449,6 +477,71 @@ function TransferDialog({ open, departments, pending, onClose, onPick }: {
                 {d.prefix}
               </span>
               <span className="flex-1 truncate text-sm font-medium text-slate-800">{d.nameEn}</span>
+            </button>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function IssueDialog({ open, departments, counterDepartmentIds, pending, onClose, onPick }: {
+  open: boolean
+  departments: { id: string; nameEn: string; prefix: string; color: string }[]
+  counterDepartmentIds: string[]
+  pending: boolean
+  onClose: () => void
+  onPick: (departmentId: string, isPriority: boolean) => void
+}) {
+  const [priority, setPriority] = useState(false)
+
+  // The window's own departments first: handing a token to the person standing
+  // in front of you is the common case, and a Fees clerk should not have to
+  // hunt past seven others to find Fees.
+  const own = new Set(counterDepartmentIds)
+  const ordered = [
+    ...departments.filter((d) => own.has(d.id)),
+    ...departments.filter((d) => !own.has(d.id)),
+  ]
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Issue a token</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Gives the visitor the next number in that department&apos;s series, exactly as the
+          kiosk would. They join the queue and can be called from here.
+        </p>
+
+        <label className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <span className="text-sm font-medium text-slate-800">Priority</span>
+          <Switch checked={priority} onCheckedChange={setPriority} disabled={pending} />
+        </label>
+
+        <div className="space-y-1.5">
+          {ordered.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              disabled={pending}
+              onClick={() => { onPick(d.id, priority); setPriority(false) }}
+              className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-start active:bg-slate-50 disabled:opacity-40"
+            >
+              <span
+                dir="ltr"
+                className="flex size-9 shrink-0 items-center justify-center rounded-lg text-sm font-black text-white"
+                style={{ backgroundColor: d.color }}
+              >
+                {d.prefix}
+              </span>
+              <span className="flex-1 truncate text-sm font-medium text-slate-800">{d.nameEn}</span>
+              {own.has(d.id) && (
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  This window
+                </span>
+              )}
             </button>
           ))}
         </div>

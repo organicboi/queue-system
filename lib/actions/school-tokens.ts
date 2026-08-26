@@ -183,6 +183,61 @@ export async function schoolCallNextAction(counterToken: string): Promise<School
   return { token }
 }
 
+// ── Issue a token at the counter ──────────────────────────────
+// A walk-in who never used the lobby kiosk — or a visitor who can't, which is
+// most of the reason this exists: elderly and assisted visitors get handed a
+// token at the window instead of being sent back to a touchscreen.
+//
+// The number is ALWAYS the next one in the department's series, never a number
+// staff choose. school_tokens_code_uniq is (branch_id, service_date,
+// token_code): minting F205 by hand while the cursor sits at 102 would collide
+// the moment the kiosk's series reached 205, and the failure would land on a
+// visitor at the kiosk hours later. Going through claim_school_token keeps the
+// series gapless, the daily reset free and concurrent kiosks serialized.
+//
+// Any active department of the branch is allowed, not just the ones this
+// counter serves: Reception issuing a Fees token is the flow schools ask for.
+export async function schoolIssueAtCounterAction(
+  counterToken: string,
+  departmentId: string,
+  isPriority = false
+): Promise<SchoolTokenResult> {
+  const counter = await verifySchoolCounter(counterToken)
+  if (!counter) return { error: 'Counter not found' }
+
+  const supabase = createSupabaseServiceClient()
+
+  // Re-checked server-side: the client is never trusted for which department
+  // it may issue against, only for which one it picked.
+  const { data: dept } = await supabase
+    .from('school_departments')
+    .select('id, name_en, is_active, branch_id')
+    .eq('id', departmentId)
+    .maybeSingle()
+
+  const d = dept as { is_active: boolean; branch_id: string; name_en: string } | null
+  if (!d || !d.is_active || d.branch_id !== counter.branch_id) {
+    return { error: 'That department is not available at this branch' }
+  }
+
+  const { data, error } = await supabase.rpc('claim_school_token', {
+    p_branch_id: counter.branch_id,
+    p_department_id: departmentId,
+    p_source: 'staff',
+    p_is_priority: isPriority,
+  })
+
+  if (error) return { error: 'Could not issue a token' }
+
+  // Same composite-null trap as call_next_school_token: a plpgsql function
+  // returning a row type hands back an all-null row, not JSON null.
+  const row = data as DbSchoolToken | null
+  if (!row?.id) return { error: 'Could not issue a token' }
+
+  return { token: toSchoolTokenDTO(row) }
+}
+
+
 // ── CALL (typed token code) ───────────────────────────────────
 // The keypad path: staff type a token that is waiting, held or was a no-show
 // and call it directly out of order.

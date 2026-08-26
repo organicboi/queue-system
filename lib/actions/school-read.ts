@@ -31,6 +31,10 @@ export interface SchoolCounterView {
   current?: SchoolTokenDTO | null
   waiting?: SchoolTokenDTO[]
   departments?: { id: string; nameEn: string; nameAr: string; prefix: string; color: string }[]
+  // Every active department of the branch — what staff may issue a walk-in
+  // token against. Wider than `departments` (which is only what this window
+  // serves) because Reception issuing a Fees token is a normal school flow.
+  issuable?: { id: string; nameEn: string; nameAr: string; prefix: string; color: string }[]
   servedToday?: number
 }
 
@@ -60,7 +64,7 @@ export async function fetchSchoolCounterViewAction(counterToken: string): Promis
 
   const departmentIds = ((links ?? []) as { department_id: string }[]).map((l) => l.department_id)
 
-  const [{ data: departments }, { data: current }, { data: waiting }, { count: servedToday }] =
+  const [{ data: departments }, { data: allDepartments }, { data: current }, { data: waiting }, { count: servedToday }] =
     await Promise.all([
       departmentIds.length
         ? supabase
@@ -68,6 +72,12 @@ export async function fetchSchoolCounterViewAction(counterToken: string): Promis
             .select('id, name_en, name_ar, prefix, color')
             .in('id', departmentIds)
         : Promise.resolve({ data: [] }),
+      supabase
+        .from('school_departments')
+        .select('id, name_en, name_ar, prefix, color')
+        .eq('branch_id', c.branch_id)
+        .eq('is_active', true)
+        .order('display_order', { ascending: true }),
       supabase
         .from('school_tokens')
         .select('*')
@@ -110,6 +120,9 @@ export async function fetchSchoolCounterViewAction(counterToken: string): Promis
     waiting: ((waiting ?? []) as DbSchoolToken[]).map(toSchoolTokenDTO),
     departments: deptRows
       .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+      .map((d) => ({ id: d.id, nameEn: d.name_en, nameAr: d.name_ar, prefix: d.prefix, color: d.color })),
+    issuable: ((allDepartments ?? []) as
+      { id: string; name_en: string; name_ar: string; prefix: string; color: string }[])
       .map((d) => ({ id: d.id, nameEn: d.name_en, nameAr: d.name_ar, prefix: d.prefix, color: d.color })),
     servedToday: servedToday ?? 0,
   }
