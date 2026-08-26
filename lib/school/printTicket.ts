@@ -12,15 +12,28 @@ import { silentPrint, buildReceiptHtml } from '@/lib/silentPrint'
 // Everything else about the RawBT intent path is copied as-is.
 const RAWBT_PACKAGE = 'ru.a402d.rawbtprinter'
 
-// 57 mm roll. The head is 384 dots across (48 mm of printable area at 203 dpi),
-// so that is what the capture is rasterised to — RawBT stretches the bitmap to
-// the head's width regardless, and matching it keeps the ticket from being
-// resampled.
-//
-// Width is the only dimension the paper fixes; the roll is cut to length, so
-// height is whatever the ticket comes to, with a 100 mm floor so a short
-// ticket still keeps its usual shape and tear offset.
-export const SCHOOL_PAPER = { widthMm: 57, minHeightMm: 100, rawbtDots: 384 } as const
+/*
+ * 58 mm roll on a 203 dpi head: 8 dots/mm, 384 dots across.
+ *
+ * Two widths, and the difference matters. `paperMm` is the roll — what the
+ * @page is cut to. `printableMm` is the 384 dots the head can actually reach,
+ * and it is what the ticket is laid out in, because RawBT stretches whatever
+ * bitmap it gets to exactly those 384 dots. Designing at the printable width
+ * makes that stretch a 1:1 copy: 1 mm on screen is 8 dots is 1 mm of paper, so
+ * a 100 mm ticket comes out 100 mm and 40pt type prints at 40pt. Laid out at
+ * the roll's 58 mm instead, every dimension would land at 48/58 of its value.
+ *
+ * Height is free — the roll is cut to length — so the ticket is exactly as
+ * long as its content plus the trailing feed the tear bar needs. The floor is
+ * only a guard against a degenerate measurement, not a shape: a 100 mm floor
+ * on 46 mm of content is 54 mm of blank paper per visitor.
+ */
+export const SCHOOL_PAPER = {
+  paperMm: 58,
+  printableMm: 48,
+  minHeightMm: 40,
+  rawbtDots: 384,
+} as const
 
 const PAGE_STYLE_ID = 'school-page-size'
 
@@ -41,7 +54,7 @@ function measurePageMm(el: HTMLElement): string {
   } finally {
     el.classList.remove('rawbt-capturing')
   }
-  return `${SCHOOL_PAPER.widthMm}mm ${heightMm}mm`
+  return `${SCHOOL_PAPER.paperMm}mm ${heightMm}mm`
 }
 
 // window.print() prints the kiosk document itself, so that document's @page is
@@ -114,7 +127,7 @@ export async function printSchoolTicket(
       html,
       printerName,
       forceDialog: !silentPrintEnabled,
-      widthMm: SCHOOL_PAPER.widthMm,
+      widthMm: SCHOOL_PAPER.paperMm,
       printFrame: true,
     })
     return method === 'qz' ? 'qz' : 'dialog'

@@ -330,7 +330,7 @@ export function SchoolKiosk({
         #school-ticket.rawbt-capturing { display: block !important; position: fixed; left: -9999px; top: 0; }
         @media print {
           .no-print { display: none !important; }
-          #school-ticket { display: block !important; width: ${SCHOOL_PAPER.widthMm}mm; }
+          #school-ticket { display: block !important; width: ${SCHOOL_PAPER.paperMm}mm; }
         }
       `}</style>
 
@@ -573,23 +573,28 @@ export function SchoolKiosk({
         </DialogContent>
       </Dialog>
 
-      {/* 57 mm thermal ticket, cut to length.
-          Width is the one fixed dimension — the roll's. Height is left to the
-          content so a long school name or a two-line footer lengthens the
-          ticket instead of being clipped, with a 100 mm floor that holds the
-          familiar shape and leaves the cutter its tear offset above and below.
+      {/* 58 mm thermal ticket, cut to length.
+          Laid out at the head's 48 mm printable width, not the roll's 58 mm,
+          so RawBT's stretch to 384 dots is 1:1 and the ticket prints at true
+          scale; the roll's own margins come from centring it on the page.
+          Height is the content's, nothing more: the roll is cut to length, so
+          a fixed height only ever buys blank paper, and a long school name or
+          a two-line footer lengthens the ticket instead of being clipped.
           Renders the job being printed, not the last one issued — a reprint
           from the rail may be for an older ticket. */}
       <div id="school-ticket" ref={printRef} style={{ display: 'none' }}>
         {printedTicket && (
           <div
             style={{
-              width: `${SCHOOL_PAPER.widthMm}mm`, minHeight: `${SCHOOL_PAPER.minHeightMm}mm`,
-              boxSizing: 'border-box', padding: '6mm 4mm',
+              width: `${SCHOOL_PAPER.printableMm}mm`, boxSizing: 'border-box',
+              // 3 mm of lead-in, 12 mm of trailing feed: that bottom band is
+              // not padding for looks, it is the paper between the head and
+              // the tear bar. Without it the date line is still under the bar
+              // when the visitor tears, and the tear lands through the type.
+              padding: '3mm 2mm 12mm', margin: '0 auto',
               fontFamily: "'Courier New', Courier, monospace",
               color: '#000', textAlign: 'center',
-              display: 'flex', flexDirection: 'column',
-              justifyContent: 'center', alignItems: 'center',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
             }}
           >
             {settings?.logoUrl && (
@@ -598,29 +603,29 @@ export function SchoolKiosk({
                 src={settings.logoUrl}
                 alt=""
                 crossOrigin="anonymous"
-                style={{ width: '18mm', height: 'auto', margin: '0 0 2mm' }}
+                style={{ width: '14mm', height: 'auto', margin: '0 0 2mm' }}
               />
             )}
-            <p style={{ fontSize: '11pt', fontWeight: 700, lineHeight: 1.2, margin: '0 0 2mm' }}>
+            <p style={{ fontSize: '10pt', fontWeight: 700, lineHeight: 1.25, margin: '0 0 3mm' }}>
               {settings?.schoolNameEn || branchName}
             </p>
-            <p style={{ fontSize: '40pt', fontWeight: 900, lineHeight: 1, margin: '0 0 2mm' }}>
+            <p style={{ fontSize: '40pt', fontWeight: 900, lineHeight: 1, margin: '0 0 4mm' }}>
               {printedTicket.token.tokenCode}
             </p>
-            <p style={{ fontSize: '11pt', fontWeight: 700, lineHeight: 1.2, margin: '0 0 1mm' }}>
+            <p style={{ fontSize: '11pt', fontWeight: 700, lineHeight: 1.25, margin: '0 0 3mm' }}>
               {printedTicket.department.nameEn}
             </p>
             {printedTicket.token.isPriority && (
-              <p style={{ fontSize: '9pt', fontWeight: 700, margin: '0 0 1mm' }}>PRIORITY</p>
+              <p style={{ fontSize: '9pt', fontWeight: 700, margin: '0 0 3mm' }}>PRIORITY</p>
             )}
-            <p style={{ fontSize: '8pt', fontWeight: 700, margin: '0 0 1mm' }}>
+            <p style={{ fontSize: '8pt', fontWeight: 700, margin: 0 }}>
               {formatDate(printedTicket.token.joinedAt)} · {formatTime(printedTicket.token.joinedAt)}
             </p>
             {settings?.ticketFooterEn && (
-              <p style={{ fontSize: '7.5pt', lineHeight: 1.3, margin: 0 }}>{settings.ticketFooterEn}</p>
+              <p style={{ fontSize: '7.5pt', lineHeight: 1.3, margin: '3mm 0 0' }}>{settings.ticketFooterEn}</p>
             )}
             {settings?.ticketFooterAr && (
-              <p style={{ fontSize: '7.5pt', lineHeight: 1.3, margin: 0 }} dir="rtl">{settings.ticketFooterAr}</p>
+              <p style={{ fontSize: '7.5pt', lineHeight: 1.3, margin: '1mm 0 0' }} dir="rtl">{settings.ticketFooterAr}</p>
             )}
           </div>
         )}
