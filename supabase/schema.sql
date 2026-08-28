@@ -236,6 +236,7 @@ create table public.ads (
   duration_seconds  int         not null default 8,
   display_order     int         not null default 0,
   is_active         boolean     not null default true,
+  audio_enabled     boolean     not null default false,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );

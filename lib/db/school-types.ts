@@ -290,6 +290,7 @@ export interface SchoolBoardPacket {
     file_type: 'image' | 'video'
     duration_seconds: number
     is_active: boolean
+    audio_enabled?: boolean
   }[]
   tickers?: { id: string; message: string }[]
 }

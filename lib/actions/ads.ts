@@ -24,6 +24,9 @@ const AdSchema = z.object({
   name: z.string().min(1).max(100),
   file: AdFileSchema,
   durationSeconds: z.coerce.number().int().min(3).max(120).optional(),
+  // Opt-in sound for video ads on a display that shows one ad at a time.
+  // Ignored for images.
+  audioEnabled: z.coerce.boolean().default(false),
 })
 
 export async function createAdAction(
@@ -35,6 +38,7 @@ export async function createAdAction(
     name: formData.get('name'),
     file: formData.get('file'),
     durationSeconds: formData.get('durationSeconds') || undefined,
+    audioEnabled: formData.get('audioEnabled') === 'on',
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
@@ -82,12 +86,21 @@ export async function createAdAction(
     file_size_bytes: uploaded.sizeBytes,
     duration_seconds: parsed.data.durationSeconds ?? 8,
     display_order: displayOrder,
+    audio_enabled: parsed.data.audioEnabled,
   })
 
   if (error) return { error: 'Failed to create ad' }
 
-  revalidatePath(`/branches/${parsed.data.branchId}/ads`)
+  revalidateAdPaths(parsed.data.branchId)
   return {}
+}
+
+// Both products read the same `ads` table: the business ad manager lives at
+// /branches/[id]/ads, the school one at /school/ads. Revalidate both so an edit
+// from either side is reflected everywhere.
+function revalidateAdPaths(branchId: string) {
+  revalidatePath(`/branches/${branchId}/ads`)
+  revalidatePath('/school/ads')
 }
 
 // ── Toggle ad active ──────────────────────────────────────────
@@ -117,7 +130,38 @@ export async function toggleAdActiveAction(adId: string, branchId: string): Prom
 
   if (error) return { error: 'Failed to update ad' }
 
-  revalidatePath(`/branches/${branchId}/ads`)
+  revalidateAdPaths(branchId)
+  return {}
+}
+
+// ── Toggle ad audio (video sound) ─────────────────────────────
+export async function toggleAdAudioAction(adId: string, branchId: string): Promise<{ error?: string }> {
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
+  const supabase = createSupabaseServiceClient()
+
+  const { data: ad } = await supabase
+    .from('ads')
+    .select('audio_enabled')
+    .eq('id', adId)
+    .eq('customer_id', profile.customerId)
+    .single()
+
+  if (!ad) return { error: 'Ad not found' }
+
+  const { error } = await supabase
+    .from('ads')
+    .update({ audio_enabled: !ad.audio_enabled, updated_at: new Date().toISOString() })
+    .eq('id', adId)
+    .eq('customer_id', profile.customerId)
+
+  if (error) return { error: 'Failed to update ad' }
+
+  revalidateAdPaths(branchId)
   return {}
 }
 
@@ -148,7 +192,7 @@ export async function deleteAdAction(adId: string, branchId: string): Promise<{ 
 
   if (ad?.file_url) await deleteAdFileByUrl(ad.file_url)
 
-  revalidatePath(`/branches/${branchId}/ads`)
+  revalidateAdPaths(branchId)
   return {}
 }
 
@@ -172,7 +216,7 @@ export async function reorderAdsAction(branchId: string, orderedIds: string[]): 
     )
   )
 
-  revalidatePath(`/branches/${branchId}/ads`)
+  revalidateAdPaths(branchId)
   return {}
 }
 
@@ -221,7 +265,7 @@ export async function createTickerAction(
 
   if (error) return { error: 'Failed to create ticker message' }
 
-  revalidatePath(`/branches/${parsed.data.branchId}/ads`)
+  revalidateAdPaths(parsed.data.branchId)
   return {}
 }
 
@@ -252,7 +296,7 @@ export async function toggleTickerActiveAction(tickerId: string, branchId: strin
 
   if (error) return { error: 'Failed to update ticker' }
 
-  revalidatePath(`/branches/${branchId}/ads`)
+  revalidateAdPaths(branchId)
   return {}
 }
 
@@ -274,7 +318,7 @@ export async function deleteTickerAction(tickerId: string, branchId: string): Pr
 
   if (error) return { error: 'Failed to delete ticker message' }
 
-  revalidatePath(`/branches/${branchId}/ads`)
+  revalidateAdPaths(branchId)
   return {}
 }
 

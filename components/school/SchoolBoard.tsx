@@ -4,17 +4,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Image from 'next/image'
 import { Volume2 } from 'lucide-react'
-import { AdPanel } from '@/components/display/AdPanel'
+import { SchoolAdRail, type SchoolAd } from '@/components/school/SchoolAdRail'
 import { DisplayClock } from '@/components/display/DisplayClock'
 import { useSchoolBoard } from '@/lib/hooks/useSchoolBoard'
 import { SchoolAnnouncer } from '@/lib/school/announce'
 import type { SchoolBoardPacket } from '@/lib/db/school-types'
-import type { AdDTO } from '@/lib/db/types'
 
-// Guest display surface — design system v5 §5.5. Dark canvas, one accent
-// surface, mono numbers sized to be read from 3–8 m, no shadows (invisible at
-// distance), nothing tappable. The board is one row per service window, always
-// visible, so a quiet counter doesn't disappear off the list.
+// Guest waiting-area board. Light canvas to match the rest of the product,
+// mono token numbers sized with clamp() to stay legible from across a lobby,
+// one row per open service window (a quiet window stays on the board instead of
+// scrolling away), an auto-rotating ad rail on the right, and a one-shot
+// "now calling" overlay. Nothing here is tappable except the audio curtain.
 
 const FLASH_MS = 8000
 
@@ -35,9 +35,7 @@ export function SchoolBoard({ screenToken, initial }: {
 
   useEffect(() => {
     // The Android WebView injects window.AndroidTTS after the bundle loads, so
-    // this capability can only be read on the client, after mount. Reading it
-    // in the useState initialiser instead would render differently on server
-    // and client and trip a hydration mismatch.
+    // this capability can only be read on the client, after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (announcer.isReady) setAudioReady(true)
   }, [announcer])
@@ -64,22 +62,16 @@ export function SchoolBoard({ screenToken, initial }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastCall?.key, audioReady])
 
-  const ads: AdDTO[] = useMemo(
+  const ads: SchoolAd[] = useMemo(
     () =>
       (packet.ads ?? [])
         .filter((a) => a.is_active)
         .map((a) => ({
           id: a.id,
-          customerId: '',
-          branchId: null,
-          name: '',
-          fileUrl: a.file_url,
-          fileType: a.file_type,
-          fileSizeBytes: 0,
-          durationSeconds: a.duration_seconds || 8,
-          displayOrder: 0,
-          isActive: true,
-          createdAt: '',
+          src: a.file_url,
+          type: a.file_type,
+          durationMs: (a.duration_seconds || 8) * 1000,
+          audioEnabled: a.audio_enabled ?? false,
         })),
     [packet.ads]
   )
@@ -88,19 +80,22 @@ export function SchoolBoard({ screenToken, initial }: {
   const ticker = [packet.tickerText, ...tickerLines].filter(Boolean).join('   •   ')
   const counters = (packet.counters ?? []).filter((c) => c.is_open)
   const hasAds = ads.length > 0
+  // With no ad rail eating the width, a long row of windows reads better as a
+  // two-up grid than a tall stack of short bars.
+  const twoCol = !hasAds && counters.length > 6
 
   if (packet.status === 'expired') {
     return (
-      <div className="flex h-dvh w-screen items-center justify-center bg-slate-900 text-slate-300">
+      <div className="flex h-dvh w-screen items-center justify-center bg-slate-50 text-slate-500">
         <p className="text-2xl font-semibold">This display is not active.</p>
       </div>
     )
   }
 
   return (
-    <div className="relative flex h-dvh w-screen flex-col overflow-hidden bg-slate-900 text-slate-100">
+    <div className="relative flex h-dvh w-screen flex-col overflow-hidden bg-slate-50 text-slate-900">
       {/* Header */}
-      <header className="flex shrink-0 items-center gap-4 bg-slate-950 px-6 py-3">
+      <header className="flex shrink-0 items-center gap-4 border-b border-slate-200 bg-white px-6 py-3">
         {packet.logoUrl ? (
           <Image
             src={packet.logoUrl}
@@ -113,54 +108,62 @@ export function SchoolBoard({ screenToken, initial }: {
         ) : null}
         <div className="min-w-0 flex-1">
           <p
-            className="truncate font-bold leading-tight"
+            className="truncate font-bold leading-tight text-slate-900"
             style={{ fontSize: 'clamp(1.2rem, 2.2vw, 2.4rem)' }}
           >
             {packet.schoolName}
           </p>
           {packet.schoolNameAr ? (
-            <p dir="rtl" className="truncate text-slate-400" style={{ fontSize: 'clamp(0.8rem, 1.2vw, 1.3rem)' }}>
+            <p dir="rtl" className="truncate text-slate-500" style={{ fontSize: 'clamp(0.8rem, 1.2vw, 1.3rem)' }}>
               {packet.schoolNameAr}
             </p>
           ) : null}
         </div>
         {packet.showClock !== false && (
-          <DisplayClock timeColor="#F1F5F9" dateColor="#94A3B8" />
+          <DisplayClock timeColor="#0F172A" dateColor="#64748B" />
         )}
       </header>
 
       {/* Board + ads */}
       <div className="flex min-h-0 flex-1">
         <main className={hasAds ? 'flex min-w-0 flex-[62] flex-col' : 'flex min-w-0 flex-1 flex-col'}>
-          <div className="grid shrink-0 grid-cols-[1fr_1fr_1fr] gap-4 bg-slate-800 px-6 py-2 text-slate-400">
+          <div className="grid shrink-0 grid-cols-[1fr_1fr_1fr] gap-4 border-b border-slate-200 bg-white px-6 py-2 text-slate-500">
             <HeaderCell en="TOKEN NO." ar="رقم التذكرة" />
             <HeaderCell en="COUNTER" ar="الشباك" />
             <HeaderCell en="STATUS" ar="الحالة" />
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-3">
+          <div
+            className={
+              twoCol
+                ? 'grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-3 p-3'
+                : 'flex min-h-0 flex-1 flex-col gap-2.5 p-3'
+            }
+          >
             {counters.length === 0 ? (
-              <div className="flex flex-1 items-center justify-center text-slate-500">
+              <div className="col-span-full flex flex-1 items-center justify-center text-slate-400">
                 <p style={{ fontSize: 'clamp(1rem, 2vw, 2rem)' }}>No counters are open right now</p>
               </div>
             ) : (
               counters.map((counter) => {
                 const isFlashing = flash?.tokenCode && flash.tokenCode === counter.token_code
+                const called = !!counter.token_code
                 return (
                   <motion.div
                     key={counter.id}
                     animate={isFlashing ? { scale: [1, 1.03, 1] } : { scale: 1 }}
                     transition={{ duration: 0.25 }}
                     className={
-                      counter.token_code
-                        ? 'grid min-h-0 flex-1 grid-cols-[1fr_1fr_1fr] items-center gap-4 rounded-2xl border border-accent-500 bg-accent-600 px-6'
-                        : 'grid min-h-0 flex-1 grid-cols-[1fr_1fr_1fr] items-center gap-4 rounded-2xl border border-slate-700 bg-slate-800 px-6'
+                      'grid min-h-0 flex-1 grid-cols-[1fr_1fr_1fr] items-center gap-4 rounded-2xl border px-6 ' +
+                      (called
+                        ? 'border-accent-600 bg-accent-600 text-white shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-900')
                     }
                   >
                     <p
                       dir="ltr"
                       className="truncate font-mono font-black tabular-nums"
-                      style={{ fontSize: 'clamp(2rem, 6vw, 6rem)' }}
+                      style={{ fontSize: 'clamp(2rem, 6.5vw, 6.5rem)' }}
                     >
                       {counter.token_code ?? '—'}
                     </p>
@@ -170,7 +173,7 @@ export function SchoolBoard({ screenToken, initial }: {
                       </p>
                       {counter.department_en && (
                         <p
-                          className={counter.token_code ? 'truncate text-accent-50' : 'truncate text-slate-400'}
+                          className={called ? 'truncate text-white/80' : 'truncate text-slate-500'}
                           style={{ fontSize: 'clamp(0.7rem, 1.1vw, 1.2rem)' }}
                         >
                           {counter.department_en}
@@ -181,7 +184,7 @@ export function SchoolBoard({ screenToken, initial }: {
                       className="truncate font-semibold"
                       style={{ fontSize: 'clamp(0.9rem, 2vw, 2.2rem)' }}
                     >
-                      {counter.token_code ? 'Please Proceed' : 'Available'}
+                      {called ? 'Please proceed' : 'Available'}
                     </p>
                   </motion.div>
                 )
@@ -192,14 +195,19 @@ export function SchoolBoard({ screenToken, initial }: {
           {/* Waiting counts — the "how long until me" question the token
               alone can't answer. */}
           {(packet.departments ?? []).length > 0 && (
-            <div className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-1 border-t border-slate-800 px-6 py-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-200 bg-white px-6 py-2">
               {(packet.departments ?? []).map((d) => (
-                <span key={d.id} className="flex items-center gap-2 text-slate-400">
+                <span
+                  key={d.id}
+                  className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1"
+                >
                   <span className="size-2 rounded-full" style={{ backgroundColor: d.color }} />
-                  <span style={{ fontSize: 'clamp(0.65rem, 0.9vw, 1rem)' }}>{d.name_en}</span>
+                  <span className="text-slate-600" style={{ fontSize: 'clamp(0.65rem, 0.9vw, 1rem)' }}>
+                    {d.name_en}
+                  </span>
                   <span
                     dir="ltr"
-                    className="font-mono font-bold tabular-nums text-slate-200"
+                    className="font-mono font-bold tabular-nums text-slate-900"
                     style={{ fontSize: 'clamp(0.7rem, 1vw, 1.1rem)' }}
                   >
                     {d.waiting}
@@ -211,19 +219,22 @@ export function SchoolBoard({ screenToken, initial }: {
         </main>
 
         {hasAds && (
-          <aside className="min-w-0 flex-[38] border-s border-slate-800">
-            <AdPanel ads={ads} />
+          <aside className="min-w-0 flex-[38] border-s border-slate-200">
+            <SchoolAdRail ads={ads} audioReady={audioReady} />
           </aside>
         )}
       </div>
 
       {/* Ticker */}
       {ticker && (
-        <footer className="shrink-0 overflow-hidden bg-slate-950 py-2">
-          <div className="animate-[school-marquee_38s_linear_infinite] whitespace-nowrap">
-            <span className="px-8 text-slate-300" style={{ fontSize: 'clamp(0.8rem, 1.2vw, 1.4rem)' }}>
-              {ticker}
-            </span>
+        <footer className="flex shrink-0 items-stretch overflow-hidden border-t border-slate-200 bg-white">
+          <div className="w-1.5 shrink-0 bg-accent-600" />
+          <div className="flex-1 overflow-hidden py-2">
+            <div className="animate-[school-marquee_38s_linear_infinite] whitespace-nowrap">
+              <span className="px-8 text-slate-600" style={{ fontSize: 'clamp(0.8rem, 1.2vw, 1.4rem)' }}>
+                {ticker}
+              </span>
+            </div>
           </div>
         </footer>
       )}
@@ -236,26 +247,32 @@ export function SchoolBoard({ screenToken, initial }: {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95"
+            className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-8 backdrop-blur-sm"
           >
-            <p className="text-slate-400" style={{ fontSize: 'clamp(1rem, 2vw, 2rem)' }}>
-              {flash.recallCount > 0 ? 'Calling again' : 'Now calling'}
-            </p>
-            <p
-              dir="ltr"
-              className="font-mono font-black tabular-nums text-accent-400"
-              style={{ fontSize: 'clamp(5rem, 18vw, 18rem)', lineHeight: 1 }}
+            <motion.div
+              initial={{ scale: 0.92, y: 12 }}
+              animate={{ scale: 1, y: 0 }}
+              className="flex w-full max-w-4xl flex-col items-center rounded-3xl border border-slate-200 bg-white px-10 py-12 text-center shadow-2xl"
             >
-              {flash.tokenCode}
-            </p>
-            <p className="mt-2 font-semibold" style={{ fontSize: 'clamp(1.4rem, 4vw, 4rem)' }}>
-              {flash.counterEn}
-            </p>
-            {flash.departmentEn && (
-              <p className="text-slate-400" style={{ fontSize: 'clamp(0.9rem, 1.6vw, 1.6rem)' }}>
-                {flash.departmentEn}
+              <p className="font-semibold uppercase tracking-[0.2em] text-slate-400" style={{ fontSize: 'clamp(0.9rem, 1.6vw, 1.6rem)' }}>
+                {flash.recallCount > 0 ? 'Calling again' : 'Now calling'}
               </p>
-            )}
+              <p
+                dir="ltr"
+                className="font-mono font-black tabular-nums text-accent-600"
+                style={{ fontSize: 'clamp(5rem, 18vw, 16rem)', lineHeight: 1 }}
+              >
+                {flash.tokenCode}
+              </p>
+              <p className="mt-3 font-semibold text-slate-900" style={{ fontSize: 'clamp(1.4rem, 4vw, 3.5rem)' }}>
+                {flash.counterEn}
+              </p>
+              {flash.departmentEn && (
+                <p className="text-slate-500" style={{ fontSize: 'clamp(0.9rem, 1.6vw, 1.6rem)' }}>
+                  {flash.departmentEn}
+                </p>
+              )}
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -269,10 +286,11 @@ export function SchoolBoard({ screenToken, initial }: {
             announcer.unlock()
             setAudioReady(true)
           }}
-          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-slate-950/90 text-slate-200"
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-white/95 text-slate-700"
         >
-          <Volume2 className="size-12" />
-          <span className="text-2xl font-semibold">Tap anywhere to enable announcements</span>
+          <Volume2 className="size-12 text-accent-600" />
+          <span className="text-2xl font-semibold">Tap anywhere to enable sound</span>
+          <span className="text-sm text-slate-500">Announcements and ad audio</span>
         </button>
       )}
     </div>
@@ -285,7 +303,7 @@ function HeaderCell({ en, ar }: { en: string; ar: string }) {
       <p className="truncate font-semibold tracking-wider" style={{ fontSize: 'clamp(0.7rem, 1.1vw, 1.2rem)' }}>
         {en}
       </p>
-      <p dir="rtl" className="truncate text-slate-500" style={{ fontSize: 'clamp(0.6rem, 0.9vw, 1rem)' }}>
+      <p dir="rtl" className="truncate text-slate-400" style={{ fontSize: 'clamp(0.6rem, 0.9vw, 1rem)' }}>
         {ar}
       </p>
     </div>

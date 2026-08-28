@@ -200,6 +200,7 @@ export interface DbAd {
   duration_seconds: number
   display_order: number
   is_active: boolean
+  audio_enabled: boolean
   created_at: string
   updated_at: string
 }
@@ -412,6 +413,7 @@ export interface AdDTO {
   durationSeconds: number
   displayOrder: number
   isActive: boolean
+  audioEnabled: boolean
   createdAt: string
 }
 
@@ -619,6 +621,7 @@ export function toAdDTO(row: DbAd): AdDTO {
     durationSeconds: row.duration_seconds,
     displayOrder: row.display_order,
     isActive: row.is_active,
+    audioEnabled: row.audio_enabled ?? false,
     createdAt: row.created_at,
   }
 }

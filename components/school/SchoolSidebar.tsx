@@ -7,7 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { logoutAction } from '@/lib/actions/auth'
 import {
   LayoutDashboard, Building2, MonitorCheck, Tv, ListOrdered,
-  BarChart2, Settings, Users, LogOut, GraduationCap,
+  BarChart2, Settings, Users, LogOut, GraduationCap, Megaphone,
 } from 'lucide-react'
 
 const navItems = [
@@ -15,6 +15,7 @@ const navItems = [
   { href: '/school/departments', label: 'Departments', icon: Building2 },
   { href: '/school/counters',    label: 'Counters',    icon: MonitorCheck },
   { href: '/school/screens',     label: 'TV Screens',  icon: Tv },
+  { href: '/school/ads',         label: 'Ads & Media', icon: Megaphone },
   { href: '/school/tokens',      label: 'Token History', icon: ListOrdered },
   { href: '/school/reports',     label: 'Reports',     icon: BarChart2 },
   { href: '/school/users',       label: 'Users',       icon: Users },
