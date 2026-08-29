@@ -14,3 +14,24 @@ class PrintJob {
 }
 
 enum PrintResult { printed, failed }
+
+/// Why a print failed, distinct enough to show a different message — there is
+/// nobody standing at an unattended kiosk to notice a silent failure, so the
+/// reason matters as much as the fact of it.
+enum PrintFailureReason { outOfPaper, coverOpen, unreachable, unknown }
+
+/// What a [Printer] actually returns for one job — the bare success/failure
+/// plus, on failure, why.
+class PrintAttempt {
+  const PrintAttempt(this.result, {this.reason});
+
+  final PrintResult result;
+  final PrintFailureReason? reason;
+
+  bool get isFailure => result == PrintResult.failed;
+
+  static const ok = PrintAttempt(PrintResult.printed);
+
+  factory PrintAttempt.failure([PrintFailureReason reason = PrintFailureReason.unknown]) =>
+      PrintAttempt(PrintResult.failed, reason: reason);
+}

@@ -2,7 +2,7 @@
 
 import { useState, useActionState } from 'react'
 import { toast } from 'sonner'
-import { Plus, Copy, ExternalLink, Tv, TabletSmartphone } from 'lucide-react'
+import { Plus, Copy, ExternalLink, Tv, TabletSmartphone, Smartphone } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createSchoolScreenAction } from '@/lib/actions/school-admin'
 import { formatRelativeTime } from '@/lib/queueUtils'
+import { ProvisioningQrDialog } from './ProvisioningQrDialog'
 
 interface Screen {
   id: string
@@ -67,6 +68,33 @@ export function SchoolScreensManager({ branchId, branchToken, initialScreens }: 
               Open
             </a>
           </Button>
+        </div>
+
+        {/* The native Android kiosk app is provisioned with the raw token, not
+            a URL — its setup screen asks for exactly this string. */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Smartphone className="size-3.5 text-slate-500" />
+            <p className="text-xs font-semibold text-slate-700">Kiosk app token</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Installing the VibeQueue Kiosk Android app on the tablet? Enter this token on its
+            setup screen.
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs text-slate-800">
+              {branchToken}
+            </code>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => copy(branchToken, 'Kiosk app token')}
+            >
+              <Copy className="size-3.5" />
+              Copy
+            </Button>
+          </div>
+          <ProvisioningQrDialog role="kiosk" token={branchToken} label="Pair the kiosk app" />
         </div>
       </section>
 
@@ -143,6 +171,11 @@ export function SchoolScreensManager({ branchId, branchToken, initialScreens }: 
                     Open
                   </a>
                 </Button>
+                <ProvisioningQrDialog
+                  role="display"
+                  token={screen.screen_token}
+                  label={`Pair "${screen.name}"`}
+                />
               </li>
             ))}
           </ul>

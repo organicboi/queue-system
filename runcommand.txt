@@ -1,0 +1,2 @@
+cd /home/akshay/Projects/queue-system/mobile/kiosk
+flutter run -d b96a9c8b --dart-define=KIOSK_BASE_URL=https://queue-system-urzl.vercel.app

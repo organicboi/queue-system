@@ -1,47 +1,51 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/kiosk_api.dart';
 import '../config/app_config.dart';
-import '../config/kiosk_config.dart';
+import '../config/device_config.dart';
 import '../models/kiosk_bootstrap.dart';
 import '../models/kiosk_feed.dart';
 import '../models/school_department.dart';
 import '../models/school_token.dart';
+import '../printing/escpos_printer.dart';
 import '../printing/print_job.dart';
 import '../printing/printer.dart';
+import '../printing/ticket_widget.dart';
 
 // ── Device config ────────────────────────────────────────────
-final kioskConfigProvider =
-    AsyncNotifierProvider<KioskConfigController, KioskConfig>(
-  KioskConfigController.new,
+final deviceConfigProvider =
+    AsyncNotifierProvider<DeviceConfigController, DeviceConfig>(
+  DeviceConfigController.new,
 );
 
-class KioskConfigController extends AsyncNotifier<KioskConfig> {
+class DeviceConfigController extends AsyncNotifier<DeviceConfig> {
   @override
-  Future<KioskConfig> build() => KioskConfig.load();
+  Future<DeviceConfig> build() => DeviceConfig.load();
 
-  Future<void> setConfig({
-    required String baseUrl,
-    required String branchToken,
-  }) async {
-    final cfg = KioskConfig(baseUrl: baseUrl, branchToken: branchToken);
-    await cfg.save();
-    state = AsyncData(cfg);
+  Future<void> save(DeviceConfig config) async {
+    await config.save();
+    state = AsyncData(config);
   }
 
-  /// Wipe the branch token — used when the server reports the kiosk is
-  /// unregistered, to send the operator back to setup.
+  /// Wipe role + tokens — used when the server reports the device is
+  /// unregistered, or when the operator explicitly starts a re-provision.
+  /// Server URL and admin PIN survive (see `DeviceConfig.clearProvisioning`).
   Future<void> reset() async {
-    await KioskConfig.clear();
-    state = AsyncData(await KioskConfig.load());
+    await DeviceConfig.clearProvisioning();
+    state = AsyncData(await DeviceConfig.load());
+  }
+
+  Future<void> refresh() async {
+    state = AsyncData(await DeviceConfig.load());
   }
 }
 
 // ── API client (rebuilds when config changes) ────────────────
 final kioskApiProvider = Provider<KioskApi>((ref) {
-  final cfg = ref.watch(kioskConfigProvider).requireValue;
+  final cfg = ref.watch(deviceConfigProvider).requireValue;
   return KioskApi(baseUrl: cfg.baseUrl, branchToken: cfg.branchToken);
 });
 
@@ -93,15 +97,38 @@ class FeedController extends AsyncNotifier<KioskFeed> {
   }
 }
 
+// ── School logo (fetched once, reused for every ticket) ──────
+final ticketLogoProvider = FutureProvider<ui.Image?>((ref) async {
+  final bootstrap = await ref.watch(bootstrapProvider.future);
+  final url = bootstrap.settings?.logoUrl ?? '';
+  return loadTicketLogo(url);
+});
+
 // ── Printer + queue ──────────────────────────────────────────
+/// Real hardware once a printer is configured and the branch has loaded;
+/// [DebugPrinter] otherwise (unconfigured, or bootstrap hasn't resolved yet —
+/// printing must never block on that, so this provider never itself awaits).
 final printerProvider = Provider<Printer>((ref) {
-  final printer = DebugPrinter();
+  final cfg = ref.watch(deviceConfigProvider).value;
+  final bootstrap = ref.watch(bootstrapProvider).value;
+  final logo = ref.watch(ticketLogoProvider).value;
+
+  Printer printer;
+  if (cfg != null && cfg.printer.isConfigured) {
+    printer = EscPosPrinter(
+      settings: cfg.printer,
+      branchInfo: BranchTicketInfo.fromSettings(bootstrap?.settings),
+      logo: logo,
+    );
+  } else {
+    printer = DebugPrinter();
+  }
   ref.onDispose(printer.dispose);
   return printer;
 });
 
 /// Result of the most recent print attempt, for the on-screen banner.
-typedef PrintOutcome = ({PrintJob job, PrintResult result});
+typedef PrintOutcome = ({PrintJob job, PrintAttempt attempt});
 
 final lastPrintResultProvider =
     NotifierProvider<LastPrintResultNotifier, PrintOutcome?>(
@@ -118,10 +145,10 @@ class LastPrintResultNotifier extends Notifier<PrintOutcome?> {
 final printQueueProvider = Provider<PrintQueue>((ref) {
   final queue = PrintQueue(
     ref.watch(printerProvider),
-    onResult: (job, result) {
+    onResult: (job, attempt) {
       ref
           .read(lastPrintResultProvider.notifier)
-          .set((job: job, result: result));
+          .set((job: job, attempt: attempt));
     },
   );
   return queue;

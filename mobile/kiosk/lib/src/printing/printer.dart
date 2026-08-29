@@ -5,17 +5,12 @@ import 'package:flutter/foundation.dart';
 import '../config/app_config.dart';
 import 'print_job.dart';
 
-/// A printer target. The real implementation (render-to-bitmap → ESC/POS raster
-/// → transport) lands in step 5 of the plan; for now [DebugPrinter] just logs.
-///
-/// Ticket rendering MUST follow the render-to-bitmap strategy from
-/// lib/school/printTicket.ts — per-tenant logo, Arabic shaping, exact dot math
-/// all rule out ESC/POS text mode. The known target hardware is a ZY307
-/// (80 mm / 576–572 dots, ESC/POS, USB + serial + LAN + WiFi, auto-cutter) —
-/// see "ZY307 usb lan, wifi.pdf" at the repo root. That means network printing
-/// to raw TCP port 9100, not Bluetooth SPP; confirm with the product owner.
+/// A printer target. [DebugPrinter] is the no-hardware stand-in used before a
+/// device is provisioned with a real one; [EscPosPrinter] (escpos_printer.dart)
+/// is the real implementation — render-to-bitmap, then one of the three
+/// [PrinterTransport]s.
 abstract class Printer {
-  Future<PrintResult> print(PrintJob job);
+  Future<PrintAttempt> print(PrintJob job);
 
   /// Whether the printer is currently reachable. Drives the on-screen
   /// paper-out / offline banner — an unattended kiosk has nobody to notice a
@@ -25,19 +20,20 @@ abstract class Printer {
   Future<void> dispose();
 }
 
-/// No hardware. Logs the job and always succeeds. Wired up until step 5.
+/// No hardware. Logs the job and always succeeds. Used until a printer is
+/// configured, and in tests.
 class DebugPrinter implements Printer {
   @override
   bool get isReady => true;
 
   @override
-  Future<PrintResult> print(PrintJob job) async {
+  Future<PrintAttempt> print(PrintJob job) async {
     await Future<void>.delayed(const Duration(milliseconds: 400));
     debugPrint(
       '[DebugPrinter] would print ${job.token.tokenCode} '
       '(${job.department.nameEn}) priority=${job.token.isPriority}',
     );
-    return PrintResult.printed;
+    return PrintAttempt.ok;
   }
 
   @override
@@ -51,7 +47,7 @@ class PrintQueue {
   PrintQueue(this._printer, {this.onResult});
 
   final Printer _printer;
-  final void Function(PrintJob job, PrintResult result)? onResult;
+  final void Function(PrintJob job, PrintAttempt attempt)? onResult;
 
   final _pending = <PrintJob>[];
   bool _draining = false;
@@ -67,14 +63,14 @@ class PrintQueue {
     try {
       while (_pending.isNotEmpty) {
         final job = _pending.removeAt(0);
-        PrintResult result;
+        PrintAttempt attempt;
         try {
-          result = await _printer.print(job);
+          attempt = await _printer.print(job);
         } catch (_) {
-          result = PrintResult.failed;
+          attempt = PrintAttempt.failure(PrintFailureReason.unreachable);
         }
-        onResult?.call(job, result);
-        if (result == PrintResult.failed) {
+        onResult?.call(job, attempt);
+        if (attempt.isFailure) {
           // Brief pause so a flapping connection doesn't spin the queue.
           await Future<void>.delayed(AppConfig.retryInterval);
         }

@@ -14,6 +14,8 @@ class KioskCopy {
     required this.watch,
     required this.printing,
     required this.printFailed,
+    required this.printOutOfPaper,
+    required this.printCoverOpen,
     required this.issuing,
     required this.waitingHere,
     required this.noneWaiting,
@@ -29,6 +31,8 @@ class KioskCopy {
     required this.clearPriority,
     required this.priorityTag,
     required this.cancel,
+    required this.doneLabel,
+    required this.tapAnywhere,
   });
 
   final String prompt;
@@ -40,6 +44,8 @@ class KioskCopy {
   final String watch;
   final String printing;
   final String printFailed;
+  final String printOutOfPaper;
+  final String printCoverOpen;
   final String issuing;
   final String waitingHere;
   final String noneWaiting;
@@ -56,6 +62,10 @@ class KioskCopy {
   final String priorityTag;
   final String cancel;
 
+  // Not in the web COPY — kiosk-app-only affordances.
+  final String doneLabel;
+  final String tapAnywhere;
+
   static const en = KioskCopy(
     prompt: 'Please select a service',
     promptHint: 'Touch a service to take a number',
@@ -66,6 +76,8 @@ class KioskCopy {
     watch: 'Please watch the screen for your number',
     printing: 'Printing your ticket…',
     printFailed: 'The printer is unavailable. Please note your number.',
+    printOutOfPaper: 'The printer is out of paper. Please note your number.',
+    printCoverOpen: 'The printer cover is open. Please note your number.',
     issuing: 'Issuing…',
     waitingHere: 'waiting',
     noneWaiting: 'no queue',
@@ -81,6 +93,8 @@ class KioskCopy {
     clearPriority: 'Clear priority',
     priorityTag: 'Priority',
     cancel: 'Cancel',
+    doneLabel: 'Done',
+    tapAnywhere: 'Tap anywhere to continue',
   );
 
   static const ar = KioskCopy(
@@ -93,6 +107,8 @@ class KioskCopy {
     watch: 'يرجى متابعة الشاشة لظهور رقمك',
     printing: 'جارٍ طباعة التذكرة…',
     printFailed: 'الطابعة غير متاحة. يرجى تدوين رقمك.',
+    printOutOfPaper: 'نفد الورق من الطابعة. يرجى تدوين رقمك.',
+    printCoverOpen: 'غطاء الطابعة مفتوح. يرجى تدوين رقمك.',
     issuing: 'جارٍ الإصدار…',
     waitingHere: 'في الانتظار',
     noneWaiting: 'لا يوجد انتظار',
@@ -108,10 +124,55 @@ class KioskCopy {
     clearPriority: 'إلغاء الأولوية',
     priorityTag: 'أولوية',
     cancel: 'إلغاء التذكرة',
+    doneLabel: 'تم',
+    tapAnywhere: 'المس أي مكان للمتابعة',
   );
 
   static KioskCopy of(String lang) => lang == 'ar' ? ar : en;
 
   static TextDirection directionOf(String lang) =>
       lang == 'ar' ? TextDirection.rtl : TextDirection.ltr;
+
+  // ---------------------------------------------------------------------
+  // Header clock. Kiosk-app-only, so not part of the web COPY object. Kept
+  // here rather than pulling in `intl`, which would add a package for six
+  // strings and two dozen locale bundles the kiosk never uses.
+  // ---------------------------------------------------------------------
+
+  static const _weekdaysEn = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+    'Friday', 'Saturday', 'Sunday',
+  ];
+  static const _weekdaysAr = [
+    'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس',
+    'الجمعة', 'السبت', 'الأحد',
+  ];
+  static const _monthsEn = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  static const _monthsAr = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+  ];
+
+  /// `9:41 AM` / `٩:٤١ ص`-style 12-hour clock (Latin digits in both locales —
+  /// the token codes on screen are Latin too, so mixing numeral systems would
+  /// read as two different numbers).
+  static String clockOf(String lang, DateTime t) {
+    final hour = t.hour % 12 == 0 ? 12 : t.hour % 12;
+    final minute = t.minute.toString().padLeft(2, '0');
+    final suffix = lang == 'ar'
+        ? (t.hour < 12 ? 'ص' : 'م')
+        : (t.hour < 12 ? 'AM' : 'PM');
+    return '$hour:$minute $suffix';
+  }
+
+  /// `Saturday, 29 Aug`.
+  static String dateOf(String lang, DateTime t) {
+    final ar = lang == 'ar';
+    final weekday = (ar ? _weekdaysAr : _weekdaysEn)[t.weekday - 1];
+    final month = (ar ? _monthsAr : _monthsEn)[t.month - 1];
+    return '$weekday, ${t.day} $month';
+  }
 }

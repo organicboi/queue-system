@@ -243,7 +243,9 @@ Port these from `android-kiosk/` (see §0), Flutter-native equivalents:
 
 1. ~~**Backend routes** (§3)~~ — **DONE 2026-08-28**, see the status box in §3. Still `curl`-test against a real branch token on a running dev server before writing any Dart.
 2. ~~**Flutter project scaffold**~~ — **DONE 2026-08-28**, at `mobile/kiosk/` (project name `school_kiosk`, org `com.vibequeue`, Android-only). Deps: `dio`, `flutter_riverpod` (v3), `shared_preferences`. `flutter analyze` and `flutter test` clean.
-3. **Bootstrap + feed screens with mock/no printing** — **SCAFFOLDED 2026-08-28**, needs finishing. What exists: config + models mirroring the DTOs (`lib/src/models/`), a `KioskApi` Dio client for all six routes (`lib/src/api/`), riverpod providers incl. a 6s feed poll and a `PrintQueue` that never blocks the tap (`lib/src/state/providers.dart`), a manual-entry setup screen, and a working kiosk screen (service grid → issue token → hero + rail, `DebugPrinter` logs instead of printing). **Not yet done:** run it against a real branch token end-to-end (needs a device/emulator + the token); wire the rail's per-row reprint/move/cancel/priority actions (API methods already exist, UI is read-only); attract/idle screen. Verbatim `COPY.en`/`COPY.ar` are in `lib/src/i18n/copy.dart`.
+3. **Bootstrap + feed screens with mock/no printing** — **WORKING END-TO-END 2026-08-29** against the live deployment + a real branch token on real hardware (RK3566 / Android 11 / 1366×768 landscape kiosk tablet). Config + models (`lib/src/models/`), `KioskApi` Dio client for all six routes (`lib/src/api/`), riverpod providers incl. 6s feed poll + non-blocking `PrintQueue` (`lib/src/state/providers.dart`), staff setup screen, and the parent-facing kiosk screen. **UI/UX redesigned 2026-08-29** for the landscape kiosk: `lib/src/ui/theme.dart` (flat palette, no blur — weak GPU), top bar with logo + `EN | العربية` toggle, big service cards with lucide→Material icon map (`lib/src/ui/dept_icon.dart`) + live queue pills, full-screen token confirmation overlay (`confirmation_overlay.dart`), priority toggle banner, cleaner recent rail. Orientation locked landscape in `main.dart`. **Fully responsive** to arbitrary screen sizes: `kioskScaleForSize`/`kioskTextScaleForSize` in `theme.dart` derive one proportional factor from `min(w/1366, h/768)`; the `app.dart` MediaQuery override feeds it into `TextScaler.linear` (still ignoring the OS font-size setting), and the header, grid row-height clamps, rail width and confirmation overlay all scale off it. Guarded by `test/layout_smoke_test.dart` (71 cases, 640×360 → 2560×1440, both langs). **Not yet done:** the rail's per-row reprint/move/cancel/priority actions (API methods exist, UI is read-only); attract/idle screen. Verbatim `COPY.en`/`COPY.ar` are in `lib/src/i18n/copy.dart` (plus two app-only strings: `doneLabel`, `tapAnywhere`).
+
+   Web side: `components/school/SchoolScreensManager.tsx` (`/school/screens`) now shows the raw **kiosk app token** with a copy button, for provisioning the Android app.
 4. **Ticket rendering to bitmap** — build the widget-to-raster pipeline (§6 steps 1–3), verify visually (save the bitmap to a file and eyeball it) before wiring up a physical printer. `Printer` interface + `PrintQueue` already in `lib/src/printing/`; swap `DebugPrinter` for the real impl.
 5. **Printer connectivity** — once physical hardware is available. This is where the real time risk lives; budget slack here.
 6. **Kiosk-mode device behavior** (§7).
@@ -266,6 +268,85 @@ Port these from `android-kiosk/` (see §0), Flutter-native equivalents:
   `esc_pos_bluetooth` candidate; (c) `tearFeedMm` drops to ~2 and a **cut command** (`GS V`)
   is always sent. **Still confirm with the product owner** that this PDF is the kiosk printer
   and not leftover from something else, and get the exact model of what's physically on site.
-- Does one APK need both the kiosk UI and the join/track/display WebView screens, or are these separate app targets?
-- Kiosk device provisioning: how does a new tablet get its `branch_token` on first boot — manual entry, QR scan, pre-baked build per branch? (Scaffold ships a manual-entry setup screen; `KioskConfig` is provisioning-method-agnostic.)
+- ~~Does one APK need both the kiosk UI and the join/track/display WebView screens, or are these separate app targets?~~ — **answered 2026-08-30: one APK, multi-role.** See §10.
+- ~~Kiosk device provisioning: how does a new tablet get its `branch_token` on first boot~~ — **answered 2026-08-30.** Manual entry or QR scan, both in the setup wizard's Pair step. See §10.
 - ~~Auto-cutter present~~ — yes, if the ZY307 is the target (see above).
+
+---
+
+## 10. Multi-role rebuild (2026-08-30)
+
+The product owner asked for one APK covering three fixed-purpose screens, each configured
+once at install time and then locked: **kiosk** (this doc, above), **announcement display**
+(native, not a WebView — supersedes §1c's WebView-flag plan), and **web screen** (thin
+WebView wrapper, what §1b called the join/track case). Full plan:
+`/home/akshay/.claude/plans/okay-we-need-the-linked-music.md`.
+
+**Status: built and compiling end-to-end 2026-08-30** — `flutter analyze` clean (one style
+info), `flutter test` green (101 cases across `test/*.dart`), `flutter build apk --debug`
+succeeds including the new native Kotlin plugin. Not yet run on physical hardware.
+
+- **Device roles** (`lib/src/config/device_role.dart`, `device_config.dart`) — `DeviceConfig`
+  replaces the old two-field `KioskConfig`, adding `role`, `screenToken`, `webUrl`, an admin
+  PIN (hash+salt+length), and a `PrinterSettings` JSON blob, while keeping every
+  shared_preferences key the old config wrote. **Migration:** a tablet already in the field
+  with `kiosk.branchToken` set but no `device.role` key loads as an already-complete kiosk —
+  verified in `test/device_config_test.dart`. `app.dart`'s `_Root` now switches on `cfg.role`
+  instead of the old boolean branch.
+- **Setup wizard** (`lib/src/ui/setup/setup_wizard.dart` + `printer_setup_step.dart`,
+  `pin_step.dart`, `qr_scan_screen.dart`) — 6 steps: Server → Role → Pair (manual token or QR
+  scan, validated live against `bootstrap`/`display` before letting the installer continue) →
+  Printer (kiosk only) → PIN → Review & lock.
+- **Admin gate** (`lib/src/ui/admin/admin_gate.dart`, `pin_pad.dart`) — 5-second hold in the
+  top-left 64×64 corner, then a PIN (4–6 digits, salted SHA-256, `lib/src/config/admin_pin.dart`),
+  3-strikes/30s lockout, reopens the wizard pre-filled for changes.
+- **Printing, finished end-to-end** (`lib/src/printing/`): hand-rolled ESC/POS byte builder
+  (`escpos.dart` — no `esc_pos_utils` dependency); three transports behind one interface
+  (`transport/` — `NetworkPrinterTransport` is pure `dart:io`, USB and Bluetooth go through a
+  new native Android plugin, `PrinterPlugin.kt`, since ESC/POS printers enumerate as USB
+  *printer class* 0x07, which a generic USB-serial package cannot see); concurrent
+  auto-discovery across all three (`discovery.dart` — USB/BT enumerate instantly, network
+  sweeps the tablet's own `/24` on port 9100 in ~3–4s, no `network_info_plus` needed); the
+  ticket render-to-raster pipeline (`ticket_widget.dart`, `ticket_capture_host.dart`,
+  `ticket_raster.dart` — renders a real Flutter widget off-screen, thresholds it to 1bpp,
+  packs `GS v 0`); `EscPosPrinter` wired into the existing `Printer`/`PrintQueue` interface
+  with reconnect-on-demand and `DLE EOT` paper/cover status surfaced as distinct banner text
+  (`copy.printOutOfPaper` / `printCoverOpen`, EN+AR). **Paper width is not auto-detected** —
+  clone printers answer `GS I` unreliably — so the wizard prints a calibration ruler ticket
+  instead and the installer confirms 58/80mm by eye; this is the one place discovery falls
+  back to a human rather than a query.
+- **Announcement display, native** (`lib/src/announce/announcer.dart`,
+  `lib/src/ui/display/`, `lib/src/state/board_providers.dart`) — new backend route
+  `GET /api/display/[screenToken]` (thin wrapper over the existing `getSchoolBoard` RPC,
+  mirrors the kiosk routes' framing); `flutter_tts` with `spellToken`/`ARABIC_LETTER_NAMES`/
+  template-fill ported verbatim from `lib/school/announce.ts`; 3s poll (faster than the web
+  board's 8s); one row per **open** counter, not "last N called"; ad rail with per-ad
+  audio-enable and ducking while an announcement is speaking; bottom ticker. No autoplay/tap-
+  to-enable-sound problem exists here at all — native TTS needs no user gesture, so §1c's
+  WebView-flag plan is superseded for this role (still correct advice if a WebView board is
+  ever needed elsewhere).
+- **Web screen role** (`lib/src/ui/web/web_screen.dart`) — uses `webview_flutter`, not
+  `flutter_inappwebview` as originally drafted: `flutter_inappwebview_android` 1.1.3's own
+  `build.gradle` calls a Gradle API this project's AGP 9.0.1 removed outright, and no
+  non-beta fix was published yet. `webview_flutter` sets the same
+  `mediaPlaybackRequiresUserGesture(false)` via `AndroidWebViewController` and built cleanly.
+- **Provisioning QR** — `components/school/ProvisioningQrDialog.tsx`, wired into both the
+  kiosk-token panel and each display row in `SchoolScreensManager.tsx`. Encodes
+  `{v:1, baseUrl, role, token}`; parsed by `lib/src/config/provisioning_qr.dart` and scanned
+  via `mobile_scanner` in the wizard's Pair step.
+- **Kiosk hardening, partial**: `PopScope(canPop: false)` wraps every role screen;
+  `WakelockPlus` enabled on kiosk and display; `BootReceiver.kt` added and wired into the
+  manifest (was declared but missing since the original scaffold). **Still open:**
+  `startLockTask()` / Device Owner enrollment (needs real MDM provisioning to test, can't be
+  meaningfully finished from a dev machine), and the release build is **still signed with the
+  debug key** (`android/app/build.gradle.kts`) — generate a real keystore before any client
+  install.
+- **New tests**: `test/device_config_test.dart` (migration + round-trip),
+  `test/announcer_test.dart` (`spellToken` against `announce.ts`'s exact cases +
+  `AnnouncementDedupe`'s recall-reannounces behaviour), `test/escpos_test.dart` (raster byte
+  packing), `test/admin_pin_test.dart` (hash round-trip + salt uniqueness),
+  `test/board_layout_smoke_test.dart` (bilingual EN/AR board rows across TV sizes up to 4K).
+
+**Not done / needs real hardware:** anything in step 5 of §8 that only a physical printer can
+confirm (actual ZY307 raster output, real USB/Bluetooth device pairing, paper-out sensor
+behaviour); the day-long soak test; Device Owner / Lock Task enrollment; release signing.
