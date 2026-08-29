@@ -88,6 +88,25 @@ Nothing about the Supabase schema, RLS, or existing web app changes. You are add
 
 ## 3. Backend: new API routes (build these first, in this repo)
 
+> **Status (2026-08-28): DONE.** All six routes exist under `app/api/kiosk/[branchToken]/`,
+> plus shared HTTP-framing helpers in `lib/api/kiosk.ts`. They are thin wrappers over the
+> existing actions/DAL exactly as specced below — `tsc --noEmit` and `eslint` are clean.
+> Files:
+> - `app/api/kiosk/[branchToken]/bootstrap/route.ts` → `getSchoolKioskPacket`
+> - `app/api/kiosk/[branchToken]/feed/route.ts` → `fetchSchoolKioskFeedAction`
+> - `app/api/kiosk/[branchToken]/tokens/route.ts` → `schoolIssueTokenAction`
+> - `app/api/kiosk/[branchToken]/tokens/[id]/cancel/route.ts` → `schoolKioskCancelTokenAction`
+> - `app/api/kiosk/[branchToken]/tokens/[id]/priority/route.ts` → `schoolKioskSetPriorityAction`
+> - `app/api/kiosk/[branchToken]/tokens/[id]/move/route.ts` → `schoolKioskMoveTokenAction`
+>
+> Status mapping (`errorStatus` in `lib/api/kiosk.ts`): unknown/disabled kiosk or a token id
+> not addressable today → **404**; amending a token a counter already owns → **409**; other
+> validation/business-rule rejections → **400**; success → **200**. Error body is always
+> `{ error: string }` with the action's message verbatim. `/api/*` is already exempt from
+> `proxy.ts` auth, so no session is needed. Smoke-tested on `next dev` with bogus tokens:
+> 404 `{"error":"Kiosk is not registered"}` on all routes, 400 on missing body, 405 on
+> `GET /tokens`. Still TODO: happy-path `curl` against a **real** branch token.
+
 **Auth model — already solved, don't invent a new one.** The kiosk authenticates the same way the web kiosk page does: an opaque per-branch `branch_token` in the URL (see `supabase/schema.sql:104`, `lib/actions/school-tokens.ts` → `verifySchoolBranch`). The Flutter app stores this token in its device config (set once during kiosk setup, e.g. a hidden settings screen or QR-code provisioning) and sends it on every request. **Every route must re-verify the token server-side against the `branches` table exactly like the existing actions do** — never trust a client-supplied branch id.
 
 Create `app/api/kiosk/` route handlers. These are **thin wrappers around existing, already-correct business logic** — do not reimplement queue logic, do not touch RPCs directly if an action already wraps them. Each route below names the exact existing function to call.
@@ -197,11 +216,15 @@ Implementation shape:
 4. Encode as ESC/POS raster (`GS v 0` command) and send over the printer connection.
 5. Send the trailing feed (`tearFeedMm`) as a paper-feed command, then (if the printer has one) a cut command — make the cut command a config flag per printer/branch, since not all hardware has an auto-cutter.
 
-**Printer connectivity — the actual unknown.** Package candidates: `esc_pos_bluetooth` / `esc_pos_printer` (or raw `flutter_bluetooth_serial` / `usb_serial` + hand-rolled ESC/POS framing if those are unmaintained by the time you build this — check pub.dev freshness first). Needs, regardless of package:
-- Printer pairing/selection UI, persisted per-device (shared prefs or similar) so it survives restarts.
-- Reconnect-on-demand — a kiosk left on for days will have the printer sleep/disconnect; detect and reconnect transparently, don't require a human to re-pair.
-- Paper-out / offline error surfaced on screen (there's nobody at an unattended kiosk to see a silent failure otherwise — the visitor needs to know their number even if it didn't print, mirroring the web app's `printFailed` copy: *"The printer is unavailable. Please note your number."*).
-- **This cannot be fully speced without the actual printer hardware.** Get the make/model and connection type (Bluetooth SPP vs BLE vs USB) before estimating further; different cheap 58mm thermal printers vary a lot in ESC/POS raster command support.
+**Printer connectivity.** If the target is the **ZY307** (see §9 — the PDF at the repo root),
+this is network-first: open a raw TCP socket to the printer's IP on **port 9100** and write the
+ESC/POS byte stream directly (`dart:io` `Socket` — no package needed), or USB via `usb_serial`.
+No Bluetooth. The `esc_pos_utils` package (or `esc_pos_utils_plus`) is still useful for building
+the `GS v 0` raster + `GS V` cut bytes; check pub.dev freshness. Needs, regardless of transport:
+- Printer address/selection UI, persisted per-device (`KioskConfig` already does shared-prefs persistence) so it survives restarts. For network: the printer's static IP; for USB: the device id.
+- Reconnect-on-demand — a kiosk left on for days will have the socket drop / printer sleep; detect and reconnect transparently on the next job, don't require a human.
+- Paper-out / offline error surfaced on screen (there's nobody at an unattended kiosk to see a silent failure otherwise — the visitor needs to know their number even if it didn't print, mirroring the web app's `printFailed` copy: *"The printer is unavailable. Please note your number."* — already wired to `lastPrintResultProvider` → the red banner in `kiosk_screen.dart`). The ZY307 has real paper-out / cover-open sensors; read status back over the same socket (`DLE EOT n`).
+- **Confirm the model on site before finalising the raster width** (576 vs 512 vs 384 — depends on which paper-width separator is fitted) and the exact cut command the firmware honours.
 
 ---
 
@@ -218,10 +241,10 @@ Port these from `android-kiosk/` (see §0), Flutter-native equivalents:
 
 ## 8. Suggested build order
 
-1. **Backend routes** (§3) — small, mechanical, unblocks everything else. Test with `curl` against a real branch token before writing any Dart.
-2. **Flutter project scaffold** — new directory at repo root, e.g. `mobile/kiosk/` (confirm naming/location isn't already claimed — check for an existing empty `flutter_kiosk`/`mobile` dir first). `flutter create`, add networking (`http` or `dio`), state management (pick one — `provider`/`riverpod` is enough for this scope, don't over-engineer).
-3. **Bootstrap + feed screens with mock/no printing** — get the service grid, token issuance, and polling working end-to-end against the real API, printing a debug placeholder (e.g. just show a dialog "printed") instead of touching hardware yet. Validates the whole data path before hardware is even in the room.
-4. **Ticket rendering to bitmap** — build the widget-to-raster pipeline (§6 steps 1–3), verify visually (save the bitmap to a file and eyeball it) before wiring up a physical printer.
+1. ~~**Backend routes** (§3)~~ — **DONE 2026-08-28**, see the status box in §3. Still `curl`-test against a real branch token on a running dev server before writing any Dart.
+2. ~~**Flutter project scaffold**~~ — **DONE 2026-08-28**, at `mobile/kiosk/` (project name `school_kiosk`, org `com.vibequeue`, Android-only). Deps: `dio`, `flutter_riverpod` (v3), `shared_preferences`. `flutter analyze` and `flutter test` clean.
+3. **Bootstrap + feed screens with mock/no printing** — **SCAFFOLDED 2026-08-28**, needs finishing. What exists: config + models mirroring the DTOs (`lib/src/models/`), a `KioskApi` Dio client for all six routes (`lib/src/api/`), riverpod providers incl. a 6s feed poll and a `PrintQueue` that never blocks the tap (`lib/src/state/providers.dart`), a manual-entry setup screen, and a working kiosk screen (service grid → issue token → hero + rail, `DebugPrinter` logs instead of printing). **Not yet done:** run it against a real branch token end-to-end (needs a device/emulator + the token); wire the rail's per-row reprint/move/cancel/priority actions (API methods already exist, UI is read-only); attract/idle screen. Verbatim `COPY.en`/`COPY.ar` are in `lib/src/i18n/copy.dart`.
+4. **Ticket rendering to bitmap** — build the widget-to-raster pipeline (§6 steps 1–3), verify visually (save the bitmap to a file and eyeball it) before wiring up a physical printer. `Printer` interface + `PrintQueue` already in `lib/src/printing/`; swap `DebugPrinter` for the real impl.
 5. **Printer connectivity** — once physical hardware is available. This is where the real time risk lives; budget slack here.
 6. **Kiosk-mode device behavior** (§7).
 7. **WebView screens for join/track/display** (§1b) — cheap, do last, doesn't block the core kiosk flow.
@@ -231,7 +254,18 @@ Port these from `android-kiosk/` (see §0), Flutter-native equivalents:
 
 ## 9. Open questions to resolve with the product owner before/while building
 
-- Exact printer make/model and connection type (Bluetooth SPP/BLE vs USB) — blocks §6 estimation.
+- ~~Exact printer make/model and connection type~~ — **likely answered.** `ZY307 usb lan, wifi.pdf`
+  at the repo root is almost certainly the target printer: **80 mm roll** (72 mm / 576–572
+  dots printable — NOT the 58 mm / 384 the plan and `printTicket.ts` assume), ESC/POS
+  emulation, interfaces **USB + serial + LAN + WiFi (no Bluetooth)**, **built-in auto-cutter**
+  (full or partial cut), paper-out / cover-open / cutter-jam sensors, Android+iOS SDK.
+  Implications if confirmed: (a) §6's raster width becomes **576** (or 512 for a 64 mm
+  separator — the printer ships with selectable paper-width separators), rework the dot math
+  in `printTicket.ts`'s constants for the app; (b) connectivity is **raw TCP to port 9100**
+  (network) or USB — much simpler and more reliable than Bluetooth SPP, drop the
+  `esc_pos_bluetooth` candidate; (c) `tearFeedMm` drops to ~2 and a **cut command** (`GS V`)
+  is always sent. **Still confirm with the product owner** that this PDF is the kiosk printer
+  and not leftover from something else, and get the exact model of what's physically on site.
 - Does one APK need both the kiosk UI and the join/track/display WebView screens, or are these separate app targets?
-- Kiosk device provisioning: how does a new tablet get its `branch_token` on first boot — manual entry, QR scan, pre-baked build per branch?
-- Auto-cutter present on the target printer or not (`tearFeedMm` behavior differs, see §6).
+- Kiosk device provisioning: how does a new tablet get its `branch_token` on first boot — manual entry, QR scan, pre-baked build per branch? (Scaffold ships a manual-entry setup screen; `KioskConfig` is provisioning-method-agnostic.)
+- ~~Auto-cutter present~~ — yes, if the ZY307 is the target (see above).
