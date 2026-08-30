@@ -80,6 +80,16 @@ class _Root extends ConsumerWidget {
       loading: () => const _Splash(),
       error: (e, _) => _Splash(message: '$e'),
       data: (cfg) {
+        // Temporary diagnostic: a wrong-screen-after-setup report is
+        // otherwise impossible to debug without the device in hand — this
+        // makes the actually-persisted role/tokens visible in `flutter run`'s
+        // console the moment `_Root` decides what to show. Cheap to leave in;
+        // strip once the report above is resolved.
+        debugPrint(
+          '[VibeQueue] _Root routing: role=${cfg.role} setupComplete=${cfg.setupComplete} '
+          'isComplete=${cfg.isComplete} branchToken=${cfg.branchToken.isEmpty ? "(empty)" : "(set)"} '
+          'screenToken=${cfg.screenToken.isEmpty ? "(empty)" : "(set)"} webUrl=${cfg.webUrl}',
+        );
         if (!cfg.setupComplete || !cfg.isComplete || cfg.role == null) {
           return const SetupWizard();
         }

@@ -133,10 +133,46 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
       MaterialPageRoute(builder: (_) => const QrScanScreen(), fullscreenDialog: true),
     );
     if (payload == null) return;
+    debugPrint('[VibeQueue] QR scanned: role=${payload.role} (current role was $_role)');
+
+    // The web admin's Screens page shows a provisioning QR for the branch
+    // token AND one per display screen — they encode different roles. Silently
+    // swapping the role the operator already picked two steps ago (because
+    // they scanned the kiosk QR while setting up a display, say) produced
+    // exactly the "I chose display but it locked as kiosk" bug this guards
+    // against — the role changed underneath them with nothing on screen
+    // saying so. Now it asks first, every time the two disagree.
+    if (_role != null && _role != payload.role) {
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Different role in this code'),
+          content: Text(
+            'This QR code is for a "${payload.role.label}" screen, but you '
+            'chose "${_role!.label}". Switch to "${payload.role.label}"?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Keep my choice'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text('Switch to ${payload.role.label}'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
     setState(() {
       _baseUrlController.text = payload.baseUrl;
+      if (_role != payload.role) _tokenController.clear();
       _role = payload.role;
       _tokenController.text = payload.token;
+      _pairError = null;
     });
     await _validatePairing();
   }
@@ -162,19 +198,30 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
   }
 
   Future<void> _lockDevice() async {
-    final existing = widget.startAtSettingsFor;
+    // Deliberately NOT falling back to `existing?.branchToken` etc. for the
+    // roles that aren't chosen: if this wizard run started on an
+    // already-provisioned kiosk and the operator switched to a different
+    // role, the old branch/screen token must not survive into the new
+    // config. It doesn't change which screen `_Root` routes to (that's
+    // `role` alone) — but a stale token left in storage is a real footgun if
+    // anything ever reads it optimistically, and it makes debugging exactly
+    // this class of "which role actually got saved" report harder than it
+    // needs to be.
     final config = DeviceConfig(
       baseUrl: _baseUrlController.text.trim(),
       role: _role,
       setupComplete: true,
-      branchToken: _role == DeviceRole.kiosk ? _tokenController.text.trim() : (existing?.branchToken ?? ''),
-      screenToken: _role == DeviceRole.display ? _tokenController.text.trim() : (existing?.screenToken ?? ''),
-      webUrl: _role == DeviceRole.web ? _webUrlController.text.trim() : (existing?.webUrl ?? ''),
+      branchToken: _role == DeviceRole.kiosk ? _tokenController.text.trim() : '',
+      screenToken: _role == DeviceRole.display ? _tokenController.text.trim() : '',
+      webUrl: _role == DeviceRole.web ? _webUrlController.text.trim() : '',
       adminPinHash: _pinHash,
       adminPinSalt: _pinSalt,
       adminPinLength: _pinLength,
       printer: _printer,
     );
+    debugPrint('[VibeQueue] locking device: chosen role=$_role → saved role=${config.role} '
+        'branchToken=${config.branchToken.isEmpty ? "(empty)" : "(set)"} '
+        'screenToken=${config.screenToken.isEmpty ? "(empty)" : "(set)"}');
     await ref.read(deviceConfigProvider.notifier).save(config);
     if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
   }
@@ -211,8 +258,16 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
                 children: [
                   _pad(_ServerStep(controller: _baseUrlController, onChanged: () => setState(() {}))),
                   _pad(_RoleStep(value: _role, onChanged: (r) => setState(() {
+                    debugPrint('[VibeQueue] role card tapped: $r (was $_role)');
+                    // Switching role invalidates whatever was typed for the
+                    // old one — a kiosk branch token left sitting in the
+                    // field would otherwise get "checked" against the
+                    // display API and silently fail, or worse, be read as if
+                    // it were a screen token.
+                    if (r != _role) _tokenController.clear();
                     _role = r;
                     _resolvedName = null;
+                    _pairError = null;
                   }))),
                   _pad(_PairStep(
                     role: _role,
