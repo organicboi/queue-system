@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createSupabaseServiceClient } from '@/lib/db/server'
 import { requireBranchManager } from '@/lib/dal/session'
+import { createPairingCode } from '@/lib/dal/device-pairing'
 import {
   toSchoolDepartmentDTO, toSchoolCounterDTO, toSchoolSettingsDTO,
   type SchoolDepartmentDTO, type SchoolCounterDTO, type SchoolSettingsDTO,
@@ -477,4 +478,58 @@ export async function createSchoolScreenAction(
 
   revalidatePath('/school/screens')
   return { screenToken: (data as { screen_token: string }).screen_token }
+}
+
+// ── Device pairing codes ──────────────────────────────────────
+// The kiosk tablet and the TV have no keyboard and no camera; typing a 48-char
+// token or scanning a QR isn't realistic. This mints a 6-digit code the
+// operator types into the app's setup wizard once — the app posts it to
+// /api/pair and gets the real long token back. See lib/dal/device-pairing.ts.
+export interface DevicePairingCodeResult {
+  code?: string
+  expiresAt?: string
+  error?: string
+}
+
+export async function createDevicePairingCodeAction(input: {
+  branchId: string
+  role: 'kiosk' | 'display'
+  screenId?: string
+}): Promise<DevicePairingCodeResult> {
+  const { branchId, role, screenId } = input
+  if (role !== 'kiosk' && role !== 'display') return { error: 'Invalid device role' }
+  if (role === 'display' && !screenId) return { error: 'A screen is required' }
+
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
+
+  const supabase = createSupabaseServiceClient()
+  if (role === 'display') {
+    // The screen must be a school board on this same branch.
+    const { data: screen } = await supabase
+      .from('screens')
+      .select('id')
+      .eq('id', screenId!)
+      .eq('branch_id', branchId)
+      .eq('kind', 'school')
+      .maybeSingle()
+    if (!screen) return { error: 'Unknown screen' }
+  }
+
+  try {
+    const { code, expiresAt } = await createPairingCode({
+      customerId: profile.customerId,
+      branchId,
+      role,
+      screenId: screenId ?? null,
+      createdBy: profile.id,
+    })
+    return { code, expiresAt }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Could not create a pairing code' }
+  }
 }

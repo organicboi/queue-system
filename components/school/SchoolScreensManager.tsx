@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { createSchoolScreenAction } from '@/lib/actions/school-admin'
 import { formatRelativeTime } from '@/lib/queueUtils'
 import { ProvisioningQrDialog } from './ProvisioningQrDialog'
+import { DevicePairingDialog } from './DevicePairingDialog'
 
 interface Screen {
   id: string
@@ -78,23 +79,29 @@ export function SchoolScreensManager({ branchId, branchToken, initialScreens }: 
             <p className="text-xs font-semibold text-slate-700">Kiosk app token</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            Installing the VibeQueue Kiosk Android app on the tablet? Enter this token on its
-            setup screen.
+            Installing the VibeQueue Kiosk Android app on the tablet? Open its setup wizard and
+            type a pairing code — no need to enter this long token by hand.
           </p>
-          <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs text-slate-800">
-              {branchToken}
-            </code>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => copy(branchToken, 'Kiosk app token')}
-            >
-              <Copy className="size-3.5" />
-              Copy
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <DevicePairingDialog role="kiosk" branchId={branchId} label="Pair the kiosk app" />
+            <ProvisioningQrDialog role="kiosk" token={branchToken} label="Pair the kiosk app" />
           </div>
-          <ProvisioningQrDialog role="kiosk" token={branchToken} label="Pair the kiosk app" />
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer select-none">Show the raw token</summary>
+            <div className="mt-2 flex items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs text-slate-800">
+                {branchToken}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => copy(branchToken, 'Kiosk app token')}
+              >
+                <Copy className="size-3.5" />
+                Copy
+              </Button>
+            </div>
+          </details>
         </div>
       </section>
 
@@ -171,6 +178,12 @@ export function SchoolScreensManager({ branchId, branchToken, initialScreens }: 
                     Open
                   </a>
                 </Button>
+                <DevicePairingDialog
+                  role="display"
+                  branchId={branchId}
+                  screenId={screen.id}
+                  label={`Pair "${screen.name}"`}
+                />
                 <ProvisioningQrDialog
                   role="display"
                   token={screen.screen_token}

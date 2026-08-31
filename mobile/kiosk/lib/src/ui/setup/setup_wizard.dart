@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../api/api_exception.dart';
 import '../../api/display_api.dart';
 import '../../api/kiosk_api.dart';
+import '../../api/pair_api.dart';
 import '../../config/app_config.dart';
 import '../../config/device_config.dart';
 import '../../config/device_role.dart';
@@ -37,6 +39,7 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
   late final TextEditingController _baseUrlController;
   late final TextEditingController _tokenController;
   late final TextEditingController _webUrlController;
+  final _codeController = TextEditingController();
 
   DeviceRole? _role;
   PrinterSettings _printer = const PrinterSettings();
@@ -70,6 +73,7 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
     _baseUrlController.dispose();
     _tokenController.dispose();
     _webUrlController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
@@ -143,28 +147,8 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
     // against — the role changed underneath them with nothing on screen
     // saying so. Now it asks first, every time the two disagree.
     if (_role != null && _role != payload.role) {
-      if (!mounted) return;
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Different role in this code'),
-          content: Text(
-            'This QR code is for a "${payload.role.label}" screen, but you '
-            'chose "${_role!.label}". Switch to "${payload.role.label}"?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Keep my choice'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text('Switch to ${payload.role.label}'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
+      final confirmed = await _confirmRoleSwitch(payload.role);
+      if (!confirmed) return;
     }
 
     setState(() {
@@ -175,6 +159,74 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
       _pairError = null;
     });
     await _validatePairing();
+  }
+
+  /// The web dashboard shows a kiosk code/QR AND one per display screen. If the
+  /// operator pairs with one whose role disagrees with the card they picked two
+  /// steps ago, ask before switching underneath them — silently swapping is the
+  /// "I chose display but it locked as kiosk" bug.
+  Future<bool> _confirmRoleSwitch(DeviceRole newRole) async {
+    if (!mounted) return false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Different role in this code'),
+        content: Text(
+          'This code is for a "${newRole.label}" screen, but you chose '
+          '"${_role!.label}". Switch to "${newRole.label}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep my choice'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('Switch to ${newRole.label}'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  /// Primary pairing path: the operator types the 6-digit code shown on the
+  /// dashboard, we swap it at POST /api/pair for the real long token.
+  Future<void> _redeemCode() async {
+    final code = _codeController.text.trim();
+    if (code.length != 6) return;
+    setState(() {
+      _validating = true;
+      _pairError = null;
+      _resolvedName = null;
+    });
+    try {
+      final result =
+          await PairApi(baseUrl: _baseUrlController.text.trim()).redeem(code);
+      if (_role != null && _role != result.role) {
+        final confirmed = await _confirmRoleSwitch(result.role);
+        if (!confirmed) {
+          setState(() => _validating = false);
+          return;
+        }
+      }
+      setState(() {
+        _role = result.role;
+        _tokenController.text = result.token;
+        _resolvedName = result.name.isEmpty ? result.role.label : result.name;
+        _validating = false;
+      });
+    } on ApiException catch (e) {
+      setState(() {
+        _pairError = e.message;
+        _validating = false;
+      });
+    } catch (_) {
+      setState(() {
+        _pairError = 'Could not reach the server.';
+        _validating = false;
+      });
+    }
   }
 
   void _next() {
@@ -271,11 +323,13 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
                   }))),
                   _pad(_PairStep(
                     role: _role,
+                    codeController: _codeController,
                     tokenController: _tokenController,
                     webUrlController: _webUrlController,
                     validating: _validating,
                     error: _pairError,
                     resolvedName: _resolvedName,
+                    onRedeemCode: _redeemCode,
                     onScanQr: _scanQr,
                     onValidate: _validatePairing,
                     onChanged: () => setState(() => _resolvedName = null),
@@ -465,22 +519,26 @@ class _RoleCard extends StatelessWidget {
 class _PairStep extends StatelessWidget {
   const _PairStep({
     required this.role,
+    required this.codeController,
     required this.tokenController,
     required this.webUrlController,
     required this.validating,
     required this.error,
     required this.resolvedName,
+    required this.onRedeemCode,
     required this.onScanQr,
     required this.onValidate,
     required this.onChanged,
   });
 
   final DeviceRole? role;
+  final TextEditingController codeController;
   final TextEditingController tokenController;
   final TextEditingController webUrlController;
   final bool validating;
   final String? error;
   final String? resolvedName;
+  final VoidCallback onRedeemCode;
   final VoidCallback onScanQr;
   final VoidCallback onValidate;
   final VoidCallback onChanged;
@@ -503,34 +561,44 @@ class _PairStep extends StatelessWidget {
       );
     }
 
-    final label = role == DeviceRole.display ? 'Screen token' : 'Kiosk token';
+    final tokenLabel = role == DeviceRole.display ? 'Screen token' : 'Kiosk token';
     return ListView(
       children: [
         const SizedBox(height: 8),
         Text('Pair this device', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 6),
-        Text('Enter the $label shown on the school dashboard, or scan its QR code.',
-            style: const TextStyle(color: KioskPalette.inkSoft)),
+        const Text(
+          'On the school dashboard — Devices — press “Pairing code” for this '
+          'screen and type the 6 digits here.',
+          style: TextStyle(color: KioskPalette.inkSoft),
+        ),
         const SizedBox(height: 20),
         TextField(
-          controller: tokenController,
-          decoration: InputDecoration(labelText: label),
+          controller: codeController,
+          decoration: const InputDecoration(
+            labelText: 'Pairing code',
+            hintText: '••••••',
+            counterText: '',
+          ),
+          keyboardType: TextInputType.number,
           autocorrect: false,
           enableSuggestions: false,
-          onChanged: (_) => onChanged(),
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: onScanQr,
-          icon: const Icon(Icons.qr_code_scanner),
-          label: const Text('Scan QR code'),
+          style: const TextStyle(fontSize: 22, letterSpacing: 6, fontFeatures: [FontFeature.tabularFigures()]),
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(6),
+          ],
+          onChanged: (v) {
+            onChanged();
+            if (v.trim().length == 6) onRedeemCode();
+          },
         ),
         const SizedBox(height: 12),
         TextButton(
-          onPressed: validating ? null : onValidate,
+          onPressed: validating ? null : onRedeemCode,
           child: validating
               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Check token'),
+              : const Text('Pair'),
         ),
         if (error != null)
           Padding(
@@ -548,6 +616,40 @@ class _PairStep extends StatelessWidget {
               ],
             ),
           ),
+        const SizedBox(height: 20),
+        Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsets.only(bottom: 8),
+            title: const Text('Use the full token or a QR code instead',
+                style: TextStyle(color: KioskPalette.inkSoft, fontSize: 14)),
+            children: [
+              TextField(
+                controller: tokenController,
+                decoration: InputDecoration(labelText: tokenLabel),
+                autocorrect: false,
+                enableSuggestions: false,
+                onChanged: (_) => onChanged(),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onScanQr,
+                    icon: const Icon(Icons.qr_code_scanner),
+                    label: const Text('Scan QR code'),
+                  ),
+                  const SizedBox(width: 12),
+                  TextButton(
+                    onPressed: validating ? null : onValidate,
+                    child: const Text('Check token'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
