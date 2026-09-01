@@ -70,12 +70,18 @@ Future<ui.Image?> loadTicketLogo(String url) async {
 // ticket_raster.dart). Chosen for legibility on a 576-dot (80mm) head; they
 // scale down proportionally fine on the 384-dot (58mm) width since the
 // layout itself, not just the font sizes, is driven by `widthDots`.
+//
+// Sized against the 58mm roll, which is the tighter of the two: at 384 dots
+// the content box is 384 - 2*s(20) = 357 dots ~= 45mm. A bold sans runs about
+// 0.6em per character, so a name only starts wrapping past ~20 characters at
+// _schoolFontSize. Wrapping is the safe failure here — `Text` soft-wraps and
+// the roll is cut to length, so a long name costs paper, never letters.
 const double _logoMaxHeightDots = 110;
 const double _tokenFontSize = 150;
-const double _schoolFontSize = 34;
-const double _departmentFontSize = 32;
-const double _footerFontSize = 22;
-const double _metaFontSize = 20;
+const double _schoolFontSize = 44;
+const double _departmentFontSize = 40;
+const double _footerFontSize = 26;
+const double _metaFontSize = 28;
 const double _aheadFontSize = 26;
 
 /// The line the visitor is actually looking for: how many people are still in
@@ -309,7 +315,7 @@ Widget buildCalibrationWidget({required int widthDots}) {
         ),
         const SizedBox(height: 4),
         const Text(
-          'Ruler marks every 10mm. Note where printing stops.',
+          'Ruler marks every 10mm. Note the last one that printed.',
           style: TextStyle(fontSize: 14, color: Colors.black87),
         ),
         const SizedBox(height: 12),

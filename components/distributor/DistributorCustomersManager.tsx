@@ -10,8 +10,9 @@ import { VERTICALS, DEFAULT_VERTICAL, verticalMeta } from '@/lib/verticals'
 import type { CustomerVertical } from '@/lib/db/types'
 import {
   createCustomerAction, toggleCustomerActiveAction, changePlanAction,
-  setCustomerSchoolLimitsAction,
+  setCustomerSchoolLimitsAction, setSchoolIdentityAction,
 } from '@/lib/actions/distributor'
+import type { SchoolBranchIdentity } from '@/lib/db/school-types'
 import { MAX_SCHOOL_ENTITLEMENT } from '@/lib/db/types'
 import { Plus, Power, Copy, Check, Key, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
@@ -23,14 +24,16 @@ type CustomerWithPlan = CustomerDTO & { planName?: string }
 interface Props {
   customers: CustomerWithPlan[]
   plans: Plan[]
+  // Branch branding, keyed by customer id. Only school tenants have entries.
+  identities: Record<string, SchoolBranchIdentity[]>
 }
 
 const INIT: { error?: string; licenseKey?: string } = {}
 
-export function DistributorCustomersManager({ customers, plans }: Props) {
+export function DistributorCustomersManager({ customers, plans, identities }: Props) {
   const [open, setOpen] = useState(false)
-  // Which school tenant's department/counter allowance is being edited.
-  const [limitsFor, setLimitsFor] = useState<CustomerWithPlan | null>(null)
+  // Which school tenant's setup — branding and allowance — is being edited.
+  const [setupFor, setSetupFor] = useState<CustomerWithPlan | null>(null)
   const [planId, setPlanId] = useState(plans[0]?.id ?? '')
   // The key issued with this customer carries the system, and the customer row
   // is stamped with it too — so the tenant lands in the right product the very
@@ -207,10 +210,10 @@ export function DistributorCustomersManager({ customers, plans }: Props) {
                     variant="outline"
                     size="sm"
                     className="h-7 text-xs px-2"
-                    onClick={() => setLimitsFor(c)}
+                    onClick={() => setSetupFor(c)}
                   >
                     <SlidersHorizontal className="size-3.5 mr-1" />
-                    Limits
+                    School setup
                   </Button>
                 )}
                 <Button
@@ -234,85 +237,190 @@ export function DistributorCustomersManager({ customers, plans }: Props) {
         </div>
       </div>
 
-      <SchoolLimitsDialog customer={limitsFor} onClose={() => setLimitsFor(null)} />
+      <SchoolSetupDialog
+        customer={setupFor}
+        branches={setupFor ? identities[setupFor.id] ?? [] : []}
+        onClose={() => setSetupFor(null)}
+      />
     </div>
   )
 }
 
-// Departments and counters are billable capacity, so the ceiling is set here
-// and spent in /school/departments and /school/counters. Both are per branch,
-// matching how screens are already capped.
-function SchoolLimitsDialog({ customer, onClose }: {
+// Everything about a school tenant that the tenant itself may not change:
+// its branding (name and logo, which brand the TV board and every ticket) and
+// its department/counter allowance. Two scopes in one dialog — identity is per
+// branch, the allowance is per customer and applies at every branch — so each
+// section saves on its own rather than sharing one ambiguous button.
+function SchoolSetupDialog({ customer, branches, onClose }: {
   customer: CustomerWithPlan | null
+  branches: SchoolBranchIdentity[]
   onClose: () => void
 }) {
   const [forId, setForId] = useState<string | null>(null)
   const [departments, setDepartments] = useState('1')
   const [counters, setCounters] = useState('1')
-  const [saving, setSaving] = useState(false)
+  const [savingLimits, setSavingLimits] = useState(false)
+
+  const [branchId, setBranchId] = useState('')
+  const [nameEn, setNameEn] = useState('')
+  const [nameAr, setNameAr] = useState('')
+  const [logoUrl, setLogoUrl] = useState('')
+  const [savingIdentity, setSavingIdentity] = useState(false)
+
+  function loadBranch(id: string, list: SchoolBranchIdentity[], customerName: string) {
+    const b = list.find((x) => x.branchId === id)
+    setBranchId(id)
+    // A tenant created before branding moved here may have no name saved; fall
+    // back to what the account is called so the field is never blank.
+    setNameEn(b?.schoolNameEn || customerName)
+    setNameAr(b?.schoolNameAr ?? '')
+    setLogoUrl(b?.logoUrl ?? '')
+  }
 
   if (customer && forId !== customer.id) {
     setForId(customer.id)
     setDepartments(String(customer.maxSchoolDepartments))
     setCounters(String(customer.maxSchoolCounters))
+    loadBranch(branches[0]?.branchId ?? '', branches, customer.name)
   }
 
-  async function save() {
+  async function saveLimits() {
     if (!customer) return
-    setSaving(true)
+    setSavingLimits(true)
     const r = await setCustomerSchoolLimitsAction(customer.id, {
       maxSchoolDepartments: Number(departments),
       maxSchoolCounters: Number(counters),
     })
-    setSaving(false)
+    setSavingLimits(false)
     if (r.error) toast.error(r.error)
-    else {
-      toast.success('Limits updated')
-      onClose()
-    }
+    else toast.success('Limits updated')
+  }
+
+  async function saveIdentity() {
+    if (!branchId) return
+    setSavingIdentity(true)
+    const r = await setSchoolIdentityAction({ branchId, schoolNameEn: nameEn, schoolNameAr: nameAr, logoUrl })
+    setSavingIdentity(false)
+    if (r.error) toast.error(r.error)
+    else toast.success('Identity updated')
   }
 
   return (
     <Dialog open={!!customer} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{customer?.name} — limits</DialogTitle>
+          <DialogTitle>{customer?.name} — school setup</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          How many departments and counters this school can run at each branch. They
-          cannot raise these themselves.
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="maxSchoolDepartments">Departments</Label>
-            <Input
-              id="maxSchoolDepartments"
-              type="number"
-              min={0}
-              max={MAX_SCHOOL_ENTITLEMENT}
-              value={departments}
-              onChange={(e) => setDepartments(e.target.value)}
-            />
+
+        {/* ── Identity ── */}
+        <section className="space-y-3 rounded-xl border border-border p-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Identity</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Shown on the TV board and printed on every ticket. Read-only for the
+              client on /school/settings.
+            </p>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="maxSchoolCounters">Counters</Label>
-            <Input
-              id="maxSchoolCounters"
-              type="number"
-              min={0}
-              max={MAX_SCHOOL_ENTITLEMENT}
-              value={counters}
-              onChange={(e) => setCounters(e.target.value)}
-            />
+
+          {branches.length === 0 ? (
+            <p className="text-xs text-muted-foreground">This customer has no branches yet.</p>
+          ) : (
+            <>
+              {/* Identity is per branch — a multi-campus tenant brands each one. */}
+              {branches.length > 1 && (
+                <div className="space-y-1.5">
+                  <Label>Branch</Label>
+                  <Select
+                    value={branchId}
+                    onValueChange={(v) => loadBranch(v, branches, customer?.name ?? '')}
+                  >
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {branches.map((b) => (
+                        <SelectItem key={b.branchId} value={b.branchId}>{b.branchName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="schoolNameEn">School name</Label>
+                <Input
+                  id="schoolNameEn"
+                  value={nameEn}
+                  maxLength={120}
+                  onChange={(e) => setNameEn(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="schoolNameAr">School name (Arabic)</Label>
+                <Input
+                  id="schoolNameAr"
+                  dir="rtl"
+                  value={nameAr}
+                  maxLength={120}
+                  onChange={(e) => setNameAr(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="logoUrl">Logo URL</Label>
+                <Input
+                  id="logoUrl"
+                  value={logoUrl}
+                  placeholder="https://…"
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                />
+              </div>
+              <Button size="sm" onClick={saveIdentity} disabled={savingIdentity}>
+                {savingIdentity ? 'Saving…' : 'Save Identity'}
+              </Button>
+            </>
+          )}
+        </section>
+
+        {/* ── Limits ── */}
+        <section className="space-y-3 rounded-xl border border-border p-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Limits</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              How many departments and counters this school can run at each branch.
+            </p>
           </div>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Lowering a number never removes anything the school already built — it just
-          stops them adding more until they deactivate down to the new limit.
-        </p>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Limits'}</Button>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="maxSchoolDepartments">Departments</Label>
+              <Input
+                id="maxSchoolDepartments"
+                type="number"
+                min={0}
+                max={MAX_SCHOOL_ENTITLEMENT}
+                value={departments}
+                onChange={(e) => setDepartments(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="maxSchoolCounters">Counters</Label>
+              <Input
+                id="maxSchoolCounters"
+                type="number"
+                min={0}
+                max={MAX_SCHOOL_ENTITLEMENT}
+                value={counters}
+                onChange={(e) => setCounters(e.target.value)}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Lowering a number never removes anything the school already built — it just
+            stops them adding more until they deactivate down to the new limit.
+          </p>
+          <Button size="sm" onClick={saveLimits} disabled={savingLimits}>
+            {savingLimits ? 'Saving…' : 'Save Limits'}
+          </Button>
+        </section>
+
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={onClose}>Done</Button>
         </div>
       </DialogContent>
     </Dialog>

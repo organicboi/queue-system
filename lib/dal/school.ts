@@ -8,7 +8,7 @@ import {
   type SchoolTokenDTO, type SchoolActivityLogDTO, type SchoolBoardPacket,
   type SchoolDashboardStats, type SchoolDepartmentStats, type SchoolKioskFeed,
   type DbSchoolSettings, type DbSchoolDepartment, type DbSchoolCounter,
-  type DbSchoolToken, type DbSchoolActivityLog,
+  type DbSchoolToken, type DbSchoolActivityLog, type SchoolBranchIdentity,
 } from '@/lib/db/school-types'
 import { SCHOOL_TOKEN_PAGE_SIZE } from '@/lib/school/constants'
 
@@ -339,4 +339,50 @@ export async function getSchoolKioskFeed(branchToken: string): Promise<SchoolKio
     waitingTotal: waitingRows.length,
     issuedToday: issuedToday ?? 0,
   }
+}
+
+// ── Provider-owned branding ───────────────────────────────────
+// One entry per branch of every school customer asked for, whether or not that
+// branch has a school_settings row yet — the distributor panel needs to offer
+// the field before the tenant has ever saved settings. Two bulk queries rather
+// than one per customer, because /distributor/customers lists them all.
+export async function getSchoolBranchIdentities(
+  customerIds: string[]
+): Promise<Record<string, SchoolBranchIdentity[]>> {
+  if (customerIds.length === 0) return {}
+
+  const supabase = createSupabaseServiceClient()
+  const { data: branches } = await supabase
+    .from('branches')
+    .select('id, customer_id, name')
+    .in('customer_id', customerIds)
+    .order('created_at', { ascending: true })
+
+  const branchRows = (branches ?? []) as { id: string; customer_id: string; name: string }[]
+  if (branchRows.length === 0) return {}
+
+  const { data: settings } = await supabase
+    .from('school_settings')
+    .select('branch_id, school_name_en, school_name_ar, logo_url')
+    .in('branch_id', branchRows.map((b) => b.id))
+
+  const byBranch = new Map(
+    ((settings ?? []) as {
+      branch_id: string; school_name_en: string; school_name_ar: string; logo_url: string
+    }[]).map((r) => [r.branch_id, r])
+  )
+
+  const result: Record<string, SchoolBranchIdentity[]> = {}
+  for (const branch of branchRows) {
+    const row = byBranch.get(branch.id)
+    ;(result[branch.customer_id] ??= []).push({
+      branchId: branch.id,
+      branchName: branch.name,
+      customerId: branch.customer_id,
+      schoolNameEn: row?.school_name_en ?? '',
+      schoolNameAr: row?.school_name_ar ?? '',
+      logoUrl: row?.logo_url ?? '',
+    })
+  }
+  return result
 }

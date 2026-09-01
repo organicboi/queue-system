@@ -87,4 +87,28 @@ void main() {
     expect(loaded.printer.transport.storageValue, 'network');
     expect(loaded.printer.networkHost, '192.168.1.50');
   });
+
+  /// Regression: an 80mm raster on a 58mm head silently loses every dot past
+  /// 384, which is how a live kiosk printed tickets with the number pushed to
+  /// the right and the waiting-ahead line cut mid-word. The paper setting must
+  /// fail toward the narrow roll — that mismatch only wastes paper, it never
+  /// drops content the visitor needs.
+  group('PaperWidth fail-safe', () {
+    test('an absent or unrecognised stored value falls to 58mm', () {
+      expect(PaperWidth.fromStorage(null), PaperWidth.mm58);
+      expect(PaperWidth.fromStorage(''), PaperWidth.mm58);
+      expect(PaperWidth.fromStorage('72'), PaperWidth.mm58);
+    });
+
+    test('an explicitly stored width still round-trips both ways', () {
+      for (final w in PaperWidth.values) {
+        expect(PaperWidth.fromStorage(w.storageValue), w);
+      }
+    });
+
+    test('a default PrinterSettings never rasterises wider than 384 dots', () {
+      expect(const PrinterSettings().paper.printableDots, 384);
+    });
+  });
+
 }

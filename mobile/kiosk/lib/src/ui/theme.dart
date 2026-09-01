@@ -150,16 +150,39 @@ ThemeData buildKioskTheme() {
       bodyColor: KioskPalette.ink,
       displayColor: KioskPalette.ink,
     ).copyWith(
+      // Every style below states its own colour. `apply()` above sets one on
+      // the styles it inherits, but a `copyWith` entry *replaces* the style
+      // wholesale — a colourless heading then falls back to whatever
+      // DefaultTextStyle happens to be in scope (inside a Scaffold that is
+      // bodyMedium, the muted body colour), which is how "Please select a
+      // service" ended up paler than the hint underneath it.
       displayLarge: const TextStyle(
         fontSize: 132,
         height: 1.0,
         fontWeight: FontWeight.w800,
         letterSpacing: -2,
+        color: KioskPalette.ink,
       ),
-      headlineMedium: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700),
-      headlineSmall: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-      titleLarge: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-      titleMedium: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+      headlineMedium: const TextStyle(
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+        color: KioskPalette.ink,
+      ),
+      headlineSmall: const TextStyle(
+        fontSize: 26,
+        fontWeight: FontWeight.w700,
+        color: KioskPalette.ink,
+      ),
+      titleLarge: const TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        color: KioskPalette.ink,
+      ),
+      titleMedium: const TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.w600,
+        color: KioskPalette.ink,
+      ),
       bodyLarge: const TextStyle(fontSize: 17, color: KioskPalette.inkSoft),
       bodyMedium: const TextStyle(fontSize: 15, color: KioskPalette.inkSoft),
       labelLarge: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),

@@ -153,11 +153,148 @@ export async function updateSchoolDepartmentAction(
   return { department: toSchoolDepartmentDTO(data as DbSchoolDepartment) }
 }
 
-// Departments are never hard-deleted: school_tokens.department_id is ON DELETE
-// RESTRICT precisely so a day's history can't be orphaned. Deactivating also
-// frees the prefix (the unique index is partial on is_active).
+// Full edit from the department dialog. The same shape as create, plus the id
+// — going through updateSchoolDepartmentAction keeps the quota check, the
+// duplicate-prefix mapping and the branch scoping in one place.
+const EditDepartmentSchema = DepartmentSchema.extend({
+  departmentId: z.string().uuid(),
+})
+
+export async function editSchoolDepartmentAction(
+  _prev: SchoolDepartmentResult,
+  formData: FormData
+): Promise<SchoolDepartmentResult> {
+  const parsed = EditDepartmentSchema.safeParse({
+    departmentId: formData.get('departmentId'),
+    branchId: formData.get('branchId'),
+    nameEn: formData.get('nameEn'),
+    nameAr: formData.get('nameAr') ?? '',
+    prefix: formData.get('prefix'),
+    numberStart: formData.get('numberStart') || 101,
+    color: formData.get('color') || '#0F766E',
+    icon: formData.get('icon') || 'Building2',
+    isPriority: formData.get('isPriority') === 'on',
+    displayOrder: formData.get('displayOrder') || 0,
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  const d = parsed.data
+  return updateSchoolDepartmentAction(d.departmentId, d.branchId, {
+    nameEn: d.nameEn,
+    nameAr: d.nameAr,
+    prefix: d.prefix,
+    numberStart: d.numberStart,
+    color: d.color,
+    icon: d.icon,
+    isPriority: d.isPriority,
+  })
+}
+
+// Departments are normally never hard-deleted: school_tokens.department_id is
+// ON DELETE RESTRICT precisely so a day's history can't be orphaned.
+// Deactivating also frees the prefix (the unique index is partial on
+// is_active).
 export async function deactivateSchoolDepartmentAction(departmentId: string, branchId: string) {
   return updateSchoolDepartmentAction(departmentId, branchId, { isActive: false })
+}
+
+export interface DeleteSchoolDepartmentResult {
+  deleted?: boolean
+  // How many tokens block the delete, so the UI can say why rather than just
+  // refusing.
+  tokenCount?: number
+  error?: string
+}
+
+// A department that has never issued a token is a configuration mistake, not
+// history — removing it outright is what an admin means by "delete". Once it
+// has tokens the RESTRICT constraint is right and deactivating is the only
+// honest answer, so this checks first and says so instead of surfacing a
+// Postgres error.
+export async function deleteSchoolDepartmentAction(
+  departmentId: string,
+  branchId: string
+): Promise<DeleteSchoolDepartmentResult> {
+  try {
+    await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
+
+  const supabase = createSupabaseServiceClient()
+
+  // Scope the existence check to the branch too — departmentId alone comes
+  // from the client.
+  const { data: dept } = await supabase
+    .from('school_departments')
+    .select('id')
+    .eq('id', departmentId)
+    .eq('branch_id', branchId)
+    .maybeSingle()
+  if (!dept) return { error: 'Unknown department' }
+
+  const { count } = await supabase
+    .from('school_tokens')
+    .select('*', { count: 'exact', head: true })
+    .eq('department_id', departmentId)
+
+  if ((count ?? 0) > 0) {
+    return {
+      tokenCount: count ?? 0,
+      error:
+        `This department has already issued ${count} token${count === 1 ? '' : 's'}, ` +
+        'so it has to stay for the records. Deactivate it instead — it disappears from ' +
+        'the kiosk and the board, and frees its prefix.',
+    }
+  }
+
+  // school_department_days and school_counter_departments both cascade; the
+  // activity log's department_id is ON DELETE SET NULL.
+  const { error } = await supabase
+    .from('school_departments')
+    .delete()
+    .eq('id', departmentId)
+    .eq('branch_id', branchId)
+
+  if (error) return { error: 'Could not delete the department' }
+
+  revalidatePath('/school/departments')
+  revalidatePath('/school/counters')
+  return { deleted: true }
+}
+
+// Drag-free reordering: the client sends the whole list in its new order and
+// display_order becomes the index. That's what the kiosk grid and the board
+// sort by, so it's the one thing an admin can rearrange without touching
+// anything else.
+export async function reorderSchoolDepartmentsAction(
+  branchId: string,
+  orderedIds: string[]
+): Promise<{ error?: string }> {
+  try {
+    await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
+
+  if (orderedIds.length === 0) return {}
+  if (orderedIds.length > 200) return { error: 'Too many departments to reorder' }
+
+  const supabase = createSupabaseServiceClient()
+  const results = await Promise.all(
+    orderedIds.map((id, index) =>
+      supabase
+        .from('school_departments')
+        .update({ display_order: index, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('branch_id', branchId)
+    )
+  )
+
+  if (results.some((r) => r.error)) return { error: 'Could not save the new order' }
+
+  revalidatePath('/school/departments')
+  return {}
 }
 
 // ── Seed the brochure's departments ───────────────────────────
@@ -389,11 +526,14 @@ export async function deactivateSchoolCounterAction(counterId: string, branchId:
 }
 
 // ── Settings ──────────────────────────────────────────────────
+// Identity — school name and logo — is deliberately absent. It brands the TV
+// board and every printed ticket, so it belongs to whoever sold the system:
+// the distributor sets it from /distributor/customers via
+// setSchoolIdentityAction. Leaving the fields out of the schema (rather than
+// only hiding them in the form) is what actually enforces that — this action
+// is a public entry point a tenant can post to directly.
 const SettingsSchema = z.object({
   branchId: z.string().uuid(),
-  schoolNameEn: z.string().max(120).optional(),
-  schoolNameAr: z.string().max(120).optional(),
-  logoUrl: z.string().url().optional().or(z.literal('')),
   languages: z.array(z.enum(['en', 'ar'])).min(1).optional(),
   ticketFooterEn: z.string().max(200).optional(),
   ticketFooterAr: z.string().max(200).optional(),
@@ -429,9 +569,6 @@ export async function saveSchoolSettingsAction(
     .upsert({
       customer_id: profile.customerId,
       branch_id: d.branchId,
-      ...(d.schoolNameEn !== undefined && { school_name_en: d.schoolNameEn }),
-      ...(d.schoolNameAr !== undefined && { school_name_ar: d.schoolNameAr }),
-      ...(d.logoUrl !== undefined && { logo_url: d.logoUrl }),
       ...(d.languages !== undefined && { languages: d.languages }),
       ...(d.ticketFooterEn !== undefined && { ticket_footer_en: d.ticketFooterEn }),
       ...(d.ticketFooterAr !== undefined && { ticket_footer_ar: d.ticketFooterAr }),

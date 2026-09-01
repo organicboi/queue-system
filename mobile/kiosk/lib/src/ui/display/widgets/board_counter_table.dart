@@ -32,7 +32,7 @@ class BoardCounterTable extends StatelessWidget {
       ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
     return LayoutBuilder(builder: (context, c) {
-      final headerHeight = 62 * scale;
+      final headerHeight = 100 * scale;
       final avail = (c.maxHeight - headerHeight).clamp(0.0, double.infinity);
 
       // Grow rows to fill, but cap them: one lone open counter should read as
@@ -87,28 +87,38 @@ class _HeaderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // These labels are the legend for the whole board — what each column of
+    // numbers *means* — so they have to be readable from the same distance as
+    // the rows beneath them, not set at caption size.
     final style = TextStyle(
-      fontSize: 22 * scale,
+      fontSize: 34 * scale,
       fontWeight: FontWeight.w800,
-      color: KioskPalette.inkSoft,
-      letterSpacing: 1.6,
+      color: KioskPalette.ink,
+      letterSpacing: 1.8,
       height: 1.1,
     );
     final subStyle = TextStyle(
-      fontSize: 16 * scale,
+      fontSize: 24 * scale,
       fontWeight: FontWeight.w600,
-      color: KioskPalette.inkFaint,
-      height: 1.1,
+      color: KioskPalette.inkSoft,
+      height: 1.2,
     );
+    // Shrink-to-fit for the same reason the rows do: a clipped "DEPARTM…" in
+    // the legend is worse than the word a couple of points smaller.
+    Widget line(String text, TextStyle style, TextAlign align) => FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: align == TextAlign.end ? Alignment.centerRight : Alignment.centerLeft,
+          child: Text(text, maxLines: 1, style: style),
+        );
     Widget col(String en, String ar, {TextAlign align = TextAlign.start}) => Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment:
               align == TextAlign.end ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Text(en, style: style, textAlign: align, overflow: TextOverflow.ellipsis),
+            line(en, style, align),
             Directionality(
               textDirection: TextDirection.rtl,
-              child: Text(ar, style: subStyle, textAlign: align, overflow: TextOverflow.ellipsis),
+              child: line(ar, subStyle, align),
             ),
           ],
         );

@@ -33,6 +33,7 @@ class KioskCopy {
     required this.cancel,
     required this.doneLabel,
     required this.tapAnywhere,
+    required this.takeNumber,
     required this.offlineBanner,
     required this.offlineTitle,
     required this.offlineBody,
@@ -74,6 +75,12 @@ class KioskCopy {
   // Not in the web COPY — kiosk-app-only affordances.
   final String doneLabel;
   final String tapAnywhere;
+
+  /// The call to action on a single-service branch's hero card. The heading
+  /// above the grid ("touch a service…") assumes a choice; when there is only
+  /// one service there is nothing to choose, so the card says what pressing it
+  /// will actually do.
+  final String takeNumber;
 
   // Connection copy. The web kiosk has no equivalent: a browser tab shows its
   // own network errors, an unattended terminal in a lobby shows nothing unless
@@ -120,6 +127,7 @@ class KioskCopy {
     cancel: 'Cancel',
     doneLabel: 'Done',
     tapAnywhere: 'Tap anywhere to continue',
+    takeNumber: 'Take a number',
     offlineBanner: 'No connection to the queue server — tickets cannot be issued right now.',
     offlineTitle: 'No connection to the queue server',
     offlineBody: 'This is a network problem, not a fault in this kiosk. Your number '
@@ -161,6 +169,7 @@ class KioskCopy {
     cancel: 'إلغاء التذكرة',
     doneLabel: 'تم',
     tapAnywhere: 'المس أي مكان للمتابعة',
+    takeNumber: 'احصل على رقم',
     offlineBanner: 'لا يوجد اتصال بخادم الطابور — لا يمكن إصدار التذاكر حالياً.',
     offlineTitle: 'لا يوجد اتصال بخادم الطابور',
     offlineBody: 'هذه مشكلة في الشبكة وليست عطلاً في الجهاز. لم يتم إصدار رقمك. '

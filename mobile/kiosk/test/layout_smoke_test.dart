@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:school_kiosk/src/i18n/copy.dart';
-import 'package:school_kiosk/src/models/kiosk_feed.dart';
 import 'package:school_kiosk/src/models/school_department.dart';
 import 'package:school_kiosk/src/models/school_token.dart';
 import 'package:school_kiosk/src/ui/theme.dart';
@@ -9,7 +8,6 @@ import 'package:school_kiosk/src/ui/widgets/confirmation_overlay.dart';
 import 'package:school_kiosk/src/ui/widgets/department_grid.dart';
 import 'package:school_kiosk/src/ui/widgets/kiosk_header.dart';
 import 'package:school_kiosk/src/ui/widgets/priority_banner.dart';
-import 'package:school_kiosk/src/ui/widgets/recent_rail.dart';
 
 SchoolDepartment dept(int i) => SchoolDepartment(
       id: 'd$i',
@@ -70,6 +68,45 @@ Widget host(Widget child, {String lang = 'en'}) => MaterialApp(
     );
 
 void main() {
+  // The card changes shape twice as it gets shorter — two-line name, one-line
+  // name, then a single centred row — and each of those thresholds is a place
+  // a card can overflow by a pixel or two on the wrong device. Sweep the whole
+  // height range the grid can hand a card, one row at a time, rather than
+  // hoping the viewport list happens to land on a boundary.
+  for (var h = 100.0; h <= 520.0; h += 10.0) {
+    // One department exercises the single-service hero layout, two the
+    // ordinary card; both share every density threshold.
+    for (final n in const [1, 2]) {
+    for (final lang in const ['en', 'ar']) {
+      testWidgets('card of height $h holds $n / $lang', (tester) async {
+        tester.view.physicalSize = const Size(1366, 768);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(host(
+          lang: lang,
+          Center(
+            child: SizedBox(
+              width: 900,
+              height: h,
+              child: DepartmentGrid(
+                departments: [for (var i = 1; i <= n; i++) dept(i)],
+                lang: lang,
+                waitingByDepartment: const {'d1': 12},
+                issuingDeptId: null,
+                copy: KioskCopy.of(lang),
+                onTap: (_) {},
+              ),
+            ),
+          ),
+        ));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+    }
+    }
+  }
+
   // Many services on a short screen is what forces the grid to its minimum row
   // height — the case where a card has the least room for its own content.
   for (final count in const [1, 2, 4, 6, 9, 12]) {
@@ -133,55 +170,30 @@ void main() {
                 onLangChange: (_) {},
               ),
               Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            PriorityBanner(
-                              armed: true,
-                              onToggle: () {},
-                              copy: copy,
-                              compact: true,
-                            ),
-                            const SizedBox(height: 20),
-                            Expanded(
-                              child: DepartmentGrid(
-                                departments: depts,
-                                lang: lang,
-                                waitingByDepartment: const {'d1': 3},
-                                issuingDeptId: null,
-                                copy: copy,
-                                onTap: (_) {},
-                              ),
-                            ),
-                          ],
-                        ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      PriorityBanner(
+                        armed: true,
+                        onToggle: () {},
+                        copy: copy,
+                        compact: true,
                       ),
-                    ),
-                    SizedBox(
-                      width: 340,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: RecentRail(
-                          feed: KioskFeed(
-                            status: 'ok',
-                            serviceDate: '2026-08-30',
-                            recent: [for (var i = 1; i <= 8; i++) tok(i)],
-                            waitingByDepartment: const {'d1': 3},
-                            waitingTotal: 3,
-                            issuedToday: 8,
-                          ),
+                      const SizedBox(height: 20),
+                      Expanded(
+                        child: DepartmentGrid(
                           departments: depts,
                           lang: lang,
+                          waitingByDepartment: const {'d1': 3},
+                          issuingDeptId: null,
                           copy: copy,
+                          onTap: (_) {},
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],

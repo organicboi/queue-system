@@ -186,6 +186,17 @@ export async function onboardAction(_prev: AuthResult, formData: FormData): Prom
     if (branch && (licenseRow.vertical ?? 'business') !== 'school') {
       await service.from('queue_state').insert({ customer_id: customerId, branch_id: branch.id })
     }
+
+    // A school's name is provider-owned — /school/settings shows it read-only —
+    // so seed it from the name given here. Without this the TV board and every
+    // ticket print blank until the distributor fills it in.
+    if (branch && (licenseRow.vertical ?? 'business') === 'school') {
+      await service.from('school_settings').insert({
+        customer_id: customerId,
+        branch_id: branch.id,
+        school_name_en: parsed.data.businessName ?? '',
+      })
+    }
   }
 
   redirect('/login')

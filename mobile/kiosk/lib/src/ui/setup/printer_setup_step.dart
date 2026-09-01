@@ -101,7 +101,9 @@ class _PrinterSetupStepState extends State<PrinterSetupStep> {
       _testing = false;
       _calibrationResult = attempt.isFailure
           ? 'Could not print: ${error ?? 'unknown error'}'
-          : 'Sent. Check the roll: where did it stop printing?';
+          : 'Sent. Read the last ruler mark that printed: about 48 mm means a '
+              '58 mm roll, about 72 mm means 80 mm. Set Paper to match — too '
+              'wide and every ticket loses its right edge.';
     });
   }
 

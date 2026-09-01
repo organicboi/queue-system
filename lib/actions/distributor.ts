@@ -72,6 +72,18 @@ export async function createCustomerAction(
     await service.from('queue_state').insert({ customer_id: customer.id, branch_id: branch.id })
   }
 
+  // A school's name is now provider-owned, so the tenant can no longer type it
+  // in on first save. Seed the settings row from the name being sold here, or
+  // the TV board and every ticket would print blank until the distributor
+  // remembered to fill it in.
+  if (branch && parsed.data.vertical === 'school') {
+    await service.from('school_settings').insert({
+      customer_id: customer.id,
+      branch_id: branch.id,
+      school_name_en: parsed.data.businessName,
+    })
+  }
+
   // 3. Generate a unique license key linked to this customer
   const key = [
     Math.random().toString(36).slice(2, 6).toUpperCase(),
@@ -248,6 +260,56 @@ export async function setCustomerSchoolLimitsAction(
   if (error) return { error: 'Could not update the limits' }
 
   revalidatePath('/distributor/customers')
+  return {}
+}
+
+// ── School identity ───────────────────────────────────────────
+// The name and logo brand the TV board and every printed ticket, so they are
+// the provider's to set, not the tenant's. saveSchoolSettingsAction has no
+// fields for them at all; this is the only way in.
+const SchoolIdentitySchema = z.object({
+  branchId: z.string().uuid(),
+  schoolNameEn: z.string().min(1, 'School name is required').max(120),
+  schoolNameAr: z.string().max(120),
+  logoUrl: z.string().url('Logo must be a full https:// URL').or(z.literal('')),
+})
+
+export async function setSchoolIdentityAction(
+  input: z.input<typeof SchoolIdentitySchema>
+): Promise<{ error?: string }> {
+  await requireDistributor()
+
+  const parsed = SchoolIdentitySchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+  const d = parsed.data
+
+  const service = createSupabaseServiceClient()
+
+  // school_settings.customer_id is NOT NULL, and the branch may have no
+  // settings row yet — the tenant may never have opened /school/settings.
+  const { data: branch } = await service
+    .from('branches')
+    .select('id, customer_id')
+    .eq('id', d.branchId)
+    .maybeSingle()
+
+  if (!branch) return { error: 'Branch not found' }
+
+  const { error } = await service
+    .from('school_settings')
+    .upsert({
+      customer_id: (branch as { customer_id: string }).customer_id,
+      branch_id: d.branchId,
+      school_name_en: d.schoolNameEn,
+      school_name_ar: d.schoolNameAr,
+      logo_url: d.logoUrl,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'branch_id' })
+
+  if (error) return { error: 'Could not save the school identity' }
+
+  revalidatePath('/distributor/customers')
+  revalidatePath('/school/settings')
   return {}
 }
 

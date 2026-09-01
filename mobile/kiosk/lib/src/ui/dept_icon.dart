@@ -69,3 +69,14 @@ Color departmentColor(String hex, {Color fallback = const Color(0xFF2F5BEA)}) {
   }
   return fallback;
 }
+
+/// A department colour is picked by a school admin in a web colour field, so
+/// it can land anywhere on the wheel — including pale yellows and mints that
+/// disappear as text or as a hairline on a white card. This keeps the hue the
+/// admin chose and only caps how light it is allowed to be, so every card is
+/// still recognisably "their" colour while staying legible at arm's length.
+Color departmentInk(Color raw) {
+  final hsl = HSLColor.fromColor(raw);
+  if (hsl.lightness <= 0.46) return raw;
+  return hsl.withLightness(0.46).toColor();
+}

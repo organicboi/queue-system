@@ -19,6 +19,17 @@ export type SchoolActivityType =
 
 export type SchoolLanguage = 'en' | 'ar'
 
+// The provider-owned branding for one school branch, as the distributor panel
+// edits it. Tenants see it read-only on /school/settings.
+export interface SchoolBranchIdentity {
+  branchId: string
+  branchName: string
+  customerId: string
+  schoolNameEn: string
+  schoolNameAr: string
+  logoUrl: string
+}
+
 // How much of a branch's provider-assigned department/counter allowance is
 // spent. Lives here rather than in lib/dal/school-limits.ts because the
 // manager UIs are client components and that module is server-only.

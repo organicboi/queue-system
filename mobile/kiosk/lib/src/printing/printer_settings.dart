@@ -56,8 +56,16 @@ enum PaperWidth {
         PaperWidth.mm80 => '80',
       };
 
+  /// An unknown or absent value falls to the NARROW roll on purpose, and so
+  /// does the `PrinterSettings` default. The two mismatches are not equally
+  /// bad: a raster wider than the head loses every dot past the head's last
+  /// one, silently — the ticket is still centred, but in a canvas the paper
+  /// never shows, so the number sits off to the right and the waiting-ahead
+  /// line is cut mid-word. A raster narrower than the head loses nothing; it
+  /// just prints a narrow ticket on wide paper. Only the second failure still
+  /// tells the visitor their number.
   static PaperWidth fromStorage(String? value) =>
-      value == '58' ? PaperWidth.mm58 : PaperWidth.mm80;
+      value == '80' ? PaperWidth.mm80 : PaperWidth.mm58;
 }
 
 /// Everything the printing pipeline needs, persisted as one JSON blob in
@@ -66,7 +74,7 @@ enum PaperWidth {
 class PrinterSettings {
   const PrinterSettings({
     this.transport = PrinterTransportKind.none,
-    this.paper = PaperWidth.mm80,
+    this.paper = PaperWidth.mm58,
     this.hasCutter = true,
     this.networkHost,
     this.networkPort = 9100,

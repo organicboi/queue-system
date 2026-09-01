@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Lock } from 'lucide-react'
 import { saveSchoolSettingsAction } from '@/lib/actions/school-admin'
 import type { SchoolSettingsDTO, SchoolLanguage } from '@/lib/db/school-types'
 
@@ -25,9 +26,6 @@ const TIMEZONES = [
 export function SchoolSettingsForm({ branchId, settings, fallbackName }: Props) {
   const [pending, startTransition] = useTransition()
   const [form, setForm] = useState({
-    schoolNameEn: settings?.schoolNameEn || fallbackName,
-    schoolNameAr: settings?.schoolNameAr ?? '',
-    logoUrl: settings?.logoUrl ?? '',
     languages: (settings?.languages ?? ['en']) as SchoolLanguage[],
     ticketFooterEn: settings?.ticketFooterEn ?? '',
     ticketFooterAr: settings?.ticketFooterAr ?? '',
@@ -65,37 +63,43 @@ export function SchoolSettingsForm({ branchId, settings, fallbackName }: Props) 
 
   return (
     <div className="space-y-4">
+      {/* Read-only on purpose: the name and logo brand the TV board and every
+          printed ticket, so they are the provider's to set. The server action
+          ignores them too — this is not the only guard. */}
       <section className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-800">School identity</h2>
-        <div className="space-y-1.5">
-          <Label htmlFor="schoolNameEn">School name</Label>
-          <Input
-            id="schoolNameEn"
-            value={form.schoolNameEn}
-            onChange={(e) => set('schoolNameEn', e.target.value)}
-            maxLength={120}
-          />
-          <p className="text-[11px] text-muted-foreground">Shown on the TV board and printed on every ticket.</p>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-slate-800">School identity</h2>
+          <span className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+            <Lock className="size-3" />
+            Set by your provider
+          </span>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="schoolNameAr">School name (Arabic)</Label>
-          <Input
-            id="schoolNameAr"
-            dir="rtl"
-            value={form.schoolNameAr}
-            onChange={(e) => set('schoolNameAr', e.target.value)}
-            maxLength={120}
-          />
+        <div className="flex items-center gap-3">
+          {settings?.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={settings.logoUrl}
+              alt=""
+              className="size-12 shrink-0 rounded-xl border border-slate-200 object-contain bg-white"
+            />
+          ) : (
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-dashed border-slate-300 text-[10px] text-slate-400">
+              No logo
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-800">
+              {settings?.schoolNameEn || fallbackName}
+            </p>
+            {settings?.schoolNameAr && (
+              <p className="truncate text-sm text-slate-600" dir="rtl">{settings.schoolNameAr}</p>
+            )}
+          </div>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="logoUrl">Logo URL</Label>
-          <Input
-            id="logoUrl"
-            value={form.logoUrl}
-            onChange={(e) => set('logoUrl', e.target.value)}
-            placeholder="https://…"
-          />
-        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Shown on the TV board and printed on every ticket. Contact your provider to
+          change the name or the logo.
+        </p>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4 shadow-sm">
