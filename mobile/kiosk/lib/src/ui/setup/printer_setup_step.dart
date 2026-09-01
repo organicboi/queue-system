@@ -94,12 +94,13 @@ class _PrinterSetupStepState extends State<PrinterSetupStep> {
       ),
     );
     final attempt = await printer.printCalibration();
+    final error = printer.lastCalibrationError;
     await printer.dispose();
     if (!mounted) return;
     setState(() {
       _testing = false;
       _calibrationResult = attempt.isFailure
-          ? 'Could not print — check the connection and try again.'
+          ? 'Could not print: ${error ?? 'unknown error'}'
           : 'Sent. Check the roll: where did it stop printing?';
     });
   }

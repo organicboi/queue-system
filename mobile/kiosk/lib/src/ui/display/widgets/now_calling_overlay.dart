@@ -7,6 +7,10 @@ import '../../theme.dart';
 /// Full-screen flash for one just-called token, shown for [NowCallingOverlay.flashDuration]
 /// then dismissed by key — mirrors `SchoolBoard.tsx`'s `dismissedKey` behaviour.
 /// Sized off the viewport, the same idea as the kiosk's confirmation overlay.
+///
+/// The department leads, above the token: from the back of a lobby the first
+/// thing that has to land is *whose* queue moved, so a parent waiting on
+/// Admissions can ignore an Accounts call without decoding a number first.
 class NowCallingOverlay extends StatelessWidget {
   const NowCallingOverlay({super.key, required this.counter, required this.onDismiss});
 
@@ -20,64 +24,115 @@ class NowCallingOverlay extends StatelessWidget {
     final color = counter.departmentColor != null
         ? departmentColor(counter.departmentColor!)
         : KioskPalette.primary;
+    final departmentEn = counter.departmentEn ?? '';
+    final departmentAr = counter.departmentAr ?? '';
 
     return Positioned.fill(
       child: GestureDetector(
         onTap: onDismiss,
         child: Container(
-          color: Colors.black.withValues(alpha: 0.82),
+          color: Colors.black.withValues(alpha: 0.86),
           alignment: Alignment.center,
           child: LayoutBuilder(builder: (context, c) {
-            final tokenFont = (c.maxHeight * 0.22).clamp(64.0, 220.0);
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
-                  decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(999)),
-                  child: const Text('NOW CALLING',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 3)),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  counter.tokenCode ?? '',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: tokenFont,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 4,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  counter.nameEn,
-                  style: const TextStyle(color: Colors.white70, fontSize: 34, fontWeight: FontWeight.w600),
-                ),
-                if (counter.nameAr.isNotEmpty)
-                  Directionality(
-                    textDirection: TextDirection.rtl,
+            final unit = c.maxHeight / 1080;
+            final tokenFont = (c.maxHeight * 0.30).clamp(96.0, 340.0);
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: 48 * unit),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 34 * unit, vertical: 12 * unit),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                     child: Text(
-                      counter.nameAr,
-                      style: const TextStyle(color: Colors.white70, fontSize: 28, fontWeight: FontWeight.w600),
+                      'NOW CALLING',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 34 * unit,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 5,
+                      ),
                     ),
                   ),
-                if ((counter.departmentEn ?? '').isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                  if (departmentEn.isNotEmpty) ...[
+                    SizedBox(height: 28 * unit),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        departmentEn.toUpperCase(),
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 68 * unit,
+                          fontWeight: FontWeight.w800,
+                          height: 1.1,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ),
+                    if (departmentAr.isNotEmpty)
+                      Directionality(
+                        textDirection: TextDirection.rtl,
+                        child: Text(
+                          departmentAr,
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: color.withValues(alpha: 0.85),
+                            fontSize: 44 * unit,
+                            fontWeight: FontWeight.w700,
+                            height: 1.25,
+                          ),
+                        ),
+                      ),
+                  ],
+                  SizedBox(height: 20 * unit),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
                     child: Text(
-                      counter.departmentEn!,
-                      style: const TextStyle(color: Colors.white54, fontSize: 22),
+                      counter.tokenCode ?? '',
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: tokenFont,
+                        fontWeight: FontWeight.w900,
+                        height: 1.0,
+                        letterSpacing: 6,
+                      ),
                     ),
                   ),
-                if ((counter.departmentAr ?? '').isNotEmpty)
-                  Directionality(
-                    textDirection: TextDirection.rtl,
+                  SizedBox(height: 24 * unit),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
                     child: Text(
-                      counter.departmentAr!,
-                      style: const TextStyle(color: Colors.white54, fontSize: 18),
+                      counter.nameEn,
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 58 * unit,
+                        fontWeight: FontWeight.w700,
+                        height: 1.1,
+                      ),
                     ),
                   ),
-              ],
+                  if (counter.nameAr.isNotEmpty)
+                    Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: Text(
+                        counter.nameAr,
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 40 * unit,
+                          fontWeight: FontWeight.w600,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             );
           }),
         ),

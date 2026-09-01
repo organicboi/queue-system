@@ -33,6 +33,11 @@ class EscPosPrinter implements Printer {
   PrinterTransport? _transport;
   bool _lastReady = true;
 
+  /// The exception text from the most recent [printCalibration] failure, so
+  /// the setup wizard can show the operator the actual reason instead of a
+  /// catch-all "could not print". Null after a success.
+  String? lastCalibrationError;
+
   @override
   bool get isReady => _lastReady;
 
@@ -145,9 +150,12 @@ class EscPosPrinter implements Printer {
       );
       await transport.write(bytes);
       _lastReady = true;
+      lastCalibrationError = null;
       return PrintAttempt.ok;
-    } catch (e) {
+    } catch (e, st) {
       _lastReady = false;
+      lastCalibrationError = e is PrinterTransportException ? e.message : e.toString();
+      debugPrint('[EscPosPrinter] calibration failed: $e\n$st');
       return PrintAttempt.failure(PrintFailureReason.unreachable);
     }
   }

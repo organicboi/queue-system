@@ -7,11 +7,11 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../announce/announcer.dart';
 import '../../models/board_packet.dart';
 import '../../state/board_providers.dart';
-import '../dept_icon.dart';
 import '../theme.dart';
 import 'widgets/board_ad_rail.dart';
 import 'widgets/board_counter_table.dart';
 import 'widgets/board_ticker.dart';
+import 'widgets/board_waiting_strip.dart';
 import 'widgets/now_calling_overlay.dart';
 
 /// The waiting-area announcement board. Ported from
@@ -86,22 +86,34 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
     final announcer = ref.watch(announcerProvider);
     final scale = boardScaleForSize(MediaQuery.sizeOf(context));
 
-    return Scaffold(
-      backgroundColor: KioskPalette.bg,
-      body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text('$e', style: const TextStyle(color: KioskPalette.inkSoft)),
-        ),
-        data: (packet) => _Board(
-          packet: packet,
-          scale: scale,
-          flash: _flash,
-          announcer: announcer,
-          onDismissFlash: () {
-            _flashTimer?.cancel();
-            setState(() => _flash = null);
-          },
+    // The board opts out of the app-wide text scaler (app.dart), which is
+    // tuned for a kiosk read at arm's length and caps growth at 1.28×. Every
+    // size on this screen is already written as `n * scale` against a 1920×1080
+    // TV, so a second hidden multiplier only makes the two ways of sizing
+    // fight each other — and lands the numbers at reading-distance size on a
+    // panel that is looked at from across the room.
+    return MediaQuery.withNoTextScaling(
+      child: Scaffold(
+        backgroundColor: KioskPalette.bg,
+        body: async.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(
+            child: Text(
+              '$e',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 30 * scale, color: KioskPalette.inkSoft),
+            ),
+          ),
+          data: (packet) => _Board(
+            packet: packet,
+            scale: scale,
+            flash: _flash,
+            announcer: announcer,
+            onDismissFlash: () {
+              _flashTimer?.cancel();
+              setState(() => _flash = null);
+            },
+          ),
         ),
       ),
     );
@@ -125,7 +137,7 @@ class _Board extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasAds = packet.ads.where((a) => a.isActive).isNotEmpty;
+    final activeAds = packet.ads.where((a) => a.isActive).toList();
 
     return Stack(
       children: [
@@ -137,27 +149,37 @@ class _Board extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    flex: 62,
+                    // The table carries the four columns now, so the rail gives
+                    // back a slice of width to keep the token glyphs large.
+                    flex: activeAds.isEmpty ? 100 : 70,
                     child: Column(
                       children: [
-                        Expanded(child: BoardCounterTable(counters: packet.counters, scale: scale)),
+                        Expanded(
+                          child: BoardCounterTable(
+                            counters: packet.counters,
+                            scale: scale,
+                          ),
+                        ),
                         if (packet.departments.isNotEmpty)
-                          _DepartmentPills(departments: packet.departments, scale: scale),
+                          BoardWaitingStrip(
+                            departments: packet.departments,
+                            scale: scale,
+                          ),
                       ],
                     ),
                   ),
-                  if (hasAds)
+                  if (activeAds.isNotEmpty)
                     Expanded(
-                      flex: 38,
+                      flex: 30,
                       child: BoardAdRail(
-                        ads: packet.ads.where((a) => a.isActive).toList(),
+                        ads: activeAds,
                         isSpeaking: announcer.isSpeaking,
                       ),
                     ),
                 ],
               ),
             ),
-            BoardTicker(message: packet.tickerText),
+            BoardTicker(message: packet.tickerText, scale: scale),
           ],
         ),
         if (flash != null) NowCallingOverlay(counter: flash!, onDismiss: onDismissFlash),
@@ -174,31 +196,37 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 84 * scale,
+      height: 116 * scale,
       padding: EdgeInsets.symmetric(horizontal: 28 * scale),
       decoration: const BoxDecoration(
         color: KioskPalette.surface,
-        border: Border(bottom: BorderSide(color: KioskPalette.border)),
+        border: Border(bottom: BorderSide(color: KioskPalette.borderStrong, width: 2)),
       ),
       child: Row(
         children: [
           if (packet.logoUrl.isNotEmpty)
             Padding(
-              padding: EdgeInsets.only(right: 16 * scale),
+              padding: EdgeInsets.only(right: 20 * scale),
               child: Image.network(
                 packet.logoUrl,
-                height: 44 * scale,
+                height: 72 * scale,
                 errorBuilder: (_, _, _) => const SizedBox.shrink(),
               ),
             ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   packet.schoolNameEn,
-                  style: TextStyle(fontSize: 26 * scale, fontWeight: FontWeight.w700, color: KioskPalette.ink),
+                  style: TextStyle(
+                    fontSize: 42 * scale,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                    color: KioskPalette.ink,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (packet.schoolNameAr.isNotEmpty)
@@ -206,7 +234,12 @@ class _Header extends StatelessWidget {
                     textDirection: TextDirection.rtl,
                     child: Text(
                       packet.schoolNameAr,
-                      style: TextStyle(fontSize: 16 * scale, color: KioskPalette.inkSoft),
+                      style: TextStyle(
+                        fontSize: 26 * scale,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2,
+                        color: KioskPalette.inkSoft,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -263,45 +296,11 @@ class _BoardClockState extends State<_BoardClock> {
     final ampm = _now.hour >= 12 ? 'PM' : 'AM';
     return Text(
       '$hour:$minute $ampm',
-      style: TextStyle(fontSize: 24 * widget.scale, fontWeight: FontWeight.w600, color: KioskPalette.inkSoft),
-    );
-  }
-}
-
-class _DepartmentPills extends StatelessWidget {
-  const _DepartmentPills({required this.departments, required this.scale});
-  final List<BoardDepartment> departments;
-  final double scale;
-
-  @override
-  Widget build(BuildContext context) {
-    final sorted = [...departments]..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16 * scale, vertical: 12 * scale),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: KioskPalette.border)),
-      ),
-      child: Wrap(
-        spacing: 10 * scale,
-        runSpacing: 8 * scale,
-        children: [
-          for (final d in sorted)
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 12 * scale, vertical: 6 * scale),
-              decoration: BoxDecoration(
-                color: departmentColor(d.color).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                '${d.nameEn} · ${d.waiting}',
-                style: TextStyle(
-                  fontSize: 14 * scale,
-                  fontWeight: FontWeight.w600,
-                  color: departmentColor(d.color),
-                ),
-              ),
-            ),
-        ],
+      style: TextStyle(
+        fontSize: 40 * widget.scale,
+        fontWeight: FontWeight.w700,
+        fontFeatures: const [FontFeature.tabularFigures()],
+        color: KioskPalette.ink,
       ),
     );
   }

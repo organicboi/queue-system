@@ -20,6 +20,7 @@ import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -49,6 +50,7 @@ class PrinterPlugin :
     MethodChannel.MethodCallHandler,
     RequestPermissionsResultListener {
     companion object {
+        private const val TAG = "PrinterPlugin"
         private const val CHANNEL = "com.vibequeue.school_kiosk/printer"
         private const val ACTION_USB_PERMISSION = "com.vibequeue.school_kiosk.USB_PERMISSION"
         private const val BLUETOOTH_PERMISSION_REQUEST_CODE = 4321
@@ -161,8 +163,16 @@ class PrinterPlugin :
             "openBt" -> io.execute { runCatching { openBt(call.argument<String>("address")!!) }
                 .fold({ main.post { result.success(null) } }, { e -> main.post { result.error("bt_open_failed", e.message, null) } }) }
             "write" -> {
-                @Suppress("UNCHECKED_CAST")
-                val bytes = (call.argument<List<Int>>("bytes")!!).map { it.toByte() }.toByteArray()
+                // Dart sends a Uint8List, which the standard codec delivers
+                // here as a `byte[]` — not a `List<Int>`. Accept either.
+                val bytes = when (val raw = call.argument<Any>("bytes")) {
+                    is ByteArray -> raw
+                    is List<*> -> ByteArray(raw.size) { (raw[it] as Number).toByte() }
+                    else -> {
+                        result.error("write_failed", "bytes must be a byte array", null)
+                        return
+                    }
+                }
                 io.execute { runCatching { writeBytes(bytes) }
                     .fold({ main.post { result.success(null) } }, { e -> main.post { result.error("write_failed", e.message, null) } }) }
             }
@@ -185,7 +195,16 @@ class PrinterPlugin :
     /** Interface class 0x07 = printer — what ESC/POS USB printers enumerate as. */
     private fun listUsb(): List<Map<String, Any?>> {
         val manager = usbManager()
-        return manager.deviceList.values
+        val all = manager.deviceList.values
+        Log.d(TAG, "listUsb: ${all.size} USB device(s) attached")
+        all.forEach { d ->
+            val ifaces = (0 until d.interfaceCount).joinToString(", ") { i ->
+                val f = d.getInterface(i)
+                "#${f.id}(cls=${f.interfaceClass},sub=${f.interfaceSubclass},proto=${f.interfaceProtocol},eps=${f.endpointCount})"
+            }
+            Log.d(TAG, "  ${d.deviceName} vid=${d.vendorId} pid=${d.productId} name=${d.productName} ifaces=[$ifaces]")
+        }
+        return all
             .filter { device -> (0 until device.interfaceCount).any { device.getInterface(it).interfaceClass == UsbConstants.USB_CLASS_PRINTER } }
             .map { device ->
                 mapOf(
@@ -208,9 +227,24 @@ class PrinterPlugin :
             result.success(true)
             return
         }
+        val act = activity ?: run {
+            result.success(false)
+            return
+        }
         pendingUsbPermission = result
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
-        val pendingIntent = PendingIntent.getBroadcast(activity, 0, Intent(ACTION_USB_PERMISSION), flags)
+        // The USB permission dialog delivers its result through this
+        // PendingIntent, so it must stay MUTABLE (the system fills in
+        // EXTRA_DEVICE / EXTRA_PERMISSION_GRANTED). Android 14 (U / API 34)
+        // then requires the wrapped Intent to be *explicit* — an implicit
+        // MUTABLE PendingIntent throws IllegalArgumentException — so scope it
+        // to our own package.
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_MUTABLE
+        } else {
+            0
+        }
+        val intent = Intent(ACTION_USB_PERMISSION).setPackage(act.packageName)
+        val pendingIntent = PendingIntent.getBroadcast(act, 0, intent, flags)
 
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
@@ -225,10 +259,10 @@ class PrinterPlugin :
         usbPermissionReceiver = receiver
         val filter = IntentFilter(ACTION_USB_PERMISSION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            activity!!.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            act.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             @Suppress("DEPRECATION")
-            activity!!.registerReceiver(receiver, filter)
+            act.registerReceiver(receiver, filter)
         }
         manager.requestPermission(device, pendingIntent)
     }
@@ -238,33 +272,60 @@ class PrinterPlugin :
         val manager = usbManager()
         val device: UsbDevice = manager.deviceList[deviceName]
             ?: throw IllegalStateException("USB printer is no longer attached")
+        Log.d(TAG, "openUsb: vid=${device.vendorId} pid=${device.productId} " +
+            "name=${device.productName} interfaces=${device.interfaceCount}")
         if (!manager.hasPermission(device)) {
             throw IllegalStateException("USB permission was not granted")
         }
-        val iface = (0 until device.interfaceCount)
-            .map { device.getInterface(it) }
-            .firstOrNull { it.interfaceClass == UsbConstants.USB_CLASS_PRINTER }
-            ?: throw IllegalStateException("No printer interface on this USB device")
 
-        val connection = manager.openDevice(device) ?: throw IllegalStateException("Could not open USB device")
-        if (!connection.claimInterface(iface, true)) {
-            throw IllegalStateException("Could not claim USB printer interface")
+        val printerIfaces = (0 until device.interfaceCount)
+            .map { device.getInterface(it) }
+            .filter { it.interfaceClass == UsbConstants.USB_CLASS_PRINTER }
+        if (printerIfaces.isEmpty()) {
+            throw IllegalStateException("No printer-class interface on this USB device")
         }
 
+        val connection = manager.openDevice(device)
+            ?: throw IllegalStateException(
+                "Could not open USB device — another app or the Android print service may be holding it")
+
+        // A multifunction printer can expose several class-7 interfaces (and
+        // unidirectional vs bidirectional alt-settings); take the first one
+        // that actually has a bulk OUT endpoint rather than assuming index 0.
+        var iface: UsbInterface? = null
         var out: UsbEndpoint? = null
         var inEp: UsbEndpoint? = null
-        for (i in 0 until iface.endpointCount) {
-            val ep = iface.getEndpoint(i)
-            if (ep.type != UsbConstants.USB_ENDPOINT_XFER_BULK) continue
-            if (ep.direction == UsbConstants.USB_DIR_OUT) out = ep
-            if (ep.direction == UsbConstants.USB_DIR_IN) inEp = ep
+        for (candidate in printerIfaces) {
+            var o: UsbEndpoint? = null
+            var i: UsbEndpoint? = null
+            for (e in 0 until candidate.endpointCount) {
+                val ep = candidate.getEndpoint(e)
+                Log.d(TAG, "  iface#${candidate.id} alt=${candidate.alternateSetting} " +
+                    "ep addr=0x%02x type=${ep.type} dir=${ep.direction}".format(ep.address))
+                if (ep.type != UsbConstants.USB_ENDPOINT_XFER_BULK) continue
+                if (ep.direction == UsbConstants.USB_DIR_OUT) o = ep
+                if (ep.direction == UsbConstants.USB_DIR_IN) i = ep
+            }
+            if (o != null) { iface = candidate; out = o; inEp = i; break }
         }
-        if (out == null) throw IllegalStateException("USB printer has no bulk OUT endpoint")
+
+        val claimed = iface
+        if (claimed == null || out == null) {
+            connection.close()
+            throw IllegalStateException("USB printer exposes no bulk OUT endpoint on any printer interface")
+        }
+        if (!connection.claimInterface(claimed, true)) {
+            connection.close()
+            throw IllegalStateException(
+                "Could not claim the USB printer interface — turn off the built-in print " +
+                "service (Settings ▸ Connected devices ▸ Printing) and retry")
+        }
 
         usbConnection = connection
-        usbInterface = iface
+        usbInterface = claimed
         usbOut = out
         usbIn = inEp
+        Log.d(TAG, "openUsb: ready on iface#${claimed.id}, bulkIn=${inEp != null}")
     }
 
     // ── Bluetooth ────────────────────────────────────────────
@@ -309,7 +370,11 @@ class PrinterPlugin :
         val ep = usbOut
         if (usbC != null && ep != null) {
             val sent = usbC.bulkTransfer(ep, bytes, bytes.size, 5000)
-            if (sent < 0) throw IllegalStateException("USB bulk transfer failed")
+            Log.d(TAG, "usb bulkTransfer: requested=${bytes.size} sent=$sent")
+            if (sent < 0) {
+                throw IllegalStateException(
+                    "USB bulk transfer failed (sent=$sent) — the printer did not accept the data")
+            }
             return
         }
         val out = btOut

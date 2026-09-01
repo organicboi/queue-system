@@ -93,17 +93,26 @@ double kioskTextScaleForSize(Size size) =>
 
 /// Same idea as [kioskScaleForSize] but for the announcement board: a TV is
 /// read from across a room rather than touched from arm's length, so it's
-/// scaled off a 1920×1080 baseline instead of the kiosk's 1366×768, and the
-/// text band is wider — a wall-mounted screen has no touch targets to keep
-/// text from overflowing, only readability to protect.
+/// scaled off a 1920×1080 baseline instead of the kiosk's 1366×768.
+///
+/// This is the board's **only** size multiplier — board_screen.dart wraps
+/// itself in `MediaQuery.withNoTextScaling`, deliberately opting out of the
+/// app-wide [kioskTextScaleForSize] in app.dart. Two multipliers stacked on
+/// one screen made every number the product of a visible `n * scale` and an
+/// invisible ×1.28, which is how the board ended up rendering at reading
+/// distance on a wall-mounted panel.
+///
+/// The clamp floor is deliberately low. Every size on the board is a fraction
+/// of the viewport, so a set-top box negotiating 1280×720 (or handing Flutter
+/// a small logical size after devicePixelRatio) still lands the same *physical*
+/// proportion of the same TV — clamping the ratio up would blow the layout out
+/// of a small viewport instead of protecting it.
 double boardScaleForSize(Size size) {
   if (size.isEmpty) return 1;
   final r = math.min(size.width / 1920.0, size.height / 1080.0);
   if (!r.isFinite || r <= 0) return 1;
-  return r.clamp(0.6, 2.2);
+  return r.clamp(0.35, 2.2);
 }
-
-double boardTextScaleForSize(Size size) => boardScaleForSize(size).clamp(0.75, 1.6);
 
 ThemeData buildKioskTheme() {
   const scheme = ColorScheme.light(

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:school_kiosk/src/models/board_packet.dart';
 import 'package:school_kiosk/src/ui/display/widgets/board_counter_table.dart';
 import 'package:school_kiosk/src/ui/display/widgets/board_ticker.dart';
+import 'package:school_kiosk/src/ui/display/widgets/board_waiting_strip.dart';
 import 'package:school_kiosk/src/ui/display/widgets/now_calling_overlay.dart';
 import 'package:school_kiosk/src/ui/theme.dart';
 
@@ -22,17 +23,23 @@ BoardCounter counter(int i, {bool called = false}) => BoardCounter(
       departmentColor: '#2563EB',
     );
 
-/// Mirrors the production MediaQuery override for the board (boardScaleForSize
-/// instead of the kiosk's), same idea as layout_smoke_test.dart's `host`.
+BoardDepartment department(int i, {int waiting = 0}) => BoardDepartment(
+      id: 'd$i',
+      nameEn: 'Department $i',
+      nameAr: 'القسم $i',
+      color: '#2563EB',
+      displayOrder: i,
+      waiting: waiting,
+    );
+
+/// Mirrors the production MediaQuery for the board: board_screen.dart wraps
+/// itself in `MediaQuery.withNoTextScaling`, so `n * boardScaleForSize(...)` is
+/// the only multiplier in play. A host that re-applied a text scaler here would
+/// be testing a screen the app never renders.
 Widget host(Widget child) => MaterialApp(
       theme: buildKioskTheme(),
-      builder: (context, inner) {
-        final media = MediaQuery.of(context);
-        return MediaQuery(
-          data: media.copyWith(textScaler: TextScaler.linear(boardTextScaleForSize(media.size))),
-          child: inner!,
-        );
-      },
+      builder: (context, inner) =>
+          MediaQuery.withNoTextScaling(child: inner!),
       home: Scaffold(body: child),
     );
 
@@ -52,17 +59,21 @@ void main() {
   // (unlike the kiosk's language *toggle*) — this is what would first
   // overflow if a label got too wide for its cell.
   for (final size in const [Size(1920, 1080), Size(1280, 720), Size(3840, 2160)]) {
-    testWidgets('counter table lays out at $size', (tester) async {
-      setViewport(tester, size);
-      await tester.pumpWidget(host(
-        BoardCounterTable(
-          counters: [for (var i = 0; i < 6; i++) counter(i, called: i.isEven)],
-          scale: boardScaleForSize(size),
-        ),
-      ));
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-    });
+    // Two open counters is the case the rows now stretch to fill; six is the
+    // case they have to stop stretching and start scrolling.
+    for (final count in const [2, 6]) {
+      testWidgets('counter table lays out $count counters at $size', (tester) async {
+        setViewport(tester, size);
+        await tester.pumpWidget(host(
+          BoardCounterTable(
+            counters: [for (var i = 0; i < count; i++) counter(i, called: i.isEven)],
+            scale: boardScaleForSize(size),
+          ),
+        ));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+    }
 
     testWidgets('now-calling overlay lays out at $size', (tester) async {
       setViewport(tester, size);
@@ -72,7 +83,59 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });
+
+    // Five departments share the width; seven has to switch to the scrolling
+    // list rather than squeeze the counts below legibility.
+    for (final count in const [5, 7]) {
+      testWidgets('waiting strip lays out $count departments at $size', (tester) async {
+        setViewport(tester, size);
+        await tester.pumpWidget(host(Align(
+          alignment: Alignment.bottomCenter,
+          child: BoardWaitingStrip(
+            departments: [for (var i = 0; i < count; i++) department(i, waiting: i * 4)],
+            scale: boardScaleForSize(size),
+          ),
+        )));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+    }
   }
+
+  testWidgets('a called row names the department its token belongs to', (tester) async {
+    setViewport(tester, const Size(1920, 1080));
+    await tester.pumpWidget(host(
+      BoardCounterTable(counters: [counter(0, called: true)], scale: 1),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('ADMISSIONS'), findsOneWidget);
+    expect(find.text('القبول'), findsOneWidget);
+  });
+
+  testWidgets('an uncalled row claims no department', (tester) async {
+    setViewport(tester, const Size(1920, 1080));
+    await tester.pumpWidget(host(
+      BoardCounterTable(counters: [counter(0)], scale: 1),
+    ));
+    await tester.pumpAndSettle();
+    // The packet still carries department_en for an idle counter; showing it
+    // would read as "Admissions is being served" when nothing was called.
+    expect(find.text('ADMISSIONS'), findsNothing);
+  });
+
+  testWidgets('the waiting strip totals every department', (tester) async {
+    setViewport(tester, const Size(1920, 1080));
+    await tester.pumpWidget(host(Align(
+      alignment: Alignment.bottomCenter,
+      child: BoardWaitingStrip(
+        departments: [department(0, waiting: 18), department(1, waiting: 4)],
+        scale: 1,
+      ),
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('18'), findsOneWidget);
+    expect(find.text('TOTAL 22'), findsOneWidget);
+  });
 
   testWidgets('ticker lays out with a long message', (tester) async {
     setViewport(tester, const Size(1920, 1080));
