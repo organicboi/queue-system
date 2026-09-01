@@ -33,6 +33,15 @@ class KioskCopy {
     required this.cancel,
     required this.doneLabel,
     required this.tapAnywhere,
+    required this.offlineBanner,
+    required this.offlineTitle,
+    required this.offlineBody,
+    required this.reconnecting,
+    required this.backOnline,
+    required this.stillConnecting,
+    required this.issueFailedTitle,
+    required this.tryAgain,
+    required this.closeLabel,
   });
 
   final String prompt;
@@ -66,6 +75,22 @@ class KioskCopy {
   final String doneLabel;
   final String tapAnywhere;
 
+  // Connection copy. The web kiosk has no equivalent: a browser tab shows its
+  // own network errors, an unattended terminal in a lobby shows nothing unless
+  // we say it. Every string here is written for a visitor, not an operator —
+  // it must be obvious that the building's network is at fault and that
+  // waiting a moment is the fix, so nobody walks away thinking the kiosk is
+  // broken.
+  final String offlineBanner;
+  final String offlineTitle;
+  final String offlineBody;
+  final String reconnecting;
+  final String backOnline;
+  final String stillConnecting;
+  final String issueFailedTitle;
+  final String tryAgain;
+  final String closeLabel;
+
   static const en = KioskCopy(
     prompt: 'Please select a service',
     promptHint: 'Touch a service to take a number',
@@ -95,6 +120,16 @@ class KioskCopy {
     cancel: 'Cancel',
     doneLabel: 'Done',
     tapAnywhere: 'Tap anywhere to continue',
+    offlineBanner: 'No connection to the queue server — tickets cannot be issued right now.',
+    offlineTitle: 'No connection to the queue server',
+    offlineBody: 'This is a network problem, not a fault in this kiosk. Your number '
+        'was not issued. Please wait a moment and try again, or ask staff for help.',
+    reconnecting: 'Reconnecting…',
+    backOnline: 'Connection restored. Please touch your service again.',
+    stillConnecting: 'Still contacting the server…',
+    issueFailedTitle: 'Could not issue a ticket',
+    tryAgain: 'Try again',
+    closeLabel: 'Close',
   );
 
   static const ar = KioskCopy(
@@ -126,6 +161,16 @@ class KioskCopy {
     cancel: 'إلغاء التذكرة',
     doneLabel: 'تم',
     tapAnywhere: 'المس أي مكان للمتابعة',
+    offlineBanner: 'لا يوجد اتصال بخادم الطابور — لا يمكن إصدار التذاكر حالياً.',
+    offlineTitle: 'لا يوجد اتصال بخادم الطابور',
+    offlineBody: 'هذه مشكلة في الشبكة وليست عطلاً في الجهاز. لم يتم إصدار رقمك. '
+        'يرجى الانتظار قليلاً والمحاولة مرة أخرى، أو طلب المساعدة من الموظفين.',
+    reconnecting: 'جارٍ إعادة الاتصال…',
+    backOnline: 'تمت استعادة الاتصال. يرجى لمس الخدمة مرة أخرى.',
+    stillConnecting: 'ما زال الاتصال بالخادم جارياً…',
+    issueFailedTitle: 'تعذّر إصدار التذكرة',
+    tryAgain: 'إعادة المحاولة',
+    closeLabel: 'إغلاق',
   );
 
   static KioskCopy of(String lang) => lang == 'ar' ? ar : en;

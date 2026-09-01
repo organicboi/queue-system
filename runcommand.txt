@@ -4,3 +4,8 @@ flutter run -d b96a9c8b --dart-define=KIOSK_BASE_URL=https://queue-system-urzl.v
 
 cd /home/akshay/Projects/queue-system/mobile/kiosk
 flutter build apk --release --dart-define=KIOSK_BASE_URL=https://queue-system-urzl.vercel.app
+
+
+
+
+/home/akshay/Projects/queue-system/mobile/kiosk/build/app/outputs/flutter-apk/app-release.apk

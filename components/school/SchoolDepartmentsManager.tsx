@@ -16,17 +16,25 @@ import {
   seedSchoolDepartmentsAction,
   type SchoolDepartmentResult,
 } from '@/lib/actions/school-admin'
-import type { SchoolDepartmentDTO } from '@/lib/db/school-types'
+import type { SchoolDepartmentDTO, SchoolQuota } from '@/lib/db/school-types'
 
 const INIT: SchoolDepartmentResult = {}
 
 interface Props {
   branchId: string
   initialDepartments: SchoolDepartmentDTO[]
+  // How many departments this branch may run, set by the provider. The server
+  // enforces it; this only keeps the UI honest about it.
+  quota: SchoolQuota
 }
 
-export function SchoolDepartmentsManager({ branchId, initialDepartments }: Props) {
+export function SchoolDepartmentsManager({ branchId, initialDepartments, quota }: Props) {
   const [departments, setDepartments] = useState(initialDepartments)
+  // Derived from state rather than the server snapshot so activating and
+  // deactivating updates the allowance without a reload.
+  const used = departments.filter((d) => d.isActive).length
+  const remaining = Math.max(0, quota.limit - used)
+  const full = remaining <= 0
   const [open, setOpen] = useState(false)
   const [createState, createAction, creating] = useActionState(createSchoolDepartmentAction, INIT)
   const [pending, startTransition] = useTransition()
@@ -64,7 +72,7 @@ export function SchoolDepartmentsManager({ branchId, initialDepartments }: Props
       <div className="flex flex-wrap items-center gap-2">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-accent-600 hover:bg-accent-700 text-white">
+            <Button className="bg-accent-600 hover:bg-accent-700 text-white" disabled={full}>
               <Plus className="size-4" />
               Add Department
             </Button>
@@ -118,13 +126,27 @@ export function SchoolDepartmentsManager({ branchId, initialDepartments }: Props
           </DialogContent>
         </Dialog>
 
-        {departments.length === 0 && (
+        {departments.length === 0 && !full && (
           <Button variant="outline" onClick={handleSeed} disabled={pending}>
             <Sparkles className="size-4" />
-            Load the 8 standard departments
+            {remaining >= 8
+              ? 'Load the 8 standard departments'
+              : `Load ${remaining} standard department${remaining === 1 ? '' : 's'}`}
           </Button>
         )}
+        <span className="ms-auto text-xs text-muted-foreground tabular-nums">
+          {used} of {quota.limit} used
+        </span>
       </div>
+
+      {full && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {quota.limit === 0
+            ? 'No departments are included in your plan. Ask your provider to assign some.'
+            : `You're using all ${quota.limit} department${quota.limit === 1 ? '' : 's'} included in your plan. ` +
+              'Ask your provider to assign more, or deactivate one you no longer use.'}
+        </p>
+      )}
 
       {departments.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
@@ -172,7 +194,7 @@ export function SchoolDepartmentsManager({ branchId, initialDepartments }: Props
               <Button
                 variant="outline"
                 size="sm"
-                disabled={pending}
+                disabled={pending || (full && !dept.isActive)}
                 onClick={() => handleToggle(dept)}
               >
                 <Power className="size-3.5" />

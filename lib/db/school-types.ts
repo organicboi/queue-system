@@ -19,6 +19,15 @@ export type SchoolActivityType =
 
 export type SchoolLanguage = 'en' | 'ar'
 
+// How much of a branch's provider-assigned department/counter allowance is
+// spent. Lives here rather than in lib/dal/school-limits.ts because the
+// manager UIs are client components and that module is server-only.
+export interface SchoolQuota {
+  limit: number
+  used: number
+  remaining: number
+}
+
 // ── DB Row Types (snake_case — exact DB columns) ──────────────
 export interface DbSchoolSettings {
   id: string

@@ -7,6 +7,8 @@ export const dynamic = 'force-dynamic'
 // POST /api/kiosk/[branchToken]/tokens/[id]/move
 // Body: { departmentId: string }
 // Keeps the printed token code; re-queues it in the target department.
+// `waitingAhead` is the target department's queue, for a ticket reprinted
+// after the move.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ branchToken: string; id: string }> }
@@ -21,5 +23,5 @@ export async function POST(
   const result = await schoolKioskMoveTokenAction(branchToken, id, body.departmentId)
 
   if (result.error) return json({ error: result.error }, errorStatus(result.error))
-  return json({ token: result.token })
+  return json({ token: result.token, waitingAhead: result.waitingAhead })
 }

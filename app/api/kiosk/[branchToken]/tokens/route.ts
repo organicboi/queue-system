@@ -9,6 +9,10 @@ export const dynamic = 'force-dynamic'
 // Issues a token via claim_school_token (wrapped by schoolIssueTokenAction).
 // The row is committed here before the app prints — a printer failure never
 // loses the ticket number.
+//
+// `waitingAhead` rides along because the app prints it on the ticket, and it
+// has to be the count as of the moment the number was minted — the 6s feed
+// poll is both stale and per-department, not per-token.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ branchToken: string }> }
@@ -27,5 +31,5 @@ export async function POST(
   )
 
   if (result.error) return json({ error: result.error }, errorStatus(result.error))
-  return json({ token: result.token })
+  return json({ token: result.token, waitingAhead: result.waitingAhead })
 }

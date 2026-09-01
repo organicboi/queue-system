@@ -8,6 +8,11 @@ import {
 
 export interface SchoolTokenResult {
   token?: SchoolTokenDTO
+  // How many visitors are still ahead of `token` in its department, for the
+  // line printed on the ticket. Left undefined when the count could not be
+  // read — the ticket then prints without that line rather than with a wrong
+  // number (see countWaitingAhead).
+  waitingAhead?: number
   error?: string
 }
 
@@ -116,6 +121,42 @@ async function departmentNames(supabase: any, departmentId: string) {
   }
 }
 
+// ── Queue depth ahead of a token ──────────────────────────────
+// The number the visitor actually wants off the ticket: how many people are
+// still in front of them.
+//
+// Counted as the waiting/held tokens of the same department and service date
+// that joined earlier — deliberately NOT the full ordering
+// call_next_school_token uses. That ordering carries a priority grace window
+// and a per-counter preference penalty, neither of which can be explained on a
+// slip of paper, and both of which only ever move someone *up* the queue. So
+// this is the honest upper bound: nobody is called later than the count they
+// were handed.
+//
+// 'called' rows are excluded — that visitor is at a window right now, not
+// ahead in the line — and 'held' rows are included, because a held token goes
+// back into the pool and will be called before a number issued after it.
+//
+// Returns undefined rather than 0 on a failed count: a wrong "you're next" is
+// worse than no line at all, and every caller treats undefined as "omit it".
+async function countWaitingAhead(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  row: DbSchoolToken
+): Promise<number | undefined> {
+  const { count, error } = await supabase
+    .from('school_tokens')
+    .select('id', { count: 'exact', head: true })
+    .eq('branch_id', row.branch_id)
+    .eq('department_id', row.department_id)
+    .eq('service_date', row.service_date)
+    .in('status', ['waiting', 'held'])
+    .lt('joined_at', row.joined_at)
+
+  if (error) return undefined
+  return count ?? 0
+}
+
 // ── Kiosk: issue a token ──────────────────────────────────────
 // Authenticated by branch_token, like the rest of the device surfaces. The row
 // is committed here, before the caller attempts to print — if the printer
@@ -144,7 +185,9 @@ export async function schoolIssueTokenAction(
   })
 
   if (error || !data) return { error: 'Could not issue a token. Please ask for assistance.' }
-  return { token: toSchoolTokenDTO(data as DbSchoolToken) }
+
+  const row = data as DbSchoolToken
+  return { token: toSchoolTokenDTO(row), waitingAhead: await countWaitingAhead(supabase, row) }
 }
 
 // ── Kiosk: amend a token it issued ────────────────────────────
@@ -322,7 +365,26 @@ export async function schoolKioskMoveTokenAction(
     message: `${token.tokenCode} moved to ${(dept as { name_en: string }).name_en} at the kiosk`,
   })
 
-  return { token }
+  // The new department's queue, not the old one's: a move is the one amend
+  // that changes what a reprinted ticket should say.
+  return { token, waitingAhead: await countWaitingAhead(supabase, updated as DbSchoolToken) }
+}
+
+// A reprint from the kiosk rail happens minutes after the ticket was issued,
+// so the count that was printed the first time is stale. This is the same
+// number, read fresh, for whatever the rail is about to reprint.
+export async function schoolKioskWaitingAheadAction(
+  branchToken: string,
+  tokenId: string
+): Promise<{ waitingAhead?: number; error?: string }> {
+  const branch = await verifySchoolBranch(branchToken)
+  if (!branch) return { error: 'Kiosk is not registered' }
+
+  const supabase = createSupabaseServiceClient()
+  const row = await loadKioskToken(supabase, branch.id, tokenId)
+  if (!row) return { error: 'That token was not issued today' }
+
+  return { waitingAhead: await countWaitingAhead(supabase, row) }
 }
 
 // ── NEXT ──────────────────────────────────────────────────────

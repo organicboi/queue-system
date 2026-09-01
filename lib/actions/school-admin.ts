@@ -6,6 +6,9 @@ import { createSupabaseServiceClient } from '@/lib/db/server'
 import { requireBranchManager } from '@/lib/dal/session'
 import { createPairingCode } from '@/lib/dal/device-pairing'
 import {
+  getSchoolDepartmentQuota, getSchoolCounterQuota, quotaReachedMessage,
+} from '@/lib/dal/school-limits'
+import {
   toSchoolDepartmentDTO, toSchoolCounterDTO, toSchoolSettingsDTO,
   type SchoolDepartmentDTO, type SchoolCounterDTO, type SchoolSettingsDTO,
   type DbSchoolDepartment, type DbSchoolCounter, type DbSchoolSettings,
@@ -65,6 +68,11 @@ export async function createSchoolDepartmentAction(
     return { error: e instanceof Error ? e.message : 'Access denied' }
   }
 
+  // Departments are sold capacity — the distributor sets the ceiling, this is
+  // where the tenant spends it. See lib/dal/school-limits.ts.
+  const dq = await getSchoolDepartmentQuota(profile.customerId, parsed.data.branchId)
+  if (dq.remaining <= 0) return { error: quotaReachedMessage('department', dq.limit) }
+
   const supabase = createSupabaseServiceClient()
   const { data, error } = await supabase
     .from('school_departments')
@@ -103,10 +111,19 @@ export async function updateSchoolDepartmentAction(
     isActive: boolean
   }>
 ): Promise<SchoolDepartmentResult> {
+  let profile
   try {
-    await requireBranchManager(branchId)
+    profile = await requireBranchManager(branchId)
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
+
+  // Reactivating spends a slot just as creating does — without this the cap is
+  // trivially bypassed by deactivating one department and switching another
+  // back on.
+  if (patch.isActive === true) {
+    const dq = await getSchoolDepartmentQuota(profile.customerId, branchId)
+    if (dq.remaining <= 0) return { error: quotaReachedMessage('department', dq.limit) }
   }
 
   const supabase = createSupabaseServiceClient()
@@ -172,9 +189,15 @@ export async function seedSchoolDepartmentsAction(
     .eq('branch_id', branchId)
     .eq('is_active', true)
 
+  // The standard set is 8 departments; a tenant entitled to fewer gets the
+  // first N rather than an all-or-nothing failure.
+  const dq = await getSchoolDepartmentQuota(profile.customerId, branchId)
+  if (dq.remaining <= 0) return { error: quotaReachedMessage('department', dq.limit) }
+
   const taken = new Set(((existing ?? []) as { prefix: string }[]).map((d) => d.prefix))
   const rows = DEFAULT_DEPARTMENTS
     .filter((d) => !taken.has(d.prefix))
+    .slice(0, dq.remaining)
     .map((d, i) => ({
       customer_id: profile.customerId,
       branch_id: branchId,
@@ -226,6 +249,9 @@ export async function createSchoolCounterAction(
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Access denied' }
   }
+
+  const cq = await getSchoolCounterQuota(profile.customerId, parsed.data.branchId)
+  if (cq.remaining <= 0) return { error: quotaReachedMessage('counter', cq.limit) }
 
   const supabase = createSupabaseServiceClient()
   const { data, error } = await supabase
@@ -292,10 +318,16 @@ export async function updateSchoolCounterAction(
     keypadMap: Record<string, string>
   }>
 ): Promise<SchoolCounterResult> {
+  let profile
   try {
-    await requireBranchManager(branchId)
+    profile = await requireBranchManager(branchId)
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
+
+  if (patch.isActive === true) {
+    const cq = await getSchoolCounterQuota(profile.customerId, branchId)
+    if (cq.remaining <= 0) return { error: quotaReachedMessage('counter', cq.limit) }
   }
 
   const supabase = createSupabaseServiceClient()

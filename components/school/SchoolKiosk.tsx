@@ -12,9 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import {
   schoolIssueTokenAction, schoolKioskCancelTokenAction,
   schoolKioskMoveTokenAction, schoolKioskSetPriorityAction,
+  schoolKioskWaitingAheadAction,
 } from '@/lib/actions/school-tokens'
 import { fetchSchoolKioskFeedAction } from '@/lib/actions/school-read'
-import { printSchoolTicket, prepareTicketLogo, SCHOOL_PAPER } from '@/lib/school/printTicket'
+import {
+  printSchoolTicket, prepareTicketLogo, waitingAheadLine, SCHOOL_PAPER,
+} from '@/lib/school/printTicket'
 import type { TicketLogo } from '@/lib/school/printTicket'
 import { formatDate, formatTime } from '@/lib/queueUtils'
 import type {
@@ -101,10 +104,21 @@ const STATUS: Record<SchoolTokenStatus, { en: string; ar: string; className: str
 
 // A queued ticket carries its own department: a reprint from the recent list
 // can be for a service other than the one last tapped.
+// The number the last visitor took, as the screen and the ticket both need it.
+interface HeroTicket {
+  token: SchoolTokenDTO
+  department: SchoolDepartmentDTO
+  waitingAhead: number | null
+}
+
 interface PrintJob {
   key: number
   token: SchoolTokenDTO
   department: SchoolDepartmentDTO
+  // People still ahead of this token when the job was queued. Null when the
+  // server couldn't be asked (a reprint with the network down) — the ticket
+  // then prints without the line rather than with a number that isn't true.
+  waitingAhead: number | null
 }
 
 /*
@@ -130,7 +144,7 @@ export function SchoolKiosk({
   const [lang, setLang] = useState<SchoolLanguage>(languages[0])
   const [priority, setPriority] = useState(false)
   const [issuingId, setIssuingId] = useState<string | null>(null)
-  const [hero, setHero] = useState<{ token: SchoolTokenDTO; department: SchoolDepartmentDTO } | null>(null)
+  const [hero, setHero] = useState<HeroTicket | null>(null)
   const [feed, setFeed] = useState<SchoolKioskFeed>(initialFeed)
   const [busyTokenId, setBusyTokenId] = useState<string | null>(null)
   const [moveFor, setMoveFor] = useState<SchoolTokenDTO | null>(null)
@@ -182,9 +196,13 @@ export function SchoolKiosk({
   }, [refresh])
 
   // ── Printing ────────────────────────────────────────────────
-  const enqueuePrint = useCallback((token: SchoolTokenDTO, department: SchoolDepartmentDTO) => {
+  const enqueuePrint = useCallback((
+    token: SchoolTokenDTO,
+    department: SchoolDepartmentDTO,
+    waitingAhead: number | null
+  ) => {
     jobKey.current += 1
-    const job: PrintJob = { key: jobKey.current, token, department }
+    const job: PrintJob = { key: jobKey.current, token, department, waitingAhead }
     setPrintBusy((b) => [...b, token.id])
 
     // Chained rather than pumped from an effect: each job owns the single
@@ -257,7 +275,8 @@ export function SchoolKiosk({
     // Committed before printing is attempted, and shown regardless — a printer
     // failure must never leave a visitor with no number at all.
     const token = result.token
-    setHero({ token, department })
+    const waitingAhead = result.waitingAhead ?? null
+    setHero({ token, department, waitingAhead })
     setPriority(false)
 
     // Optimistic, so the rail moves on the same frame as the tap; the next
@@ -273,7 +292,7 @@ export function SchoolKiosk({
       },
     }))
 
-    if (printEnabled) enqueuePrint(token, department)
+    if (printEnabled) enqueuePrint(token, department, waitingAhead)
     refresh()
   }
 
@@ -321,11 +340,15 @@ export function SchoolKiosk({
     )
   }
 
-  function reprint(token: SchoolTokenDTO) {
+  // The queue moves while a ticket sits in the rail, so the count is read
+  // again rather than reprinted from the issue. It is a best-effort read: if
+  // it fails, the reprint still happens, just without that line.
+  async function reprint(token: SchoolTokenDTO) {
     const department = deptById.get(token.departmentId)
     if (!department) return
     setPrintFailedFor(null)
-    enqueuePrint(token, department)
+    const ahead = await schoolKioskWaitingAheadAction(branchToken, token.id)
+    enqueuePrint(token, department, ahead.waitingAhead ?? null)
   }
 
   const printedTicket = printing ?? (hero ? { key: -1, ...hero } : null)
@@ -627,6 +650,29 @@ export function SchoolKiosk({
             {printedTicket.token.isPriority && (
               <p style={{ fontSize: '9pt', fontWeight: 700, margin: '0 0 3mm' }}>PRIORITY</p>
             )}
+            {/* Boxed because it is the one line a visitor re-reads while they
+                wait, and on a thermal ticket a rule is the only emphasis that
+                survives the 1-bit threshold. Omitted entirely when the count
+                is unknown — see PrintJob.waitingAhead. */}
+            {printedTicket.waitingAhead !== null && (
+              <div
+                style={{
+                  border: '1px solid #000', borderRadius: '1mm',
+                  padding: '1.5mm 2mm', margin: '0 0 3mm', width: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <p style={{ fontSize: '9pt', fontWeight: 700, lineHeight: 1.25, margin: 0 }}>
+                  {waitingAheadLine(printedTicket.waitingAhead).en}
+                </p>
+                <p
+                  dir="rtl"
+                  style={{ fontSize: '8.5pt', fontWeight: 700, lineHeight: 1.35, margin: '1mm 0 0' }}
+                >
+                  {waitingAheadLine(printedTicket.waitingAhead).ar}
+                </p>
+              </div>
+            )}
             <p style={{ fontSize: '8pt', fontWeight: 700, margin: 0 }}>
               {formatDate(printedTicket.token.joinedAt)} · {formatTime(printedTicket.token.joinedAt)}
             </p>
@@ -666,7 +712,7 @@ type Copy = Record<keyof typeof COPY['en'], string>
 /* The number the last visitor took. Sits beside the grid rather than over it
    so the queue never stops moving while someone reads it. */
 function IssuedCard({ hero, t, rtl, printing, printFailed, deptName }: {
-  hero: { token: SchoolTokenDTO; department: SchoolDepartmentDTO } | null
+  hero: HeroTicket | null
   t: Copy
   rtl: boolean
   printing: boolean

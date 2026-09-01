@@ -17,7 +17,7 @@ import {
   setSchoolCounterDepartmentsAction,
   type SchoolCounterResult,
 } from '@/lib/actions/school-admin'
-import type { SchoolCounterDTO, SchoolDepartmentDTO } from '@/lib/db/school-types'
+import type { SchoolCounterDTO, SchoolDepartmentDTO, SchoolQuota } from '@/lib/db/school-types'
 
 const INIT: SchoolCounterResult = {}
 
@@ -25,10 +25,17 @@ interface Props {
   branchId: string
   initialCounters: SchoolCounterDTO[]
   departments: SchoolDepartmentDTO[]
+  // How many counters this branch may run, set by the provider. The server
+  // enforces it; this only keeps the UI honest about it.
+  quota: SchoolQuota
 }
 
-export function SchoolCountersManager({ branchId, initialCounters, departments }: Props) {
+export function SchoolCountersManager({ branchId, initialCounters, departments, quota }: Props) {
   const [counters, setCounters] = useState(initialCounters)
+  // Derived from state so activating and deactivating updates the allowance
+  // without a reload.
+  const used = counters.filter((c) => c.isActive).length
+  const full = used >= quota.limit
   const [open, setOpen] = useState(false)
   const [assigning, setAssigning] = useState<SchoolCounterDTO | null>(null)
   const [createState, createAction, creating] = useActionState(createSchoolCounterAction, INIT)
@@ -83,49 +90,63 @@ export function SchoolCountersManager({ branchId, initialCounters, departments }
 
   return (
     <div className="space-y-4">
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button className="bg-accent-600 hover:bg-accent-700 text-white">
-            <Plus className="size-4" />
-            Add Counter
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Counter</DialogTitle>
-          </DialogHeader>
-          <form action={createAction} className="space-y-4">
-            <input type="hidden" name="branchId" value={branchId} />
-            <div className="space-y-1.5">
-              <Label htmlFor="nameEn">Counter name</Label>
-              <Input id="nameEn" name="nameEn" required maxLength={100} placeholder="Counter 1" />
-              <p className="text-[11px] text-muted-foreground">
-                This is what the TV shows visitors, so name it the way the window is signed.
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="nameAr">Counter name (Arabic)</Label>
-              <Input id="nameAr" name="nameAr" maxLength={100} dir="rtl" placeholder="شباك ١" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="keypadCode">Hardware keypad code</Label>
-              <Input id="keypadCode" name="keypadCode" maxLength={8} inputMode="numeric" placeholder="Optional" />
-              <p className="text-[11px] text-muted-foreground">
-                Only needed for a networked calling keypad. Leave blank for USB keypads and the
-                on-screen one.
-              </p>
-            </div>
-            {createState.error && <p className="text-sm text-red-600">{createState.error}</p>}
-            <Button
-              type="submit"
-              disabled={creating}
-              className="w-full bg-accent-600 hover:bg-accent-700 text-white"
-            >
-              {creating ? 'Adding…' : 'Add Counter'}
+      <div className="flex flex-wrap items-center gap-2">
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-accent-600 hover:bg-accent-700 text-white" disabled={full}>
+              <Plus className="size-4" />
+              Add Counter
             </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Counter</DialogTitle>
+            </DialogHeader>
+            <form action={createAction} className="space-y-4">
+              <input type="hidden" name="branchId" value={branchId} />
+              <div className="space-y-1.5">
+                <Label htmlFor="nameEn">Counter name</Label>
+                <Input id="nameEn" name="nameEn" required maxLength={100} placeholder="Counter 1" />
+                <p className="text-[11px] text-muted-foreground">
+                  This is what the TV shows visitors, so name it the way the window is signed.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="nameAr">Counter name (Arabic)</Label>
+                <Input id="nameAr" name="nameAr" maxLength={100} dir="rtl" placeholder="شباك ١" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="keypadCode">Hardware keypad code</Label>
+                <Input id="keypadCode" name="keypadCode" maxLength={8} inputMode="numeric" placeholder="Optional" />
+                <p className="text-[11px] text-muted-foreground">
+                  Only needed for a networked calling keypad. Leave blank for USB keypads and the
+                  on-screen one.
+                </p>
+              </div>
+              {createState.error && <p className="text-sm text-red-600">{createState.error}</p>}
+              <Button
+                type="submit"
+                disabled={creating}
+                className="w-full bg-accent-600 hover:bg-accent-700 text-white"
+              >
+                {creating ? 'Adding…' : 'Add Counter'}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+        <span className="ms-auto text-xs text-muted-foreground tabular-nums">
+          {used} of {quota.limit} used
+        </span>
+      </div>
+
+      {full && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {quota.limit === 0
+            ? 'No counters are included in your plan. Ask your provider to assign some.'
+            : `You're using all ${quota.limit} counter${quota.limit === 1 ? '' : 's'} included in your plan. ` +
+              'Ask your provider to assign more, or deactivate one you no longer use.'}
+        </p>
+      )}
 
       {counters.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
@@ -198,7 +219,7 @@ export function SchoolCountersManager({ branchId, initialCounters, departments }
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={pending}
+                    disabled={pending || (full && !counter.isActive)}
                     onClick={() => patch(counter, { isActive: !counter.isActive, isOpen: false })}
                   >
                     <Power className="size-3.5" />

@@ -13,6 +13,13 @@ export type AnnouncementLang = 'en' | 'ar' | 'both'
 // post-login redirect and the admin nav.
 export type CustomerVertical = 'business' | 'school'
 
+// What a school tenant gets before the distributor grants more. Both are
+// per-branch ceilings on ACTIVE rows; deactivating frees a slot.
+export const DEFAULT_SCHOOL_DEPARTMENT_LIMIT = 1
+export const DEFAULT_SCHOOL_COUNTER_LIMIT = 1
+// Guard rail matching customers_max_school_*_check in the migration.
+export const MAX_SCHOOL_ENTITLEMENT = 200
+
 // ── DB Row Types (snake_case — exact DB columns) ──────────────
 export interface DbPlan {
   id: string
@@ -50,6 +57,10 @@ export interface DbCustomer {
   plan_expires_at: string | null
   is_active: boolean
   vertical: CustomerVertical
+  // School capacity the distributor has sold this tenant, counted per branch.
+  // See supabase/migrations/20260901_school_entitlements.sql.
+  max_school_departments: number
+  max_school_counters: number
   branch_ad_mode: AdMergeMode
   onboarded_at: string | null
   created_at: string
@@ -259,6 +270,8 @@ export interface CustomerDTO {
   planExpiresAt: string | null
   isActive: boolean
   vertical: CustomerVertical
+  maxSchoolDepartments: number
+  maxSchoolCounters: number
   branchAdMode: AdMergeMode
   onboardedAt: string | null
   createdAt: string
@@ -683,6 +696,8 @@ export function toCustomerDTO(row: DbCustomer): CustomerDTO {
     planExpiresAt: row.plan_expires_at,
     isActive: row.is_active,
     vertical: row.vertical ?? 'business',
+    maxSchoolDepartments: row.max_school_departments ?? DEFAULT_SCHOOL_DEPARTMENT_LIMIT,
+    maxSchoolCounters: row.max_school_counters ?? DEFAULT_SCHOOL_COUNTER_LIMIT,
     branchAdMode: row.branch_ad_mode,
     onboardedAt: row.onboarded_at,
     createdAt: row.created_at,

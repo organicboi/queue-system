@@ -98,6 +98,7 @@ Nothing about the Supabase schema, RLS, or existing web app changes. You are add
 > - `app/api/kiosk/[branchToken]/tokens/[id]/cancel/route.ts` → `schoolKioskCancelTokenAction`
 > - `app/api/kiosk/[branchToken]/tokens/[id]/priority/route.ts` → `schoolKioskSetPriorityAction`
 > - `app/api/kiosk/[branchToken]/tokens/[id]/move/route.ts` → `schoolKioskMoveTokenAction`
+> - `app/api/kiosk/[branchToken]/tokens/[id]/waiting-ahead/route.ts` → `schoolKioskWaitingAheadAction`
 >
 > Status mapping (`errorStatus` in `lib/api/kiosk.ts`): unknown/disabled kiosk or a token id
 > not addressable today → **404**; amending a token a counter already owns → **409**; other
@@ -118,7 +119,9 @@ Wraps `getSchoolKioskPacket(branchToken)` (in `lib/dal/school.ts:123`). Returns 
 Wraps `fetchSchoolKioskFeedAction(branchToken)` (`lib/actions/school-read.ts:154`, itself wraps `getSchoolKioskFeed` in `lib/dal/school.ts:290`). Returns `{ status, serviceDate, recent: SchoolTokenDTO[], waitingByDepartment: Record<deptId, number>, waitingTotal, issuedToday }`. **Poll this every 6 seconds** — that's the interval the web kiosk uses (`FEED_POLL_MS = 6000` in `SchoolKiosk.tsx`), match it so behavior is identical.
 
 ### `POST /api/kiosk/[branchToken]/tokens`
-Body: `{ departmentId: string, isPriority?: boolean }`. Wraps `schoolIssueTokenAction(branchToken, departmentId, isPriority)` (`lib/actions/school-tokens.ts:123`). Returns `{ token: SchoolTokenDTO } | { error: string }`. This is the RPC `claim_school_token` under the hood — don't call it directly, go through the action.
+Body: `{ departmentId: string, isPriority?: boolean }`. Wraps `schoolIssueTokenAction(branchToken, departmentId, isPriority)` (`lib/actions/school-tokens.ts:123`). Returns `{ token: SchoolTokenDTO, waitingAhead?: number } | { error: string }`. This is the RPC `claim_school_token` under the hood — don't call it directly, go through the action.
+
+`waitingAhead` is how many visitors were still ahead of this token in its department the instant it was minted — the line the ticket prints ("3 people waiting before you"). It is deliberately not derived from the feed's `waitingByDepartment`: that is up to 6s stale and counts a whole department, not the people in front of one token. It is **optional**: absent means the count couldn't be read, and the ticket must then print without the line rather than with a number that isn't true.
 
 ### `POST /api/kiosk/[branchToken]/tokens/:id/cancel`
 Wraps `schoolKioskCancelTokenAction`. Only valid for `waiting`/`held` tokens (server already enforces this — surface the error message as-is to the UI, don't re-derive the rule client-side).
@@ -127,7 +130,10 @@ Wraps `schoolKioskCancelTokenAction`. Only valid for `waiting`/`held` tokens (se
 Body: `{ isPriority: boolean }`. Wraps `schoolKioskSetPriorityAction`.
 
 ### `POST /api/kiosk/[branchToken]/tokens/:id/move`
-Body: `{ departmentId: string }`. Wraps `schoolKioskMoveTokenAction`.
+Body: `{ departmentId: string }`. Wraps `schoolKioskMoveTokenAction`. Returns `waitingAhead` for the **target** department alongside the token.
+
+### `GET /api/kiosk/[branchToken]/tokens/:id/waiting-ahead`
+Wraps `schoolKioskWaitingAheadAction`. Returns `{ waitingAhead?: number }`. Read before a reprint from the recent rail: the queue moves while a ticket sits there, so the count on the original paper is stale. Best-effort on the client — a failed lookup prints the ticket without the line, it never blocks the reprint.
 
 **Implementation notes for whoever builds this half:**
 - Each existing action already does its own branch/token verification — the route handler's job is just: parse `branchToken` from the path, parse the body, call the action, serialize the result, set correct HTTP status (404 for "not-found" branch, 400 for validation errors, 200 otherwise). Don't add a second auth layer on top.

@@ -25,6 +25,7 @@ cat <<'HDR'
 --   2. supabase/migrations/*.sql         — every legacy migration, in order
 --   3. 20260825_school_queue_system.sql  — the school queue product
 --   4. 20260826_license_key_vertical.sql — which product a key entitles
+--   5. 20260901_school_entitlements.sql  — per-branch department/counter caps
 --
 -- ⚠ DESTRUCTIVE. schema.sql opens with `drop table … cascade`, and this file
 --   additionally drops `counters` and the school_* tables so a re-run is a
@@ -112,6 +113,9 @@ cat $M/20260825_school_queue_system.sql
 
 section "14. MIGRATION  20260826_license_key_vertical.sql"
 cat $M/20260826_license_key_vertical.sql
+
+section "15. MIGRATION  20260901_school_entitlements.sql"
+cat $M/20260901_school_entitlements.sql
 
 printf '\n\n-- ── END OF BUNDLE ─────────────────────────────────────────────\n'
 } > "$OUT"

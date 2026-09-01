@@ -49,6 +49,24 @@ const LOGO_MAX_MM = { width: 32, height: 14 }
 // dithering would turn a small crest into grey noise.
 const LOGO_THRESHOLD = 0.62
 
+/*
+ * The line the visitor is actually looking for: how many people are still in
+ * front of them. Kept here beside the ticket geometry so the browser kiosk and
+ * the Flutter kiosk print the same wording (the Dart twin lives in
+ * mobile/kiosk/lib/src/printing/ticket_widget.dart).
+ *
+ * Arabic is phrased as a count ("the number of people waiting before you") on
+ * purpose: it takes any number without the singular/dual/plural agreement a
+ * "N people" phrasing would need.
+ */
+export function waitingAheadLine(count: number): { en: string; ar: string } {
+  if (count <= 0) return { en: 'You are next in line', ar: 'أنت التالي في الطابور' }
+  return {
+    en: count === 1 ? '1 person waiting before you' : `${count} people waiting before you`,
+    ar: `عدد المنتظرين قبلك: ${count}`,
+  }
+}
+
 export interface TicketLogo {
   /** A 1-bit PNG, sized to the exact dot count it will print at. */
   src: string

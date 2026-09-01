@@ -43,10 +43,52 @@ class DeviceConfigController extends AsyncNotifier<DeviceConfig> {
   }
 }
 
+// ── Server link ──────────────────────────────────────────────
+/// Whether the queue server is reachable, judged only by what actually
+/// happened on the wire — every request through [KioskApi] reports back.
+///
+/// Deliberately not a radio-state check: a lobby access point can be perfectly
+/// "connected" with no route to the server, which reads as online to the OS
+/// while every tap still fails. The only question worth answering here is
+/// whether *this* server answers.
+///
+/// Recovery needs no visitor input and no extra polling: the 6-second feed
+/// poll is already a continuous probe, so the first poll that gets an answer
+/// flips this back to [online] and clears whatever the screen was showing.
+enum ServerLink { online, offline }
+
+final serverLinkProvider =
+    NotifierProvider<ServerLinkNotifier, ServerLink>(ServerLinkNotifier.new);
+
+class ServerLinkNotifier extends Notifier<ServerLink> {
+  /// Optimistic: the kiosk starts assuming the server is there and only says
+  /// otherwise once a request has actually failed to reach it. Booting into a
+  /// "no connection" banner that a first successful call would erase a moment
+  /// later is its own kind of false alarm.
+  @override
+  ServerLink build() => ServerLink.online;
+
+  void report({required bool reachable}) {
+    final next = reachable ? ServerLink.online : ServerLink.offline;
+    if (state != next) state = next;
+  }
+}
+
 // ── API client (rebuilds when config changes) ────────────────
 final kioskApiProvider = Provider<KioskApi>((ref) {
   final cfg = ref.watch(deviceConfigProvider).requireValue;
-  return KioskApi(baseUrl: cfg.baseUrl, branchToken: cfg.branchToken);
+  return KioskApi(
+    baseUrl: cfg.baseUrl,
+    branchToken: cfg.branchToken,
+    onReachability: (reachable) {
+      try {
+        ref.read(serverLinkProvider.notifier).report(reachable: reachable);
+      } catch (_) {
+        // This provider was disposed while a request was still in flight (the
+        // operator changed the server URL, say). There is nothing left to tell.
+      }
+    },
+  );
 });
 
 // ── Bootstrap ────────────────────────────────────────────────
@@ -165,19 +207,25 @@ class KioskController {
     required SchoolDepartment department,
     required bool priority,
   }) async {
-    final token = await ref.read(kioskApiProvider).issueToken(
+    final issued = await ref.read(kioskApiProvider).issueToken(
           departmentId: department.id,
           isPriority: priority,
         );
+    final token = issued.token;
     ref.read(feedProvider.notifier).patch(
           (f) => f.withNewToken(token, limit: AppConfig.recentLimit),
         );
-    _print(token, department);
+    _print(token, department, issued.waitingAhead);
     return token;
   }
 
-  void reprint(SchoolToken token, SchoolDepartment department) {
-    _print(token, department);
+  /// The queue has moved since the ticket was first printed, so the count is
+  /// read again rather than reprinted from the issue. Best-effort: the lookup
+  /// swallows its own failures and answers null, and the reprint goes ahead
+  /// without the line.
+  Future<void> reprint(SchoolToken token, SchoolDepartment department) async {
+    final ahead = await ref.read(kioskApiProvider).waitingAhead(token.id);
+    _print(token, department, ahead);
   }
 
   Future<SchoolToken> cancel(String tokenId) async {
@@ -200,9 +248,13 @@ class KioskController {
     return token;
   }
 
-  void _print(SchoolToken token, SchoolDepartment department) {
-    ref
-        .read(printQueueProvider)
-        .enqueue(PrintJob(token: token, department: department));
+  void _print(SchoolToken token, SchoolDepartment department, int? waitingAhead) {
+    ref.read(printQueueProvider).enqueue(
+          PrintJob(
+            token: token,
+            department: department,
+            waitingAhead: waitingAhead,
+          ),
+        );
   }
 }

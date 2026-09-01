@@ -1,12 +1,16 @@
 import { requireSchoolContext } from '@/lib/dal/school-context'
 import { getSchoolDepartments } from '@/lib/dal/school'
+import { getSchoolDepartmentQuota } from '@/lib/dal/school-limits'
 import { SchoolDepartmentsManager } from '@/components/school/SchoolDepartmentsManager'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SchoolDepartmentsPage() {
-  const { branch } = await requireSchoolContext()
-  const departments = await getSchoolDepartments(branch.id)
+  const { branch, profile } = await requireSchoolContext()
+  const [departments, quota] = await Promise.all([
+    getSchoolDepartments(branch.id),
+    getSchoolDepartmentQuota(profile.customerId, branch.id),
+  ])
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-5">
@@ -17,7 +21,11 @@ export default async function SchoolDepartmentsPage() {
           restarts every morning.
         </p>
       </div>
-      <SchoolDepartmentsManager branchId={branch.id} initialDepartments={departments} />
+      <SchoolDepartmentsManager
+        branchId={branch.id}
+        initialDepartments={departments}
+        quota={quota}
+      />
     </div>
   )
 }

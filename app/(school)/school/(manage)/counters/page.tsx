@@ -1,14 +1,16 @@
 import { requireSchoolContext } from '@/lib/dal/school-context'
 import { getSchoolCounters, getSchoolDepartments } from '@/lib/dal/school'
+import { getSchoolCounterQuota } from '@/lib/dal/school-limits'
 import { SchoolCountersManager } from '@/components/school/SchoolCountersManager'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SchoolCountersPage() {
-  const { branch } = await requireSchoolContext()
-  const [counters, departments] = await Promise.all([
+  const { branch, profile } = await requireSchoolContext()
+  const [counters, departments, quota] = await Promise.all([
     getSchoolCounters(branch.id),
     getSchoolDepartments(branch.id, { activeOnly: true }),
+    getSchoolCounterQuota(profile.customerId, branch.id),
   ])
 
   return (
@@ -24,6 +26,7 @@ export default async function SchoolCountersPage() {
         branchId={branch.id}
         initialCounters={counters}
         departments={departments}
+        quota={quota}
       />
     </div>
   )

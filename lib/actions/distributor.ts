@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { createSupabaseServiceClient } from '@/lib/db/server'
 import { requireDistributor } from '@/lib/dal/session'
 import type { CustomerVertical, DistributorStats } from '@/lib/db/types'
+import { MAX_SCHOOL_ENTITLEMENT } from '@/lib/db/types'
 import { DEFAULT_VERTICAL, VERTICALS, isVertical } from '@/lib/verticals'
 
 const LICENSE_KEY_VALIDITY_DAYS = 30
@@ -205,6 +206,46 @@ export async function changePlanAction(customerId: string, planId: string): Prom
     .eq('id', customerId)
 
   if (error) return { error: 'Failed to change plan' }
+
+  revalidatePath('/distributor/customers')
+  return {}
+}
+
+// ── School entitlements ───────────────────────────────────────
+// How many departments and counters a school tenant may run, per branch. A new
+// customer starts at 1 of each; raising it is a sale, so it lives here rather
+// than anywhere the tenant can reach.
+//
+// Lowering below what the tenant already runs is allowed and deliberately
+// non-destructive: existing rows keep working, but no new one can be added
+// until they deactivate down to the new ceiling.
+const SchoolLimitsSchema = z.object({
+  maxSchoolDepartments: z.coerce.number().int().min(0).max(MAX_SCHOOL_ENTITLEMENT),
+  maxSchoolCounters: z.coerce.number().int().min(0).max(MAX_SCHOOL_ENTITLEMENT),
+})
+
+export async function setCustomerSchoolLimitsAction(
+  customerId: string,
+  limits: { maxSchoolDepartments: number; maxSchoolCounters: number }
+): Promise<{ error?: string }> {
+  await requireDistributor()
+
+  const parsed = SchoolLimitsSchema.safeParse(limits)
+  if (!parsed.success) {
+    return { error: `Enter a number between 0 and ${MAX_SCHOOL_ENTITLEMENT}` }
+  }
+
+  const service = createSupabaseServiceClient()
+  const { error } = await service
+    .from('customers')
+    .update({
+      max_school_departments: parsed.data.maxSchoolDepartments,
+      max_school_counters: parsed.data.maxSchoolCounters,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', customerId)
+
+  if (error) return { error: 'Could not update the limits' }
 
   revalidatePath('/distributor/customers')
   return {}

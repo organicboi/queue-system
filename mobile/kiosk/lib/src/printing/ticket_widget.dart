@@ -19,6 +19,7 @@ class TicketData {
     required this.footerEn,
     required this.footerAr,
     required this.issuedAt,
+    this.waitingAhead,
     this.logo,
   });
 
@@ -31,6 +32,10 @@ class TicketData {
   final String footerEn;
   final String footerAr;
   final DateTime issuedAt;
+
+  /// How many visitors are still in front of this one. Null leaves the line
+  /// off the ticket entirely — see [PrintJob.waitingAhead].
+  final int? waitingAhead;
   final ui.Image? logo;
 }
 
@@ -71,10 +76,32 @@ const double _schoolFontSize = 34;
 const double _departmentFontSize = 32;
 const double _footerFontSize = 22;
 const double _metaFontSize = 20;
+const double _aheadFontSize = 26;
+
+/// The line the visitor is actually looking for: how many people are still in
+/// front of them. Wording is kept identical to `waitingAheadLine()` in
+/// lib/school/printTicket.ts so the browser kiosk and this one print the same
+/// ticket.
+///
+/// Arabic is phrased as a count ("the number of people waiting before you") on
+/// purpose: it takes any number without the singular/dual/plural agreement a
+/// "N people" phrasing would need.
+({String en, String ar}) waitingAheadLine(int count) {
+  if (count <= 0) {
+    return (en: 'You are next in line', ar: 'أنت التالي في الطابور');
+  }
+  return (
+    en: count == 1 ? '1 person waiting before you' : '$count people waiting before you',
+    ar: 'عدد المنتظرين قبلك: $count',
+  );
+}
 
 Widget buildTicketWidget({required TicketData data, required int widthDots}) {
   final scale = widthDots / 576; // baseline designed at 80mm/576 dots
   double s(double v) => v * scale;
+
+  final ahead = data.waitingAhead;
+  final aheadLine = ahead == null ? null : waitingAheadLine(ahead);
 
   return Padding(
     padding: EdgeInsets.symmetric(horizontal: s(20), vertical: s(28)),
@@ -170,6 +197,48 @@ Widget buildTicketWidget({required TicketData data, required int widthDots}) {
               ),
             ),
           ),
+        // Boxed like the PRIORITY tag, and for the same reason: on a 1-bit
+        // thermal head a rule is the only emphasis that survives, and this is
+        // the line the visitor re-reads while they wait.
+        if (aheadLine != null) ...[
+          SizedBox(height: s(16)),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: s(12), vertical: s(10)),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.black, width: s(2)),
+              borderRadius: BorderRadius.circular(s(6)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  aheadLine.en,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: s(_aheadFontSize),
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black,
+                    height: 1.2,
+                  ),
+                ),
+                Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: Text(
+                    aheadLine.ar,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: s(_aheadFontSize),
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         SizedBox(height: s(20)),
         Container(height: s(2), width: double.infinity, color: Colors.black),
         SizedBox(height: s(16)),

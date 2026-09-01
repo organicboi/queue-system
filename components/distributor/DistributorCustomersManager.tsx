@@ -8,8 +8,12 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { VERTICALS, DEFAULT_VERTICAL, verticalMeta } from '@/lib/verticals'
 import type { CustomerVertical } from '@/lib/db/types'
-import { createCustomerAction, toggleCustomerActiveAction, changePlanAction } from '@/lib/actions/distributor'
-import { Plus, Power, Copy, Check, Key } from 'lucide-react'
+import {
+  createCustomerAction, toggleCustomerActiveAction, changePlanAction,
+  setCustomerSchoolLimitsAction,
+} from '@/lib/actions/distributor'
+import { MAX_SCHOOL_ENTITLEMENT } from '@/lib/db/types'
+import { Plus, Power, Copy, Check, Key, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import type { CustomerDTO } from '@/lib/db/types'
 
@@ -25,6 +29,8 @@ const INIT: { error?: string; licenseKey?: string } = {}
 
 export function DistributorCustomersManager({ customers, plans }: Props) {
   const [open, setOpen] = useState(false)
+  // Which school tenant's department/counter allowance is being edited.
+  const [limitsFor, setLimitsFor] = useState<CustomerWithPlan | null>(null)
   const [planId, setPlanId] = useState(plans[0]?.id ?? '')
   // The key issued with this customer carries the system, and the customer row
   // is stamped with it too — so the tenant lands in the right product the very
@@ -162,6 +168,15 @@ export function DistributorCustomersManager({ customers, plans }: Props) {
                     {verticalMeta(c.vertical).short.toUpperCase()}
                   </span>
                   {c.planName && <span className="text-xs text-muted-foreground">{c.planName}</span>}
+                  {/* What this school is entitled to build, per branch. The
+                      tenant cannot raise it — that is the point of it living
+                      here. */}
+                  {c.vertical === 'school' && (
+                    <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
+                      {c.maxSchoolDepartments} dept · {c.maxSchoolCounters} counter
+                      {c.maxSchoolCounters === 1 ? '' : 's'}
+                    </span>
+                  )}
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                     c.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
                   }`}>
@@ -187,6 +202,17 @@ export function DistributorCustomersManager({ customers, plans }: Props) {
                     ))}
                   </SelectContent>
                 </Select>
+                {c.vertical === 'school' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs px-2"
+                    onClick={() => setLimitsFor(c)}
+                  >
+                    <SlidersHorizontal className="size-3.5 mr-1" />
+                    Limits
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -207,6 +233,88 @@ export function DistributorCustomersManager({ customers, plans }: Props) {
           )}
         </div>
       </div>
+
+      <SchoolLimitsDialog customer={limitsFor} onClose={() => setLimitsFor(null)} />
     </div>
+  )
+}
+
+// Departments and counters are billable capacity, so the ceiling is set here
+// and spent in /school/departments and /school/counters. Both are per branch,
+// matching how screens are already capped.
+function SchoolLimitsDialog({ customer, onClose }: {
+  customer: CustomerWithPlan | null
+  onClose: () => void
+}) {
+  const [forId, setForId] = useState<string | null>(null)
+  const [departments, setDepartments] = useState('1')
+  const [counters, setCounters] = useState('1')
+  const [saving, setSaving] = useState(false)
+
+  if (customer && forId !== customer.id) {
+    setForId(customer.id)
+    setDepartments(String(customer.maxSchoolDepartments))
+    setCounters(String(customer.maxSchoolCounters))
+  }
+
+  async function save() {
+    if (!customer) return
+    setSaving(true)
+    const r = await setCustomerSchoolLimitsAction(customer.id, {
+      maxSchoolDepartments: Number(departments),
+      maxSchoolCounters: Number(counters),
+    })
+    setSaving(false)
+    if (r.error) toast.error(r.error)
+    else {
+      toast.success('Limits updated')
+      onClose()
+    }
+  }
+
+  return (
+    <Dialog open={!!customer} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{customer?.name} — limits</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          How many departments and counters this school can run at each branch. They
+          cannot raise these themselves.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="maxSchoolDepartments">Departments</Label>
+            <Input
+              id="maxSchoolDepartments"
+              type="number"
+              min={0}
+              max={MAX_SCHOOL_ENTITLEMENT}
+              value={departments}
+              onChange={(e) => setDepartments(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="maxSchoolCounters">Counters</Label>
+            <Input
+              id="maxSchoolCounters"
+              type="number"
+              min={0}
+              max={MAX_SCHOOL_ENTITLEMENT}
+              value={counters}
+              onChange={(e) => setCounters(e.target.value)}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Lowering a number never removes anything the school already built — it just
+          stops them adding more until they deactivate down to the new limit.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Limits'}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

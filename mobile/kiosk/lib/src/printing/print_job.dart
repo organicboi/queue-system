@@ -5,12 +5,18 @@ import '../models/school_token.dart';
 /// recent-tickets rail can be for a service other than the one last tapped
 /// (see the `PrintJob` interface in components/school/SchoolKiosk.tsx).
 class PrintJob {
-  PrintJob({required this.token, required this.department})
+  PrintJob({required this.token, required this.department, this.waitingAhead})
       : key = DateTime.now().microsecondsSinceEpoch;
 
   final int key;
   final SchoolToken token;
   final SchoolDepartment department;
+
+  /// How many visitors were ahead of this token when the job was queued, for
+  /// the line the ticket prints. Null when the server couldn't be asked (a
+  /// reprint with the network down) — the ticket then leaves the line off
+  /// rather than printing a number that isn't true.
+  final int? waitingAhead;
 }
 
 enum PrintResult { printed, failed }

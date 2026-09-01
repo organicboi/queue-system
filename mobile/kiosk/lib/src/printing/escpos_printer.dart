@@ -96,6 +96,7 @@ class EscPosPrinter implements Printer {
         footerEn: branchInfo.ticketFooterEn,
         footerAr: branchInfo.ticketFooterAr,
         issuedAt: DateTime.now(),
+        waitingAhead: job.waitingAhead,
         logo: _logo,
       );
 
