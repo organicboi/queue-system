@@ -75,12 +75,17 @@ export interface TicketLogo {
 
 /*
  * The QR on the ticket — see supabase/migrations/20260902_school_public_tracking.sql
- * and app/(public)/t/[code]. Sized at 22mm: on the Vercel domain the encoded
- * URL is ~43 chars, comfortably a version-3/4 QR at ECC H — at 8 dots/mm that
- * leaves ~5-6 dots per module, well above what a 203dpi head needs for a
- * reliable scan.
+ * and app/(public)/t/[code].
+ *
+ * Sized at 26mm and ECC level M (was 22mm/H — a real Flutter-kiosk ticket
+ * came back unscannable). On a ~45-char URL, H forces a 37-module code where
+ * 22mm/8dots-per-mm works out to under 0.6mm per module — too dense for a
+ * phone camera on thermal paper. M needs meaningfully fewer modules (33 for
+ * the same length) and isn't buying much anyway on a clean digital→print
+ * path with no embedded logo to protect against; 26mm on top of that clears
+ * ~0.8mm/module, comfortably inside typical scan-reliability guidance.
  */
-export const QR_TARGET_MM = 22
+export const QR_TARGET_MM = 26
 export const QR_SOURCE_PX = 300
 const QR_THRESHOLD = 0.62
 

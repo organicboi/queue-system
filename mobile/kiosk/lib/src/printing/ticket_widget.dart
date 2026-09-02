@@ -93,13 +93,18 @@ const double _footerFontSize = 26;
 const double _metaFontSize = 28;
 const double _aheadFontSize = 26;
 const double _qrCaptionFontSize = 22;
-// Independent of s() deliberately: the module grid only needs to be a
-// reasonable, roughly-consistent physical size across paper widths, not an
-// exact fraction of the 576-dot baseline — TicketCaptureHost captures at
-// pixelRatio 1.0 and _thresholdToBitmap hard-binarises the whole ticket
-// afterwards, so any sub-pixel edges from the QR's own vector paint are
-// already cleaned up the same way the logo and text are.
-double _qrDots(int widthDots) => (widthDots * 0.42).roundToDouble();
+// Fixed physical size (26mm at the head's 8 dots/mm — see dotsPerMm in
+// ticket_raster.dart), not a fraction of widthDots: a real printed ticket
+// came back unscannable at the old width-proportional size on 58mm paper.
+// At ECC level M a ~45-char tracking URL is a 33-module code; 208 dots
+// across that clears ~0.8mm per module, comfortably inside typical
+// scan-reliability guidance. Independent of s() for the same reason it was
+// before — TicketCaptureHost captures at pixelRatio 1.0 and
+// _thresholdToBitmap hard-binarises the whole ticket afterwards, so any
+// sub-pixel edges from the QR's own vector paint are cleaned up the same way
+// the logo and text are; only the physical size matters here, not alignment
+// to the 576-dot baseline.
+const double _qrDots = 208;
 
 /// Wording kept identical to `qrCaptionLine()` in lib/school/printTicket.ts.
 ({String en, String ar}) qrCaptionLine() {
@@ -299,10 +304,12 @@ Widget buildTicketWidget({required TicketData data, required int widthDots}) {
           SizedBox(height: s(16)),
           QrImageView(
             data: data.publicUrl!,
-            size: _qrDots(widthDots),
+            size: _qrDots,
             padding: EdgeInsets.zero,
             backgroundColor: Colors.white,
-            errorCorrectionLevel: QrErrorCorrectLevel.H,
+            // M, not H: H forces enough extra modules on a ~45-char URL to
+            // print unscannably dense at a size that still fits the ticket.
+            errorCorrectionLevel: QrErrorCorrectLevel.M,
             gapless: true,
           ),
           SizedBox(height: s(6)),

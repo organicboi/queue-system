@@ -764,7 +764,10 @@ export function SchoolKiosk({
             ref={qrCanvasRef}
             value={qrValue || ' '}
             size={QR_SOURCE_PX}
-            level="H"
+            // M, not H: on a ~45-char URL, H forces enough extra modules to
+            // print unscannably dense at a size that still fits the ticket —
+            // see the comment on QR_TARGET_MM in printTicket.ts.
+            level="M"
             marginSize={4}
             fgColor="#000000"
             bgColor="#ffffff"
