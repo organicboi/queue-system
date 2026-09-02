@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { VERTICALS, DEFAULT_VERTICAL, verticalMeta } from '@/lib/verticals'
 import type { CustomerVertical } from '@/lib/db/types'
 import {
@@ -259,6 +260,7 @@ function SchoolSetupDialog({ customer, branches, onClose }: {
   const [forId, setForId] = useState<string | null>(null)
   const [departments, setDepartments] = useState('1')
   const [counters, setCounters] = useState('1')
+  const [publicTracking, setPublicTracking] = useState(false)
   const [savingLimits, setSavingLimits] = useState(false)
 
   const [branchId, setBranchId] = useState('')
@@ -281,6 +283,7 @@ function SchoolSetupDialog({ customer, branches, onClose }: {
     setForId(customer.id)
     setDepartments(String(customer.maxSchoolDepartments))
     setCounters(String(customer.maxSchoolCounters))
+    setPublicTracking(customer.schoolPublicTrackingEnabled)
     loadBranch(branches[0]?.branchId ?? '', branches, customer.name)
   }
 
@@ -290,6 +293,7 @@ function SchoolSetupDialog({ customer, branches, onClose }: {
     const r = await setCustomerSchoolLimitsAction(customer.id, {
       maxSchoolDepartments: Number(departments),
       maxSchoolCounters: Number(counters),
+      publicTrackingEnabled: publicTracking,
     })
     setSavingLimits(false)
     if (r.error) toast.error(r.error)
@@ -414,6 +418,19 @@ function SchoolSetupDialog({ customer, branches, onClose }: {
             Lowering a number never removes anything the school already built — it just
             stops them adding more until they deactivate down to the new limit.
           </p>
+
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900">Public ticket tracking (QR)</p>
+              <p className="text-[11px] text-muted-foreground">
+                Adds a QR code to every printed ticket linking to a live waiting-position
+                page. The school has its own on/off switch on /school/settings — this is
+                the grant that switch depends on.
+              </p>
+            </div>
+            <Switch checked={publicTracking} onCheckedChange={setPublicTracking} />
+          </div>
+
           <Button size="sm" onClick={saveLimits} disabled={savingLimits}>
             {savingLimits ? 'Saving…' : 'Save Limits'}
           </Button>

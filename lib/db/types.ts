@@ -61,6 +61,11 @@ export interface DbCustomer {
   // See supabase/migrations/20260901_school_entitlements.sql.
   max_school_departments: number
   max_school_counters: number
+  // Public QR-tracking add-on grant. See
+  // supabase/migrations/20260902_school_public_tracking.sql — effective only
+  // together with school_settings.public_tracking_enabled, which the tenant
+  // controls.
+  school_public_tracking_enabled: boolean
   branch_ad_mode: AdMergeMode
   onboarded_at: string | null
   created_at: string
@@ -272,6 +277,7 @@ export interface CustomerDTO {
   vertical: CustomerVertical
   maxSchoolDepartments: number
   maxSchoolCounters: number
+  schoolPublicTrackingEnabled: boolean
   branchAdMode: AdMergeMode
   onboardedAt: string | null
   createdAt: string
@@ -698,6 +704,7 @@ export function toCustomerDTO(row: DbCustomer): CustomerDTO {
     vertical: row.vertical ?? 'business',
     maxSchoolDepartments: row.max_school_departments ?? DEFAULT_SCHOOL_DEPARTMENT_LIMIT,
     maxSchoolCounters: row.max_school_counters ?? DEFAULT_SCHOOL_COUNTER_LIMIT,
+    schoolPublicTrackingEnabled: row.school_public_tracking_enabled ?? false,
     branchAdMode: row.branch_ad_mode,
     onboardedAt: row.onboarded_at,
     createdAt: row.created_at,

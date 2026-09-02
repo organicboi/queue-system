@@ -9,8 +9,10 @@ import {
   type SchoolDashboardStats, type SchoolDepartmentStats, type SchoolKioskFeed,
   type DbSchoolSettings, type DbSchoolDepartment, type DbSchoolCounter,
   type DbSchoolToken, type DbSchoolActivityLog, type SchoolBranchIdentity,
+  type PublicTicketStatus,
 } from '@/lib/db/school-types'
 import { SCHOOL_TOKEN_PAGE_SIZE } from '@/lib/school/constants'
+import { getSchoolPublicTrackingEnabled } from '@/lib/dal/school-limits'
 
 // Reads use the service-role client and rely on the requireX() guards in
 // lib/dal/session.ts — RLS in this schema is self-referentially broken, so the
@@ -118,6 +120,10 @@ export interface SchoolKioskPacket {
   settings?: SchoolSettingsDTO | null
   silentPrint?: boolean
   printerName?: string
+  // Effective public-tracking gate (distributor grant AND the school's own
+  // switch) — see lib/dal/school-limits.ts. The app only prints a QR when
+  // this is true.
+  publicTrackingEnabled?: boolean
 }
 
 export const getSchoolKioskPacket = cache(async (branchToken: string): Promise<SchoolKioskPacket> => {
@@ -136,9 +142,10 @@ export const getSchoolKioskPacket = cache(async (branchToken: string): Promise<S
   }
   if (!row.is_active) return { status: 'inactive' }
 
-  const [departments, settings] = await Promise.all([
+  const [departments, settings, publicTrackingEnabled] = await Promise.all([
     getSchoolDepartments(row.id, { activeOnly: true }),
     getSchoolSettings(row.id),
+    getSchoolPublicTrackingEnabled(row.customer_id, row.id),
   ])
 
   return {
@@ -150,6 +157,7 @@ export const getSchoolKioskPacket = cache(async (branchToken: string): Promise<S
     settings,
     silentPrint: row.silent_print,
     printerName: row.printer_name,
+    publicTrackingEnabled,
   }
 })
 
@@ -161,6 +169,18 @@ export const getSchoolBoard = cache(async (screenToken: string): Promise<SchoolB
   if (error || !data) return { status: 'not-found' }
   return data as SchoolBoardPacket
 })
+
+// ── Public ticket tracking (public_code auth, no session) ─────
+// What the QR on a printed ticket points at. Not cache()'d: the public page
+// polls this repeatedly for the same request-lifetime-free interval timer, so
+// per-request memoization buys nothing here (each poll is its own request).
+export async function getPublicTicketStatus(code: string): Promise<PublicTicketStatus> {
+  const supabase = createSupabaseServiceClient()
+  const { data, error } = await supabase.rpc('get_public_ticket_status', { p_code: code })
+
+  if (error || !data) return { status: 'not-found' }
+  return data as PublicTicketStatus
+}
 
 // ── Tokens ────────────────────────────────────────────────────
 export const getTodaySchoolTokens = cache(async (branchId: string): Promise<SchoolTokenDTO[]> => {

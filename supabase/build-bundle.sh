@@ -23,9 +23,12 @@ cat <<'HDR'
 -- Contents, in dependency order:
 --   1. supabase/schema.sql               — base queue product (clean slate)
 --   2. supabase/migrations/*.sql         — every legacy migration, in order
---   3. 20260825_school_queue_system.sql  — the school queue product
---   4. 20260826_license_key_vertical.sql — which product a key entitles
---   5. 20260901_school_entitlements.sql  — per-branch department/counter caps
+--   3. 20260825_school_queue_system.sql     — the school queue product
+--   4. 20260826_license_key_vertical.sql    — which product a key entitles
+--   5. 20260828_ad_audio.sql                — per-ad audio toggle
+--   6. 20260901_school_entitlements.sql     — per-branch department/counter caps
+--   7. 20260901_device_pairing_codes.sql    — 6-digit kiosk/display pairing
+--   8. 20260902_school_public_tracking.sql  — QR ticket tracking (public codes + RPC)
 --
 -- ⚠ DESTRUCTIVE. schema.sql opens with `drop table … cascade`, and this file
 --   additionally drops `counters` and the school_* tables so a re-run is a
@@ -48,6 +51,7 @@ drop table if exists public.school_counters            cascade;
 drop table if exists public.school_department_days     cascade;
 drop table if exists public.school_departments         cascade;
 drop table if exists public.school_settings            cascade;
+drop table if exists public.device_pairing_codes       cascade;
 drop table if exists public.counters                   cascade;
 HDR
 
@@ -114,8 +118,17 @@ cat $M/20260825_school_queue_system.sql
 section "14. MIGRATION  20260826_license_key_vertical.sql"
 cat $M/20260826_license_key_vertical.sql
 
-section "15. MIGRATION  20260901_school_entitlements.sql"
+section "15. MIGRATION  20260828_ad_audio.sql"
+cat $M/20260828_ad_audio.sql
+
+section "16. MIGRATION  20260901_school_entitlements.sql"
 cat $M/20260901_school_entitlements.sql
+
+section "17. MIGRATION  20260901_device_pairing_codes.sql"
+cat $M/20260901_device_pairing_codes.sql
+
+section "18. MIGRATION  20260902_school_public_tracking.sql"
+cat $M/20260902_school_public_tracking.sql
 
 printf '\n\n-- ── END OF BUNDLE ─────────────────────────────────────────────\n'
 } > "$OUT"

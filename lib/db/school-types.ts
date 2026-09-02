@@ -56,6 +56,10 @@ export interface DbSchoolSettings {
   announce_template_en: string
   announce_template_ar: string
   print_enabled: boolean
+  // The school's own switch for the public QR-tracking page. Effective only
+  // together with customers.school_public_tracking_enabled (the distributor
+  // grant) — see supabase/migrations/20260902_school_public_tracking.sql.
+  public_tracking_enabled: boolean
   timezone: string
   day_start_time: string
   created_at: string
@@ -115,6 +119,9 @@ export interface DbSchoolToken {
   service_date: string
   number: number
   token_code: string
+  // Short, non-enumerable handle for the public tracking page/QR — distinct
+  // from token_code, which repeats every day and across branches.
+  public_code: string
   status: SchoolTokenStatus
   is_priority: boolean
   source: SchoolTokenSource
@@ -160,6 +167,7 @@ export interface SchoolSettingsDTO {
   announceTemplateEn: string
   announceTemplateAr: string
   printEnabled: boolean
+  publicTrackingEnabled: boolean
   timezone: string
   dayStartTime: string
 }
@@ -208,6 +216,7 @@ export interface SchoolTokenDTO {
   serviceDate: string
   number: number
   tokenCode: string
+  publicCode: string
   status: SchoolTokenStatus
   isPriority: boolean
   source: SchoolTokenSource
@@ -360,6 +369,7 @@ export function toSchoolSettingsDTO(row: DbSchoolSettings): SchoolSettingsDTO {
     announceTemplateEn: row.announce_template_en,
     announceTemplateAr: row.announce_template_ar,
     printEnabled: row.print_enabled,
+    publicTrackingEnabled: row.public_tracking_enabled,
     timezone: row.timezone,
     dayStartTime: row.day_start_time,
   }
@@ -412,6 +422,7 @@ export function toSchoolTokenDTO(row: DbSchoolToken): SchoolTokenDTO {
     serviceDate: row.service_date,
     number: row.number,
     tokenCode: row.token_code,
+    publicCode: row.public_code,
     status: row.status,
     isPriority: row.is_priority,
     source: row.source,
@@ -441,4 +452,35 @@ export function toSchoolActivityLogDTO(row: DbSchoolActivityLog): SchoolActivity
     message: row.message,
     createdAt: row.created_at,
   }
+}
+
+// ── Public ticket status (from the get_public_ticket_status RPC) ──────
+// What the public tracking page (app/(public)/t/[code]) polls. The RPC
+// returns camelCase JSON directly (json_build_object keys), unlike the other
+// RPCs here — so this is consumed as-is, no snake_case mapper needed.
+export interface PublicTicketStatus {
+  status: 'ok' | 'not-found' | 'disabled' | 'expired'
+  schoolNameEn?: string
+  schoolNameAr?: string
+  logoUrl?: string
+  languages?: SchoolLanguage[]
+  tokenCode?: string
+  tokenStatus?: SchoolTokenStatus
+  isPriority?: boolean
+  joinedAt?: string
+  calledAt?: string | null
+  departmentNameEn?: string
+  departmentNameAr?: string
+  counterNameEn?: string | null
+  counterNameAr?: string | null
+  serviceDate?: string
+  // False when this ticket was issued on an earlier service day — the token
+  // row may still say 'waiting' if the day rolled over before it was ever
+  // called, but that position is stale and the page must say so rather than
+  // show a live countdown.
+  isToday?: boolean
+  waitingAhead?: number
+  nowServingCode?: string | null
+  etaSeconds?: number
+  paceSampleCount?: number
 }

@@ -91,6 +91,7 @@ class _PrinterSetupStepState extends State<PrinterSetupStep> {
       settings: widget.value,
       branchInfo: const BranchTicketInfo(
         schoolNameEn: '', schoolNameAr: '', ticketFooterEn: '', ticketFooterAr: '',
+        publicTrackingEnabled: false, publicBaseUrl: '',
       ),
     );
     final attempt = await printer.printCalibration();

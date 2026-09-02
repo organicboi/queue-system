@@ -5,10 +5,26 @@ import 'package:flutter/material.dart';
 import '../../i18n/copy.dart';
 import '../theme.dart';
 
-/// The kiosk header. Deliberately spare: identity on one side, the two things
-/// a visitor may actually want on the other (what time it is, what language
-/// they read). Everything instructional lives in the body below — repeating
-/// "touch a service" up here only made the bar look busy.
+/// The kiosk header: a white rail, one hairline, and nothing that competes
+/// with the service blocks underneath it.
+///
+/// Deliberately spare — identity on one side, the two things a visitor may
+/// actually want on the other (what time it is, what language they read).
+/// Everything instructional lives in the body below; repeating "touch a
+/// service" up here only made the bar look busy.
+///
+/// Three things this bar used to do and no longer does, because each of them
+/// was chrome pretending to be content:
+///
+/// * **A blue monogram tile.** A branch with no uploaded logo got a coloured
+///   square that belonged to none of the department colours below it. A school
+///   with a logo still shows the logo; one without simply starts with its name.
+/// * **A two-line clock.** A 19px bold time stacked over the date was a
+///   headline for information nobody walked up to read. One line now, with
+///   tabular figures so the width doesn't twitch every minute.
+/// * **A pill-shaped language switch.** It read as a control borrowed from
+///   somewhere else. Two words with a hairline between them: someone switching
+///   language is looking for their own script, not for a widget.
 class KioskHeader extends StatelessWidget {
   const KioskHeader({
     super.key,
@@ -31,8 +47,8 @@ class KioskHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final scale = kioskScale(context);
     return Container(
-      height: (KioskPalette.headerHeight * scale).clamp(64.0, 108.0),
-      padding: EdgeInsetsDirectional.fromSTEB(24 * scale, 0, 20 * scale, 0),
+      height: (KioskPalette.headerHeight * scale).clamp(56.0, 92.0),
+      padding: EdgeInsetsDirectional.fromSTEB(26 * scale, 0, 22 * scale, 0),
       decoration: const BoxDecoration(
         color: KioskPalette.surface,
         border: Border(bottom: BorderSide(color: KioskPalette.border)),
@@ -44,16 +60,18 @@ class KioskHeader extends StatelessWidget {
           final showClock = c.maxWidth >= 720;
           return Row(
             children: [
-              _Logo(url: logoUrl, name: title),
-              const SizedBox(width: 14),
+              if (logoUrl.isNotEmpty) ...[
+                _Logo(url: logoUrl),
+                const SizedBox(width: 13),
+              ],
               Expanded(
                 child: Text(
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 23,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
                     color: KioskPalette.ink,
                     letterSpacing: -0.2,
                   ),
@@ -64,7 +82,7 @@ class KioskHeader extends StatelessWidget {
                 _Clock(lang: lang),
               ],
               if (languages.length > 1) ...[
-                const SizedBox(width: 18),
+                const SizedBox(width: 22),
                 _LangToggle(
                   languages: languages,
                   lang: lang,
@@ -79,44 +97,26 @@ class KioskHeader extends StatelessWidget {
   }
 }
 
+/// Shown only when the school has actually uploaded one. A generated initial
+/// in a tinted square is a logo the school never chose.
 class _Logo extends StatelessWidget {
-  const _Logo({required this.url, required this.name});
+  const _Logo({required this.url});
   final String url;
-  final String name;
 
   @override
   Widget build(BuildContext context) {
-    final size = (46.0 * kioskScale(context)).clamp(40.0, 66.0);
-    final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '#';
-    final fallback = Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: KioskPalette.primarySoft,
-        borderRadius: BorderRadius.circular(13),
-      ),
-      child: Text(
-        initial,
-        style: const TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w800,
-          color: KioskPalette.primary,
-        ),
-      ),
-    );
+    final size = (34.0 * kioskScale(context)).clamp(30.0, 48.0);
+    final blank = SizedBox(width: size, height: size);
 
-    if (url.isEmpty) return fallback;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(13),
+      borderRadius: BorderRadius.circular(10),
       child: Image.network(
         url,
         width: size,
         height: size,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => fallback,
-        loadingBuilder: (_, child, progress) =>
-            progress == null ? child : fallback,
+        errorBuilder: (_, _, _) => blank,
+        loadingBuilder: (_, child, progress) => progress == null ? child : blank,
       ),
     );
   }
@@ -162,32 +162,33 @@ class _ClockState extends State<_Clock> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.end,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      textBaseline: TextBaseline.alphabetic,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
       children: [
         Text(
           KioskCopy.clockOf(widget.lang, _now),
           style: const TextStyle(
-            fontSize: 19,
-            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
             color: KioskPalette.ink,
-            height: 1.1,
+            fontFeatures: [FontFeature.tabularFigures()],
           ),
         ),
+        const SizedBox(width: 10),
         Text(
           KioskCopy.dateOf(widget.lang, _now),
-          style: const TextStyle(
-            fontSize: 12.5,
-            color: KioskPalette.inkFaint,
-            height: 1.3,
-          ),
+          style: const TextStyle(fontSize: 14, color: KioskPalette.inkFaint),
         ),
       ],
     );
   }
 }
 
+/// Each language in its own script, the current one in full ink and the rest
+/// muted, a hairline between them. No track, no pill, no shadow: the words are
+/// the control.
 class _LangToggle extends StatelessWidget {
   const _LangToggle({
     required this.languages,
@@ -203,49 +204,43 @@ class _LangToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: KioskPalette.surfaceMuted,
-        borderRadius: BorderRadius.circular(KioskPalette.radiusPill),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final l in languages)
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => onChange(l),
-                borderRadius: BorderRadius.circular(KioskPalette.radiusPill),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 11,
-                  ),
-                  decoration: BoxDecoration(
-                    color:
-                        l == lang ? KioskPalette.surface : Colors.transparent,
-                    borderRadius:
-                        BorderRadius.circular(KioskPalette.radiusPill),
-                    boxShadow: l == lang ? KioskPalette.hairShadow : null,
-                  ),
-                  child: Text(
-                    _names[l] ?? l.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: l == lang
-                          ? KioskPalette.primary
-                          : KioskPalette.inkSoft,
-                    ),
-                  ),
+    final items = <Widget>[];
+    for (final l in languages) {
+      if (items.isNotEmpty) {
+        items.add(
+          Container(
+            width: 1,
+            height: 16,
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            color: KioskPalette.border,
+          ),
+        );
+      }
+      items.add(
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => onChange(l),
+            borderRadius: BorderRadius.circular(KioskPalette.radiusSm),
+            // The word is small; the target around it is not.
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+              child: AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 150),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                  color: l == lang ? KioskPalette.ink : KioskPalette.inkFaint,
                 ),
+                child: Text(_names[l] ?? l.toUpperCase()),
               ),
             ),
-        ],
-      ),
-    );
+          ),
+        ),
+      );
+    }
+
+    return Row(mainAxisSize: MainAxisSize.min, children: items);
   }
 }

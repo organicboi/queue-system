@@ -29,3 +29,23 @@ export const SCHOOL_DEPARTMENT_ICONS = [
 ] as const
 
 export type SchoolDepartmentIcon = (typeof SCHOOL_DEPARTMENT_ICONS)[number]
+
+// ── Public ticket tracking base URL ────────────────────────────
+// The origin the QR on a printed ticket points at (see
+// supabase/migrations/20260902_school_public_tracking.sql). The web kiosk has
+// window.location; the Flutter kiosk does not, so the bootstrap route hands
+// it this same value.
+//
+// Set NEXT_PUBLIC_PUBLIC_BASE_URL to swap in a short custom domain later
+// without touching any print code. Unset, this falls back to the caller's
+// own origin — correct for local dev and for a first deploy before a short
+// domain exists.
+export function publicTrackingBaseUrl(requestOrigin?: string): string {
+  const configured = process.env.NEXT_PUBLIC_PUBLIC_BASE_URL?.trim()
+  if (configured) return configured.replace(/\/+$/, '')
+  return (requestOrigin ?? '').replace(/\/+$/, '')
+}
+
+export function publicTrackingUrl(code: string, requestOrigin?: string): string {
+  return `${publicTrackingBaseUrl(requestOrigin)}/t/${code}`
+}

@@ -543,6 +543,10 @@ const SettingsSchema = z.object({
   announceTemplateEn: z.string().max(200).optional(),
   announceTemplateAr: z.string().max(200).optional(),
   printEnabled: z.boolean().optional(),
+  // Only takes effect when the distributor has granted the add-on
+  // (customers.school_public_tracking_enabled) — this is the school's own
+  // switch on top of that grant, not a way to turn the feature on unbought.
+  publicTrackingEnabled: z.boolean().optional(),
   timezone: z.string().max(60).optional(),
   dayStartTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
 })
@@ -578,6 +582,7 @@ export async function saveSchoolSettingsAction(
       ...(d.announceTemplateEn !== undefined && { announce_template_en: d.announceTemplateEn }),
       ...(d.announceTemplateAr !== undefined && { announce_template_ar: d.announceTemplateAr }),
       ...(d.printEnabled !== undefined && { print_enabled: d.printEnabled }),
+      ...(d.publicTrackingEnabled !== undefined && { public_tracking_enabled: d.publicTrackingEnabled }),
       ...(d.timezone !== undefined && { timezone: d.timezone }),
       ...(d.dayStartTime !== undefined && { day_start_time: d.dayStartTime }),
       updated_at: new Date().toISOString(),

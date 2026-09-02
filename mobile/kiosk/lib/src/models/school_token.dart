@@ -12,6 +12,7 @@ class SchoolToken {
     required this.serviceDate,
     required this.number,
     required this.tokenCode,
+    required this.publicCode,
     required this.status,
     required this.isPriority,
     required this.source,
@@ -33,6 +34,11 @@ class SchoolToken {
   final String serviceDate;
   final int number;
   final String tokenCode;
+
+  /// Short, non-enumerable handle for the public tracking page/QR — distinct
+  /// from tokenCode, which repeats every day and across branches. See
+  /// supabase/migrations/20260902_school_public_tracking.sql.
+  final String publicCode;
   final String status;
   final bool isPriority;
   final String source;
@@ -59,6 +65,7 @@ class SchoolToken {
       serviceDate: json['serviceDate'] as String? ?? '',
       number: (json['number'] as num?)?.toInt() ?? 0,
       tokenCode: json['tokenCode'] as String? ?? '',
+      publicCode: json['publicCode'] as String? ?? '',
       status: json['status'] as String? ?? 'waiting',
       isPriority: json['isPriority'] as bool? ?? false,
       source: json['source'] as String? ?? 'kiosk',

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 /// Everything the ticket needs to render. [logo] is a pre-decoded image
 /// rather than a URL: the print pipeline must never depend on a network
@@ -21,6 +22,7 @@ class TicketData {
     required this.issuedAt,
     this.waitingAhead,
     this.logo,
+    this.publicUrl,
   });
 
   final String schoolNameEn;
@@ -37,6 +39,13 @@ class TicketData {
   /// off the ticket entirely — see [PrintJob.waitingAhead].
   final int? waitingAhead;
   final ui.Image? logo;
+
+  /// The public tracking page's URL for this ticket, or null to leave the QR
+  /// off entirely — mirrors [waitingAhead]'s null convention. Set only when
+  /// KioskBootstrap.publicTrackingEnabled is true; see
+  /// BranchTicketInfo.fromBootstrap in escpos_printer.dart for where it's
+  /// derived.
+  final String? publicUrl;
 }
 
 /// Fetches and decodes a logo once, for reuse across every ticket printed in
@@ -83,6 +92,19 @@ const double _departmentFontSize = 40;
 const double _footerFontSize = 26;
 const double _metaFontSize = 28;
 const double _aheadFontSize = 26;
+const double _qrCaptionFontSize = 22;
+// Independent of s() deliberately: the module grid only needs to be a
+// reasonable, roughly-consistent physical size across paper widths, not an
+// exact fraction of the 576-dot baseline — TicketCaptureHost captures at
+// pixelRatio 1.0 and _thresholdToBitmap hard-binarises the whole ticket
+// afterwards, so any sub-pixel edges from the QR's own vector paint are
+// already cleaned up the same way the logo and text are.
+double _qrDots(int widthDots) => (widthDots * 0.42).roundToDouble();
+
+/// Wording kept identical to `qrCaptionLine()` in lib/school/printTicket.ts.
+({String en, String ar}) qrCaptionLine() {
+  return (en: 'Scan to track your turn', ar: 'امسح لمتابعة دورك');
+}
 
 /// The line the visitor is actually looking for: how many people are still in
 /// front of them. Wording is kept identical to `waitingAheadLine()` in
@@ -273,6 +295,52 @@ Widget buildTicketWidget({required TicketData data, required int widthDots}) {
               ),
             ),
           ),
+        if (data.publicUrl != null && data.publicUrl!.trim().isNotEmpty) ...[
+          SizedBox(height: s(16)),
+          QrImageView(
+            data: data.publicUrl!,
+            size: _qrDots(widthDots),
+            padding: EdgeInsets.zero,
+            backgroundColor: Colors.white,
+            errorCorrectionLevel: QrErrorCorrectLevel.H,
+            gapless: true,
+          ),
+          SizedBox(height: s(6)),
+          Text(
+            qrCaptionLine().en,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: s(_qrCaptionFontSize),
+              fontWeight: FontWeight.w700,
+              color: Colors.black,
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.only(top: s(2)),
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Text(
+                qrCaptionLine().ar,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: s(_qrCaptionFontSize),
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ),
+          // Scan-failure fallback: costs a few mm of paper, saves a support
+          // call from someone whose camera can't get a lock on it.
+          Padding(
+            padding: EdgeInsets.only(top: s(4)),
+            child: Text(
+              data.publicUrl!.replaceFirst(RegExp(r'^https?://'), ''),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: s(20), color: Colors.black87),
+            ),
+          ),
+        ],
       ],
     ),
   );

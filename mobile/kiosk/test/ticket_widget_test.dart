@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:school_kiosk/src/printing/ticket_widget.dart';
 
 TicketData ticket({int? waitingAhead}) => TicketData(
@@ -83,5 +84,35 @@ void main() {
     expect(find.textContaining('waiting before you'), findsNothing);
     expect(find.text('You are next in line'), findsNothing);
     expect(find.text('A-012'), findsOneWidget);
+  });
+
+  testWidgets('no publicUrl means no QR and no caption', (tester) async {
+    await pumpTicket(tester, ticket());
+    expect(find.byType(QrImageView), findsNothing);
+    expect(find.text(qrCaptionLine().en), findsNothing);
+  });
+
+  testWidgets('publicUrl prints a QR, its bilingual caption, and the fallback link', (tester) async {
+    await pumpTicket(
+      tester,
+      TicketData(
+        schoolNameEn: 'Vibe School',
+        schoolNameAr: 'مدرسة فايب',
+        tokenCode: 'A-012',
+        departmentNameEn: 'Admissions',
+        departmentNameAr: 'القبول',
+        isPriority: false,
+        footerEn: '',
+        footerAr: '',
+        issuedAt: DateTime(2026, 9, 1, 9, 41),
+        publicUrl: 'https://queue-system.vercel.app/t/K7M2QX4P',
+      ),
+    );
+
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.text(qrCaptionLine().en), findsOneWidget);
+    expect(find.text(qrCaptionLine().ar), findsOneWidget);
+    // The scan-failure fallback drops the protocol but keeps the rest.
+    expect(find.text('queue-system.vercel.app/t/K7M2QX4P'), findsOneWidget);
   });
 }

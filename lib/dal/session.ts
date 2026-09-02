@@ -4,21 +4,23 @@ import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/d
 import { toProfileDTO, type ProfileDTO } from '@/lib/db/types'
 import { getAccessibleBranches } from '@/lib/dal/users'
 
-export const getSession = cache(async () => {
+// Authenticates against the Supabase Auth server (not the raw cookie) — this is
+// why we use getUser() and never getSession() on the server.
+export const getUser = cache(async () => {
   const supabase = await createSupabaseServerClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  return session
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
 })
 
-export const requireSession = cache(async () => {
-  const session = await getSession()
-  if (!session) throw new Error('unauthenticated')
-  return session
+export const requireUser = cache(async () => {
+  const user = await getUser()
+  if (!user) throw new Error('unauthenticated')
+  return user
 })
 
 export const getProfile = cache(async (): Promise<ProfileDTO | null> => {
-  const session = await getSession()
-  if (!session) return null
+  const user = await getUser()
+  if (!user) return null
 
   // Use service client to bypass recursive RLS on profiles → customers join
   const service = createSupabaseServiceClient()
@@ -37,11 +39,11 @@ export const getProfile = cache(async (): Promise<ProfileDTO | null> => {
         vertical
       )
     `)
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
 
   if (error) {
-    console.error('[getProfile] query error:', error.message, '| user:', session.user.id)
+    console.error('[getProfile] query error:', error.message, '| user:', user.id)
     return null
   }
   if (!data) return null

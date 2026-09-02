@@ -1,13 +1,13 @@
 import { redirect } from 'next/navigation'
-import { getSession, getProfile } from '@/lib/dal/session'
+import { getUser, getProfile } from '@/lib/dal/session'
 import { getBranches, getActiveBranchId } from '@/lib/dal/branches'
 import { verticalHome } from '@/lib/verticals'
 import { Sidebar } from '@/components/admin/Sidebar'
 import { TopBar } from '@/components/admin/TopBar'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession()
-  if (!session) redirect('/login')
+  const user = await getUser()
+  if (!user) redirect('/login')
 
   const profile = await getProfile()
   if (!profile) redirect('/onboard')

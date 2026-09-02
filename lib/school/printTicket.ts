@@ -74,6 +74,21 @@ export interface TicketLogo {
 }
 
 /*
+ * The QR on the ticket — see supabase/migrations/20260902_school_public_tracking.sql
+ * and app/(public)/t/[code]. Sized at 22mm: on the Vercel domain the encoded
+ * URL is ~43 chars, comfortably a version-3/4 QR at ECC H — at 8 dots/mm that
+ * leaves ~5-6 dots per module, well above what a 203dpi head needs for a
+ * reliable scan.
+ */
+export const QR_TARGET_MM = 22
+export const QR_SOURCE_PX = 300
+const QR_THRESHOLD = 0.62
+
+export function qrCaptionLine(): { en: string; ar: string } {
+  return { en: 'Scan to track your turn', ar: 'امسح لمتابعة دورك' }
+}
+
+/*
  * Renders the school logo the way the printer will actually reproduce it.
  *
  * A thermal head has one bit per dot: it fires or it doesn't. Handing it a
@@ -130,6 +145,56 @@ export async function prepareTicketLogo(url: string): Promise<TicketLogo | null>
   } catch {
     // A tainted canvas or a dead URL: the caller falls back to the original
     // image, which is what printed before this existed.
+    return null
+  }
+}
+
+/*
+ * Turns a live <QRCodeCanvas> (qrcode.react) into the same kind of crisp
+ * 1-bit PNG prepareTicketLogo produces, at exactly QR_TARGET_MM.
+ *
+ * Do NOT put <QRCodeCanvas>/<QRCodeSVG> directly in the ticket's printable
+ * DOM: it would be picked up by the whole-ticket html2canvas capture (or the
+ * browser's own scaled drawImage of a <canvas> source) at a fractional
+ * scale, and its module edges — hard-edged vector fills — would come out
+ * anti-aliased into grey, which is precisely the failure this avoids for the
+ * logo. So the QR is rendered once into an off-DOM-visible scratch
+ * <QRCodeCanvas> (kept mounted in the kiosk, re-rendered per ticket since the
+ * URL differs every time), and this function reads it back with smoothing
+ * disabled — a hard nearest-neighbour resample — then applies the same
+ * luminance threshold as the logo to erase any residual fringe from the
+ * source canvas's own anti-aliasing. What lands in the ticket is a plain
+ * `<img>`, exactly like the logo.
+ */
+export function prepareTicketQr(source: HTMLCanvasElement): TicketLogo | null {
+  try {
+    const dpmm = SCHOOL_PAPER.rawbtDots / SCHOOL_PAPER.printableMm
+    const target = Math.max(1, Math.round(QR_TARGET_MM * dpmm))
+
+    const canvas = document.createElement('canvas')
+    canvas.width = target
+    canvas.height = target
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+
+    ctx.imageSmoothingEnabled = false
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, target, target)
+    ctx.drawImage(source, 0, 0, source.width, source.height, 0, 0, target, target)
+
+    const frame = ctx.getImageData(0, 0, target, target)
+    const px = frame.data
+    for (let i = 0; i < px.length; i += 4) {
+      const lum = (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]) / 255
+      const v = lum < QR_THRESHOLD ? 0 : 255
+      px[i] = px[i + 1] = px[i + 2] = v
+      px[i + 3] = 255
+    }
+    ctx.putImageData(frame, 0, 0)
+
+    return { src: canvas.toDataURL('image/png'), widthMm: QR_TARGET_MM }
+  } catch {
+    // The ticket prints without the QR rather than not printing at all.
     return null
   }
 }

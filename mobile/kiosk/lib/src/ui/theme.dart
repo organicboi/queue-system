@@ -52,7 +52,14 @@ class KioskPalette {
   static const radiusPill = 999.0;
 
   /// Header bar height. Fixed so the service area below it is predictable.
-  static const headerHeight = 78.0;
+  /// A wayfinding rail, not a title bar — the service blocks below are what
+  /// the visitor came for, so the chrome gives them the height back.
+  static const headerHeight = 64.0;
+
+  /// The ground the service blocks sit on. A touch deeper than [bg] so a wall
+  /// of saturated colour has something to sit *on* rather than float over —
+  /// the kiosk screen only; the board and the setup flow keep [bg].
+  static const bgDeep = Color(0xFFEDF0F6);
 
   /// Status/nav bar styling for the rare moment the system bars are swiped in
   /// over the immersive kiosk — dark glyphs on our light chrome.

@@ -1,0 +1,1112 @@
+<title>Kiosk Screen Directions</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Roboto:wght@400;500;700;900&family=Archivo:wght@400;500;600;700&family=Manrope:wght@500;700;800&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=swap">
+
+<style>
+/* ───────────────────────────────────────────────────────────────
+   CHROME — the studio around the work. Deliberately dark and quiet
+   so the light kiosk panels inside are judged on their own terms.
+   ─────────────────────────────────────────────────────────────── */
+:root {
+  --c-ground: #101317;
+  --c-panel: #171B21;
+  --c-panel-2: #1E232B;
+  --c-line: #2A303A;
+  --c-line-soft: #21262E;
+  --c-ink: #E7EAEF;
+  --c-ink-2: #98A2B3;
+  --c-ink-3: #6B7583;
+  --c-accent: #D99A3E;
+  --c-accent-ink: #1A1206;
+  --c-good: #5FB58A;
+  --chrome-font: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--c-ground);
+  color: var(--c-ink);
+  font-family: var(--chrome-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+}
+
+/* ── Masthead ─────────────────────────────────────────────── */
+.masthead {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid var(--c-line-soft);
+}
+.masthead h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.masthead p b { color: var(--c-ink); font-weight: 600; }
+.masthead p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--c-ink-2);
+  max-width: 62ch;
+  line-height: 1.5;
+}
+.masthead .keys {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--c-ink-3);
+  letter-spacing: 0.02em;
+}
+kbd {
+  font-family: inherit;
+  font-size: 11px;
+  border: 1px solid var(--c-line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 5px;
+  color: var(--c-ink-2);
+}
+
+/* ── Control bar ──────────────────────────────────────────── */
+.controls {
+  display: flex;
+  gap: 26px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--c-line-soft);
+  background: var(--c-panel);
+}
+.group { display: flex; align-items: center; gap: 9px; }
+.group > .label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--c-ink-3);
+}
+.seg { display: flex; gap: 3px; background: var(--c-panel-2); border-radius: 9px; padding: 3px; }
+.seg button {
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  color: var(--c-ink-2);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.seg button:hover { color: var(--c-ink); }
+.seg button[aria-pressed="true"] { background: var(--c-accent); color: var(--c-accent-ink); font-weight: 600; }
+.seg button:focus-visible,
+.tab:focus-visible,
+.thumb:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+
+/* ── Direction tabs ───────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--c-line-soft);
+  background: var(--c-panel);
+}
+.tab {
+  font: inherit;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--c-ink-2);
+  text-align: left;
+  padding: 13px 20px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: grid;
+  gap: 3px;
+}
+.tab .n {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--c-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.tab .t { font-size: 14px; font-weight: 500; color: inherit; }
+.tab:hover { color: var(--c-ink); background: #1B2027; }
+.tab[aria-selected="true"] { color: var(--c-ink); border-bottom-color: var(--c-accent); }
+.tab[aria-selected="true"] .n { color: var(--c-accent); }
+
+/* ── Stage ────────────────────────────────────────────────── */
+.stage {
+  padding: 26px 24px;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  background:
+    radial-gradient(120% 90% at 50% 0%, #171B22 0%, var(--c-ground) 70%);
+}
+.fit { transform-origin: top left; }
+.frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06);
+}
+.stage-foot {
+  margin-top: 14px;
+  font-size: 11.5px;
+  color: var(--c-ink-3);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Compare grid */
+.compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  width: 100%;
+  align-items: start;
+}
+.thumb {
+  display: grid;
+  gap: 9px;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.thumb .cap { display: flex; align-items: baseline; gap: 8px; }
+.thumb .cap b { font-size: 13px; font-weight: 600; }
+.thumb .cap span { font-size: 11.5px; color: var(--c-ink-3); }
+.thumb:hover .frame { box-shadow: 0 20px 44px rgba(0,0,0,.6), 0 0 0 2px var(--c-accent); }
+
+/* ── Notes ────────────────────────────────────────────────── */
+.notes {
+  border-top: 1px solid var(--c-line-soft);
+  background: var(--c-panel);
+  padding: 18px 24px 26px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 20px 34px;
+}
+.note h3 {
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--c-ink-3);
+  font-weight: 600;
+}
+.note p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--c-ink-2); }
+.note p b { color: var(--c-ink); font-weight: 500; }
+.note.lead p { color: var(--c-ink); font-size: 13.5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   KIOSK CANVAS — always light. A lobby terminal is bright-room
+   hardware; there is no dark mode anywhere in the product, so
+   the mockups don't pretend otherwise.
+   ═══════════════════════════════════════════════════════════ */
+.k {
+  --ink: #101828;
+  --ink-2: #5B6577;
+  --ink-3: #98A1B0;
+  --surface: #FFFFFF;
+  --bg: #F7F8FC;
+  --line: #E7EBF2;
+  --muted: #F1F3F9;
+  --good: #15803D;
+  --warn: #B4530A;
+  --danger: #B91C1C;
+
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Roboto, ui-sans-serif, system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.k .ms {
+  font-family: "Material Symbols Rounded";
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  font-feature-settings: "liga";
+}
+
+/* ── Header, four ways ────────────────────────────────────────
+   The bar is chrome: it has to say where you are and what time it
+   is, then get out of the way of the choice. Every variant below
+   drops the pill-shaped language switch and the two-line clock
+   stack for one line of tabular figures. ──────────────────────── */
+.k .strip { flex: none; height: 6px; }
+.k .top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 64px;
+  padding: 0 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.k .mark {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: var(--muted); color: var(--ink-2);
+  display: grid; place-items: center;
+  font-size: 16px; font-weight: 700; flex: none;
+}
+.k .branch { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+.k .clock {
+  margin-inline-start: auto;
+  display: flex; align-items: baseline; gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.k .clock b { font-size: 18px; font-weight: 600; }
+.k .clock span { font-size: 14px; color: var(--ink-3); }
+.k .langs { display: flex; align-items: center; gap: 12px; margin-inline-start: 22px; }
+.k .langs i {
+  font-style: normal; font-size: 15px; font-weight: 600;
+  color: var(--ink-3); letter-spacing: 0.04em;
+}
+.k .langs i.on { color: var(--ink); }
+.k .langs .sep { width: 1px; height: 16px; background: var(--line); }
+
+/* ink — a dark bar. The chrome stops competing with the tiles by
+   sitting on the other side of the value scale entirely. */
+.k[data-h="ink"] .top { background: #101318; border-bottom: 0; color: #fff; }
+.k[data-h="ink"] .mark { background: rgba(255,255,255,.12); color: #fff; border-radius: 999px; }
+.k[data-h="ink"] .clock span { color: rgba(255,255,255,.5); }
+.k[data-h="ink"] .langs i { color: rgba(255,255,255,.5); }
+.k[data-h="ink"] .langs i.on { color: #fff; }
+.k[data-h="ink"] .langs .sep { background: rgba(255,255,255,.2); }
+
+/* rail — the white bar, disciplined: one hairline, no monogram
+   tile competing with twelve coloured ones below it. */
+.k[data-h="rail"] .mark { display: none; }
+
+/* bare — no bar at all. The name and the time are just text on the
+   canvas, and the tiles get the full height of the panel. */
+.k[data-h="bare"] .top { background: transparent; border-bottom: 0; height: 68px; padding: 0 30px; }
+.k[data-h="bare"] .mark { display: none; }
+.k[data-h="bare"] .branch { font-size: 21px; font-weight: 700; }
+
+/* strip — the branch's own services, in order, as a spectrum along
+   the top edge. The header stops being a bar and becomes an index
+   of what is on the screen underneath it. */
+.k[data-h="strip"] .top { background: transparent; border-bottom: 0; height: 66px; padding: 0 30px; }
+.k[data-h="strip"] .mark { display: none; }
+.k[data-h="strip"] .branch { font-size: 21px; font-weight: 700; }
+
+/* ── Shared heading row ───────────────────────────────────── */
+.k .lead { display: flex; align-items: center; gap: 24px; }
+.k .lead h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+.k .lead p { margin: 4px 0 0; font-size: 16px; color: var(--ink-2); }
+.k .prio {
+  margin-inline-start: auto;
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 12px 18px;
+  flex: none;
+}
+.k .prio .ms { font-size: 24px; color: var(--ink-2); }
+.k .prio b { font-size: 16px; font-weight: 700; }
+.k .track { width: 54px; height: 32px; border-radius: 999px; background: #D6DCE7; padding: 4px; }
+.k .track i { display: block; width: 24px; height: 24px; border-radius: 999px; background: #fff; }
+
+/* ── Shared status bar + confirmation ─────────────────────── */
+.k .statusbar {
+  flex: none;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 14px;
+  background: #FCE8E8; color: var(--danger);
+  font-size: 17px; font-weight: 600;
+}
+.k .statusbar .ms { font-size: 22px; }
+
+.k .confirm {
+  position: absolute; inset: 0;
+  background: rgba(255,255,255,.97);
+  display: grid; place-items: center;
+  text-align: center;
+  z-index: 5;
+}
+.k .confirm .inner { display: grid; gap: 10px; justify-items: center; }
+.k .confirm .lbl { font-size: 20px; color: var(--ink-2); }
+.k .confirm .tok {
+  font-size: 132px; line-height: 1; font-weight: 900; letter-spacing: -4px;
+  font-variant-numeric: tabular-nums;
+}
+.k .confirm .svc { font-size: 26px; font-weight: 700; }
+.k .confirm .foot { margin-top: 14px; font-size: 18px; color: var(--ink-2); display: flex; align-items: center; gap: 10px; }
+.k .confirm .foot .ms { font-size: 22px; }
+
+/* ═══ DIRECTION 1 — Rail Cards (what ships today) ═══════════ */
+.k[data-a="rail"] .body { flex: 1; min-height: 0; padding: 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+.k[data-a="rail"] .grid { flex: 1; min-height: 0; display: grid; gap: 18px; align-content: center; justify-content: center; }
+.k[data-a="rail"] .card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: 0 6px 14px rgba(30,41,59,.06);
+  overflow: hidden;
+  padding: 22px 20px 20px 26px;
+  display: flex; flex-direction: column;
+}
+.k[data-a="rail"] .card::before {
+  content: ""; position: absolute; inset-block: 0; inset-inline-start: 0;
+  width: 5px; background: var(--dept);
+}
+.k[data-a="rail"] .tile {
+  width: 62px; height: 62px; border-radius: 20px;
+  background: color-mix(in srgb, var(--dept) 12%, #fff);
+  color: var(--dept);
+  display: grid; place-items: center; flex: none;
+}
+.k[data-a="rail"] .tile .ms { font-size: 31px; }
+.k[data-a="rail"] .name { font-size: 26px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.14; margin-top: 16px; }
+.k[data-a="rail"] .alt { font-size: 14px; color: var(--ink-3); margin-top: 3px; }
+.k[data-a="rail"] .foot { margin-top: auto; display: flex; align-items: center; gap: 12px; }
+.k[data-a="rail"] .cue {
+  margin-inline-start: auto; width: 44px; height: 44px; border-radius: 999px;
+  background: color-mix(in srgb, var(--dept) 10%, #fff); color: var(--dept);
+  display: grid; place-items: center; flex: none;
+}
+.k[data-a="rail"] .cue .ms { font-size: 22px; }
+.k[data-a="rail"] .card.hero { align-items: center; justify-content: center; text-align: center; padding: 24px; }
+.k[data-a="rail"] .card.hero .tile { width: 100px; height: 100px; border-radius: 30px; }
+.k[data-a="rail"] .card.hero .tile .ms { font-size: 50px; }
+.k[data-a="rail"] .card.hero .name { font-size: 40px; }
+.k[data-a="rail"] .card.hero .foot { margin: 14px 0 0; flex-direction: column; }
+.k[data-a="rail"] .cta {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--dept); color: #fff;
+  border-radius: 999px; padding: 0 28px; height: 58px;
+  font-size: 18px; font-weight: 700;
+}
+.k[data-a="rail"] .cta .ms { font-size: 22px; }
+
+/* shared queue chip */
+.k .chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  border-radius: 999px; padding: 7px 13px;
+  font-size: 13.5px; font-weight: 700;
+  background: var(--muted); color: var(--ink-2);
+}
+.k .chip i { width: 7px; height: 7px; border-radius: 999px; background: var(--good); display: block; }
+.k .chip.busy { background: color-mix(in srgb, var(--dept) 11%, #fff); color: var(--dept); }
+.k .chip.busy i { background: var(--dept); }
+
+/* ═══ DIRECTION 2 — Colour Blocks ═══════════════════════════ */
+.k[data-a="block"] { --bg: #EEF1F6; }
+.k[data-a="block"] .body { flex: 1; min-height: 0; padding: 24px 28px; display: flex; flex-direction: column; gap: 18px; }
+.k[data-a="block"] .grid { flex: 1; min-height: 0; display: grid; gap: 16px; align-content: center; justify-content: center; }
+.k[data-a="block"] .card {
+  position: relative; overflow: hidden;
+  background: var(--dept);
+  border-radius: 26px;
+  padding: 24px 26px;
+  color: #fff;
+  display: flex; flex-direction: column;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--dept) 28%, transparent);
+}
+.k[data-a="block"] .card::after {
+  content: ""; position: absolute; inset-inline-end: -60px; top: -70px;
+  width: 220px; height: 220px; border-radius: 999px;
+  background: rgba(255,255,255,.09);
+}
+.k[data-a="block"] .tile {
+  width: 60px; height: 60px; border-radius: 18px; flex: none;
+  background: rgba(255,255,255,.18); display: grid; place-items: center;
+}
+.k[data-a="block"] .tile .ms { font-size: 32px; }
+.k[data-a="block"] .name { font-size: 28px; font-weight: 700; line-height: 1.12; margin-top: 16px; position: relative; }
+.k[data-a="block"] .alt { font-size: 14px; opacity: .72; margin-top: 4px; }
+.k[data-a="block"] .foot { margin-top: auto; display: flex; align-items: center; gap: 12px; position: relative; }
+.k[data-a="block"] .chip { background: rgba(255,255,255,.18); color: #fff; }
+.k[data-a="block"] .chip i { background: #fff; }
+.k[data-a="block"] .cue {
+  margin-inline-start: auto; width: 46px; height: 46px; border-radius: 999px; flex: none;
+  background: rgba(255,255,255,.2); color: #fff; display: grid; place-items: center;
+}
+.k[data-a="block"] .cue .ms { font-size: 24px; }
+.k[data-a="block"] .card.hero { align-items: center; justify-content: center; text-align: center; }
+.k[data-a="block"] .card.hero .tile { width: 104px; height: 104px; border-radius: 32px; }
+.k[data-a="block"] .card.hero .tile .ms { font-size: 54px; }
+.k[data-a="block"] .card.hero .name { font-size: 46px; }
+.k[data-a="block"] .card.hero .foot { margin: 18px 0 0; flex-direction: column; }
+.k[data-a="block"] .cta {
+  display: flex; align-items: center; gap: 12px; height: 60px; padding: 0 30px;
+  border-radius: 999px; background: #fff; color: var(--dept);
+  font-size: 19px; font-weight: 700;
+}
+.k[data-a="block"] .cta .ms { font-size: 22px; }
+
+/* ═══ DIRECTION 3 — Departure Board ═════════════════════════ */
+.k[data-a="board"] { --bg: #FBFBFD; font-family: Archivo, ui-sans-serif, system-ui, sans-serif; }
+.k[data-a="board"] .body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.k[data-a="board"] .lead { padding: 18px 30px 14px; }
+.k[data-a="board"] .lead h2 { font-size: 22px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
+.k[data-a="board"] .lead p { display: none; }
+.k[data-a="board"] .rows { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.k[data-a="board"] .row {
+  flex: 1; min-height: 0;
+  display: flex; align-items: center; gap: 22px;
+  padding: 0 30px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  position: relative;
+}
+.k[data-a="board"] .row:last-child { border-bottom: 1px solid var(--line); }
+.k[data-a="board"] .row::before {
+  content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: 8px; background: var(--dept);
+}
+.k[data-a="board"] .row .ms.ico { font-size: 34px; color: var(--dept); width: 40px; text-align: center; flex: none; }
+.k[data-a="board"] .name { font-size: 34px; font-weight: 600; letter-spacing: -0.01em; }
+.k[data-a="board"] .alt { font-size: 15px; color: var(--ink-3); margin-top: 2px; }
+.k[data-a="board"] .count { margin-inline-start: auto; text-align: end; flex: none; }
+.k[data-a="board"] .count b { display: block; font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; color: var(--dept); }
+.k[data-a="board"] .count.zero b { color: var(--ink-3); font-weight: 500; }
+.k[data-a="board"] .count span { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+.k[data-a="board"] .cue { flex: none; width: 52px; height: 52px; border-radius: 14px; background: var(--muted); color: var(--dept); display: grid; place-items: center; margin-inline-start: 22px; }
+.k[data-a="board"] .cue .ms { font-size: 26px; }
+.k[data-a="board"] .row.solo { flex-direction: column; justify-content: center; text-align: center; gap: 10px; }
+.k[data-a="board"] .row.solo .name { font-size: 56px; }
+.k[data-a="board"] .row.solo .ms.ico { font-size: 56px; width: auto; }
+.k[data-a="board"] .row.solo .count { margin: 0; text-align: center; }
+.k[data-a="board"] .row.solo .cue { display: none; }
+.k[data-a="board"] .cta {
+  display: inline-flex; align-items: center; gap: 12px; height: 62px; padding: 0 34px; margin-top: 6px;
+  border-radius: 12px; background: var(--dept); color: #fff; font-size: 20px; font-weight: 600;
+}
+.k[data-a="board"] .cta .ms { font-size: 24px; }
+
+/* ═══ DIRECTION 4 — Split Panel ═════════════════════════════ */
+.k[data-a="split"] { flex-direction: row; }
+.k[data-a="split"] .side {
+  flex: none; width: 34%;
+  background: #10151C; color: #fff;
+  padding: 30px 28px;
+  display: flex; flex-direction: column; gap: 22px;
+}
+.k[data-a="split"] .side .mark { background: rgba(255,255,255,.1); color: #fff; }
+.k[data-a="split"] .side .branch { font-size: 25px; font-weight: 700; margin-top: 14px; }
+.k[data-a="split"] .side .now-h {
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,.45);
+  margin-bottom: 10px;
+}
+.k[data-a="split"] .side .clockbig { font-size: 46px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+.k[data-a="split"] .side .datebig { font-size: 15px; color: rgba(255,255,255,.5); margin-top: 2px; }
+.k[data-a="split"] .serving { margin-top: auto; display: grid; gap: 8px; }
+.k[data-a="split"] .serve-row {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(255,255,255,.06);
+  border-radius: 12px; padding: 12px 14px;
+}
+.k[data-a="split"] .serve-row b { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.k[data-a="split"] .serve-row span { font-size: 14px; color: rgba(255,255,255,.55); margin-inline-start: auto; }
+.k[data-a="split"] .side .langs { margin: 0; align-self: start; }
+.k[data-a="split"] .side .langs i { color: rgba(255,255,255,.55); }
+.k[data-a="split"] .side .langs i.on { color: #fff; }
+.k[data-a="split"] .side .langs .sep { background: rgba(255,255,255,.25); }
+.k[data-a="split"] .main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 26px; gap: 18px; }
+.k[data-a="split"] .grid { flex: 1; min-height: 0; display: grid; gap: 16px; align-content: center; }
+.k[data-a="split"] .card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
+  padding: 20px 22px; display: flex; align-items: center; gap: 18px;
+  box-shadow: 0 4px 12px rgba(16,21,28,.05);
+}
+.k[data-a="split"] .tile {
+  width: 58px; height: 58px; border-radius: 18px; flex: none;
+  background: color-mix(in srgb, var(--dept) 13%, #fff); color: var(--dept);
+  display: grid; place-items: center;
+}
+.k[data-a="split"] .tile .ms { font-size: 30px; }
+.k[data-a="split"] .name { font-size: 24px; font-weight: 700; line-height: 1.15; }
+.k[data-a="split"] .alt { font-size: 13.5px; color: var(--ink-3); margin-top: 2px; }
+.k[data-a="split"] .card .chip { margin-top: 8px; }
+.k[data-a="split"] .cue {
+  margin-inline-start: auto; flex: none; width: 46px; height: 46px; border-radius: 999px;
+  background: color-mix(in srgb, var(--dept) 12%, #fff); color: var(--dept);
+  display: grid; place-items: center;
+}
+.k[data-a="split"] .cue .ms { font-size: 24px; }
+.k[data-a="split"] .card.hero { flex-direction: column; text-align: center; justify-content: center; padding: 30px; gap: 12px; }
+.k[data-a="split"] .card.hero .tile { width: 96px; height: 96px; border-radius: 30px; }
+.k[data-a="split"] .card.hero .tile .ms { font-size: 48px; }
+.k[data-a="split"] .card.hero .name { font-size: 36px; }
+.k[data-a="split"] .card.hero .cue { display: none; }
+.k[data-a="split"] .cta {
+  display: inline-flex; align-items: center; gap: 12px; height: 58px; padding: 0 30px;
+  border-radius: 999px; background: var(--dept); color: #fff; font-size: 18px; font-weight: 700; margin-top: 6px;
+}
+.k[data-a="split"] .cta .ms { font-size: 22px; }
+
+/* ═══ DIRECTION 5 — Soft Keys ═══════════════════════════════ */
+.k[data-a="soft"] { --bg: #F4F3F0; font-family: Manrope, ui-sans-serif, system-ui, sans-serif; }
+.k[data-a="soft"] .mark { background: #E4E2DC; color: #57534E; border-radius: 999px; }
+.k[data-a="soft"][data-h="rail"] .top, .k[data-a="soft"][data-h="bare"] .top, .k[data-a="soft"][data-h="strip"] .top { background: transparent; border-bottom: 0; }
+.k[data-a="soft"] .body { flex: 1; min-height: 0; padding: 4px 30px 26px; display: flex; flex-direction: column; gap: 16px; }
+.k[data-a="soft"] .lead h2 { font-size: 27px; font-weight: 800; letter-spacing: -0.02em; }
+.k[data-a="soft"] .prio { background: #EAE8E3; border-color: transparent; }
+.k[data-a="soft"] .grid { flex: 1; min-height: 0; display: grid; gap: 16px; align-content: center; justify-content: center; }
+.k[data-a="soft"] .card {
+  background: var(--surface); border-radius: 28px; border: 0;
+  box-shadow: 0 10px 24px rgba(60,50,40,.07);
+  padding: 22px; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; gap: 12px;
+}
+.k[data-a="soft"] .tile {
+  width: 74px; height: 74px; border-radius: 999px; flex: none;
+  background: color-mix(in srgb, var(--dept) 14%, #fff); color: var(--dept);
+  display: grid; place-items: center;
+}
+.k[data-a="soft"] .tile .ms { font-size: 38px; }
+.k[data-a="soft"] .name { font-size: 27px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.14; }
+.k[data-a="soft"] .alt { font-size: 14px; color: var(--ink-3); margin-top: 2px; }
+.k[data-a="soft"] .chip { background: #F3F2EF; }
+.k[data-a="soft"] .card.hero .tile { width: 108px; height: 108px; }
+.k[data-a="soft"] .card.hero .tile .ms { font-size: 56px; }
+.k[data-a="soft"] .card.hero .name { font-size: 42px; }
+.k[data-a="soft"] .cta {
+  display: inline-flex; align-items: center; gap: 12px; height: 60px; padding: 0 32px;
+  border-radius: 999px; background: var(--dept); color: #fff; font-size: 19px; font-weight: 800; margin-top: 4px;
+}
+.k[data-a="soft"] .cta .ms { font-size: 22px; }
+.k[data-a="soft"] .serving {
+  flex: none; display: flex; align-items: center; gap: 26px;
+  padding: 14px 30px; background: #E9E7E2;
+  font-size: 16px; color: #57534E;
+}
+.k[data-a="soft"] .serving b { font-weight: 800; color: #292524; font-variant-numeric: tabular-nums; }
+.k[data-a="soft"] .serving .lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #8A837B; }
+
+/* ── States shared by every direction ─────────────────────── */
+.k .is-dim { opacity: .42; }
+.k .is-busy { position: relative; }
+.k .spinner {
+  width: 22px; height: 22px; border-radius: 999px;
+  border: 2.5px solid currentColor; border-top-color: transparent;
+  animation: spin 900ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.k .cue.on, .k[data-a="rail"] .cue.on { background: var(--dept); color: #fff; }
+.k .tile.on { background: var(--dept) !important; color: #fff !important; }
+</style>
+
+<div class="shell">
+  <header class="masthead">
+    <h1>Kiosk Screen Directions</h1>
+    <p><b>Colour Blocks + White rail is what ships.</b> The other four are kept here for the next time this screen is up for debate — change the service count first, a branch with one service and a branch with twelve are different design problems.</p>
+    <div class="keys"><kbd>1</kbd>–<kbd>5</kbd> direction · <kbd>C</kbd> compare · <kbd>[</kbd> <kbd>]</kbd> services · <kbd>H</kbd> header · <kbd>L</kbd> language</div>
+  </header>
+
+  <div class="tabs" role="tablist" id="tabs"></div>
+
+  <div class="controls">
+    <div class="group">
+      <span class="label">Services</span>
+      <div class="seg" id="count"></div>
+    </div>
+    <div class="group">
+      <span class="label">Header</span>
+      <div class="seg" id="hdr"></div>
+    </div>
+    <div class="group">
+      <span class="label">Panel</span>
+      <div class="seg" id="size"></div>
+    </div>
+    <div class="group">
+      <span class="label">State</span>
+      <div class="seg" id="mode"></div>
+    </div>
+    <div class="group">
+      <span class="label">Language</span>
+      <div class="seg" id="lang"></div>
+    </div>
+    <div class="group">
+      <span class="label">View</span>
+      <div class="seg" id="view"></div>
+    </div>
+  </div>
+
+  <main class="stage" id="stage"></main>
+
+  <section class="notes" id="notes"></section>
+</div>
+
+<script>
+"use strict";
+
+/* ── Content ──────────────────────────────────────────────────
+   Real services from a school branch, with the colours and icons
+   an admin actually picks in the web console. Never lorem: the
+   longest name is the one that decides whether a layout holds. */
+const DEPTS = [
+  { en: "Admissions & Enquiry", ar: "القبول والاستفسار", c: "#0F766E", i: "person_add",         w: 3 },
+  { en: "Fee Counter",          ar: "قسم الرسوم",        c: "#1D4ED8", i: "receipt_long",       w: 0 },
+  { en: "Transport Desk",       ar: "خدمة النقل",         c: "#B45309", i: "directions_bus",     w: 11 },
+  { en: "Principal's Office",   ar: "مكتب المدير",        c: "#6D28D9", i: "account_balance",    w: 0 },
+  { en: "Exam Section",         ar: "قسم الامتحانات",     c: "#BE123C", i: "description",        w: 1 },
+  { en: "Health Room",          ar: "العيادة",            c: "#0E7490", i: "medical_services",   w: 0 },
+  { en: "Certificates",         ar: "الشهادات",           c: "#15803D", i: "workspace_premium",  w: 2 },
+  { en: "Uniform Store",        ar: "متجر الزي",          c: "#A16207", i: "shopping_bag",       w: 0 },
+  { en: "Library",              ar: "المكتبة",            c: "#4338CA", i: "menu_book",          w: 4 },
+  { en: "Counselling",          ar: "الإرشاد الطلابي",     c: "#9D174D", i: "support_agent",      w: 0 },
+  { en: "IT Help Desk",         ar: "الدعم الفني",        c: "#0369A1", i: "support",            w: 1 },
+  { en: "Accounts",             ar: "الحسابات",           c: "#166534", i: "calculate",          w: 0 },
+];
+
+const COPY = {
+  en: { prompt: "Please select a service", hint: "Touch a service to take a number",
+        take: "Take a number", waiting: "waiting", none: "no queue", issuing: "Issuing…",
+        prio: "Priority assistance", offline: "No connection to the queue server — tickets cannot be issued right now.",
+        token: "Your token number", watch: "Please watch the screen for your number",
+        printing: "Printing your ticket…", serving: "Now serving", counter: "Counter" },
+  ar: { prompt: "يرجى اختيار الخدمة", hint: "المس الخدمة للحصول على رقم",
+        take: "احصل على رقم", waiting: "في الانتظار", none: "لا يوجد طابور", issuing: "جارٍ الإصدار…",
+        prio: "مساعدة ذوي الأولوية", offline: "لا يوجد اتصال بخادم الطابور — لا يمكن إصدار التذاكر الآن.",
+        token: "رقم تذكرتك", watch: "يرجى متابعة الشاشة لظهور رقمك",
+        printing: "جارٍ طباعة تذكرتك…", serving: "يُخدم الآن", counter: "الشباك" },
+};
+
+const DIRECTIONS = [
+  { id: "rail",  name: "Rail Cards",      face: "Roboto",
+    thesis: "What ships today. A white card per service, the department's colour as a rail down its leading edge, the name grouped under the icon and the queue and arrow on a footer line.",
+    good: "Calm, neutral, survives any colour an admin picks. Scales cleanly from 1 to 12 services.",
+    cost: "Already built — this is the baseline the others have to beat.",
+    watch: "At six services the screen is mostly white; the colour rail is the only thing separating one card from the next at a distance." },
+  { id: "block", name: "Colour Blocks",   face: "Roboto",
+    thesis: "The service is the colour. Each card is a solid field of the department's own hue with white type, so the choice is made from across the lobby before a word is read.",
+    good: "Unmistakable at 4 metres and for anyone who navigates by colour rather than reading. Presses feel physical.",
+    cost: "Built — this is what ships, with the white rail header.",
+    watch: "Twelve of these is a loud screen, and it puts the school's colour choices on trial — a badly picked pair sits side by side at full saturation. Shipped with a contrast guard: a colour dark enough carries white type; a pastel or a highlighter yellow keeps its brightness and the type inverts to dark instead, so no admin pick is ever crushed to mud." },
+  { id: "board", name: "Departure Board", face: "Archivo",
+    thesis: "No cards at all. Full-width rows on hairlines, the name set large, the number waiting as a figure on the right — a departure board, read top to bottom.",
+    good: "The most services per screen and the largest type of any direction. Queue length becomes scannable data rather than a chip.",
+    cost: "Two days. New row widget, and the header inverts to dark.",
+    watch: "Rows read as a list to be scanned, not buttons to be pressed; the touch affordance has to be carried by the tap target and the arrow tile." },
+  { id: "split", name: "Split Panel",     face: "Roboto + Archivo",
+    thesis: "A dark identity panel holds the school, the clock and a live 'now serving' list; the services sit beside it. The empty half of a one-service screen becomes the thing parents actually want to know.",
+    good: "Composed at any service count, and it answers 'has my number been called' without a second screen on the wall.",
+    cost: "Three days — the now-serving strip needs the counter feed the display screen already polls.",
+    watch: "Costs a third of the width, so services get less room; on a 1024-wide panel the split has to collapse." },
+  { id: "soft",  name: "Soft Keys",       face: "Manrope",
+    thesis: "Warm paper ground, pill-round white keys, everything centred, and a standing 'now serving' bar along the bottom. The friendliest of the five.",
+    good: "Reads as consumer software rather than municipal equipment — the right register for a primary school lobby.",
+    cost: "Two days, plus bundling Manrope into the APK.",
+    watch: "The soft ground and round keys carry less institutional authority; on a secondary-school or admin-block terminal it may read as too casual." },
+];
+
+const SIZES = [
+  { id: "1366x768",  w: 1366, h: 768,  label: "1366×768", note: "the deployed terminal" },
+  { id: "1600x1000", w: 1600, h: 1000, label: "1600×1000", note: "your dev window" },
+  { id: "1920x1080", w: 1920, h: 1080, label: "1920×1080", note: "large panel" },
+  { id: "1024x600",  w: 1024, h: 600,  label: "1024×600", note: "budget panel" },
+  { id: "800x480",   w: 800,  h: 480,  label: "800×480", note: "small panel" },
+];
+
+const MODES = [
+  { id: "idle",    label: "Idle" },
+  { id: "issuing", label: "Issuing" },
+  { id: "issued",  label: "Ticket issued" },
+  { id: "offline", label: "Offline" },
+];
+
+const HEADERS = [
+  { id: "ink",   label: "Ink bar" },
+  { id: "rail",  label: "White rail" },
+  { id: "bare",  label: "No bar" },
+  { id: "strip", label: "Colour strip" },
+];
+
+const state = { dir: "block", hdr: "rail", count: 6, size: "1366x768", mode: "idle", lang: "en", compare: false };
+
+/* ── Helpers ──────────────────────────────────────────────── */
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const t = () => COPY[state.lang];
+const dname = (d) => (state.lang === "ar" ? d.ar : d.en);
+const dalt  = (d) => (state.lang === "ar" ? d.en : d.ar);
+const list = () => DEPTS.slice(0, state.count);
+const icon = (n) => `<span class="ms">${n}</span>`;
+
+function clock() {
+  const now = new Date();
+  const time = now.toLocaleTimeString(state.lang === "ar" ? "ar" : "en-GB",
+    { hour: "numeric", minute: "2-digit", hour12: true });
+  const date = now.toLocaleDateString(state.lang === "ar" ? "ar" : "en-GB",
+    { weekday: "long", day: "numeric", month: "short" });
+  return { time, date };
+}
+
+/* Columns: how many fit at ~400dp, then rebalanced so the last row
+   is never a single orphan — the same rule the Flutter grid uses. */
+function columns(n, w) {
+  if (n <= 0) return 1;
+  let cols = Math.min(Math.max(Math.round(w / 400), 1), n);
+  const rows = Math.ceil(n / cols);
+  return Math.min(Math.max(Math.ceil(n / rows), 1), n);
+}
+
+function chip(d, busy) {
+  if (busy) return `<span class="chip busy"><i></i>${esc(t().issuing)}</span>`;
+  if (d.w > 0) return `<span class="chip busy"><i></i>${d.w} ${esc(t().waiting)}</span>`;
+  return `<span class="chip"><i></i>${esc(t().none)}</span>`;
+}
+
+function langSwitch() {
+  // Two words, a hairline between them. A person switching language
+  // is looking for their own script, not for a control.
+  return `<div class="langs">
+    <i class="${state.lang === "en" ? "on" : ""}">English</i>
+    <span class="sep"></span>
+    <i class="${state.lang === "ar" ? "on" : ""}">العربية</i>
+  </div>`;
+}
+
+function header() {
+  const c = clock();
+  const branch = state.lang === "ar" ? "الفرع الرئيسي" : "Main Branch";
+  // The spectrum is built from the branch's own services, in the order
+  // they appear below — hard stops, so it reads as an index rather than
+  // a decorative smear.
+  const ds = list();
+  const step = 100 / ds.length;
+  const spectrum = ds.map((d, i) => `${d.c} ${i * step}% ${(i + 1) * step}%`).join(",");
+  const strip = state.hdr === "strip"
+    ? `<div class="strip" style="background:linear-gradient(90deg,${spectrum})"></div>` : "";
+  return `${strip}<div class="top">
+    <div class="mark">M</div>
+    <div class="branch">${esc(branch)}</div>
+    <div class="clock"><b>${esc(c.time)}</b><span>${esc(c.date)}</span></div>
+    ${langSwitch()}
+  </div>`;
+}
+
+function leadRow(hideText) {
+  return `<div class="lead">
+    ${hideText ? "<div></div>" : `<div><h2>${esc(t().prompt)}</h2><p>${esc(t().hint)}</p></div>`}
+    <div class="prio">${icon("accessible")}<b>${esc(t().prio)}</b><div class="track"><i></i></div></div>
+  </div>`;
+}
+
+function statusbar() {
+  if (state.mode !== "offline") return "";
+  return `<div class="statusbar">${icon("wifi_off")}${esc(t().offline)}</div>`;
+}
+
+function confirmation() {
+  if (state.mode !== "issued") return "";
+  const d = list()[0];
+  return `<div class="confirm"><div class="inner">
+    <div class="lbl">${esc(t().token)}</div>
+    <div class="tok" style="color:${d.c}">A-107</div>
+    <div class="svc">${esc(dname(d))}</div>
+    <div class="foot">${icon("print")}${esc(t().printing)}</div>
+    <div class="foot">${esc(t().watch)}</div>
+  </div></div>`;
+}
+
+/* busy = the card that was pressed; dim = every other card */
+const cardState = (i) => {
+  if (state.mode !== "issuing") return { busy: false, cls: "" };
+  return i === 0 ? { busy: true, cls: "is-busy" } : { busy: false, cls: "is-dim" };
+};
+
+/* ── Direction 1 — Rail Cards ─────────────────────────────── */
+function renderRail(w, h) {
+  const ds = list(), n = ds.length, cols = columns(n, w - 56);
+  const solo = n === 1;
+  const cards = ds.map((d, i) => {
+    const st = cardState(i);
+    if (solo) {
+      return `<div class="card hero ${st.cls}" style="--dept:${d.c};max-width:760px;max-height:480px;margin:auto">
+        <div class="tile ${st.busy ? "on" : ""}">${icon(d.i)}</div>
+        <div class="name">${esc(dname(d))}</div>
+        <div class="alt">${esc(dalt(d))}</div>
+        <div class="foot">${chip(d, st.busy)}
+          <div class="cta">${st.busy ? `<span class="spinner"></span>` : ""}${esc(st.busy ? t().issuing : t().take)}${st.busy ? "" : icon("arrow_forward")}</div>
+        </div>
+      </div>`;
+    }
+    return `<div class="card ${st.cls}" style="--dept:${d.c}">
+      <div class="tile ${st.busy ? "on" : ""}">${icon(d.i)}</div>
+      <div class="name">${esc(dname(d))}</div>
+      <div class="alt">${esc(dalt(d))}</div>
+      <div class="foot">${chip(d, st.busy)}
+        <div class="cue ${st.busy ? "on" : ""}">${st.busy ? `<span class="spinner"></span>` : icon("arrow_forward")}</div>
+      </div>
+    </div>`;
+  }).join("");
+  const gridStyle = solo
+    ? ""
+    : `grid-template-columns:repeat(${cols},minmax(0,${Math.min(520, (w - 56) / cols)}px));grid-auto-rows:minmax(0,1fr)`;
+  return `${header()}<div class="body">${solo ? "" : leadRow(false)}
+    <div class="grid" style="${gridStyle}">${cards}</div></div>${statusbar()}${confirmation()}`;
+}
+
+/* ── Direction 2 — Colour Blocks ──────────────────────────── */
+function renderBlock(w, h) {
+  const ds = list(), n = ds.length, cols = columns(n, w - 56);
+  const solo = n === 1;
+  const cards = ds.map((d, i) => {
+    const st = cardState(i);
+    if (solo) {
+      return `<div class="card hero ${st.cls}" style="--dept:${d.c};max-width:820px;max-height:500px;margin:auto">
+        <div class="tile">${icon(d.i)}</div>
+        <div class="name">${esc(dname(d))}</div>
+        <div class="alt">${esc(dalt(d))}</div>
+        <div class="foot">${chip(d, st.busy)}
+          <div class="cta">${st.busy ? `<span class="spinner"></span>` : ""}${esc(st.busy ? t().issuing : t().take)}${st.busy ? "" : icon("arrow_forward")}</div>
+        </div>
+      </div>`;
+    }
+    return `<div class="card ${st.cls}" style="--dept:${d.c}">
+      <div class="tile">${icon(d.i)}</div>
+      <div class="name">${esc(dname(d))}</div>
+      <div class="alt">${esc(dalt(d))}</div>
+      <div class="foot">${chip(d, st.busy)}
+        <div class="cue">${st.busy ? `<span class="spinner"></span>` : icon("arrow_forward")}</div>
+      </div>
+    </div>`;
+  }).join("");
+  const gridStyle = solo
+    ? ""
+    : `grid-template-columns:repeat(${cols},minmax(0,${Math.min(520, (w - 56) / cols)}px));grid-auto-rows:minmax(0,1fr)`;
+  return `${header()}<div class="body">${solo ? "" : leadRow(false)}
+    <div class="grid" style="${gridStyle}">${cards}</div></div>${statusbar()}${confirmation()}`;
+}
+
+/* ── Direction 3 — Departure Board ────────────────────────── */
+function renderBoard(w, h) {
+  const ds = list(), solo = ds.length === 1;
+  const rows = ds.map((d, i) => {
+    const st = cardState(i);
+    if (solo) {
+      return `<div class="row solo ${st.cls}" style="--dept:${d.c}">
+        <span class="ms ico">${d.i}</span>
+        <div><div class="name">${esc(dname(d))}</div><div class="alt">${esc(dalt(d))}</div></div>
+        <div class="count ${d.w ? "" : "zero"}"><b>${d.w || "—"}</b><span>${esc(d.w ? t().waiting : t().none)}</span></div>
+        <div class="cta">${st.busy ? `<span class="spinner"></span>` : ""}${esc(st.busy ? t().issuing : t().take)}${st.busy ? "" : icon("arrow_forward")}</div>
+      </div>`;
+    }
+    return `<div class="row ${st.cls}" style="--dept:${d.c}">
+      <span class="ms ico">${d.i}</span>
+      <div><div class="name">${esc(dname(d))}</div><div class="alt">${esc(dalt(d))}</div></div>
+      <div class="count ${d.w ? "" : "zero"}"><b>${d.w || "—"}</b><span>${esc(d.w ? t().waiting : t().none)}</span></div>
+      <div class="cue">${st.busy ? `<span class="spinner"></span>` : icon("arrow_forward")}</div>
+    </div>`;
+  }).join("");
+  return `${header()}<div class="body">
+    <div class="lead"><div><h2>${esc(t().prompt)}</h2></div>
+      <div class="prio">${icon("accessible")}<b>${esc(t().prio)}</b><div class="track"><i></i></div></div></div>
+    <div class="rows">${rows}</div></div>${statusbar()}${confirmation()}`;
+}
+
+/* ── Direction 4 — Split Panel ────────────────────────────── */
+function renderSplit(w, h) {
+  const ds = list(), n = ds.length, solo = n === 1;
+  const c = clock();
+  const cols = columns(n, (w * 0.66) - 52);
+  const cards = ds.map((d, i) => {
+    const st = cardState(i);
+    if (solo) {
+      return `<div class="card hero ${st.cls}" style="--dept:${d.c}">
+        <div class="tile ${st.busy ? "on" : ""}">${icon(d.i)}</div>
+        <div><div class="name">${esc(dname(d))}</div><div class="alt">${esc(dalt(d))}</div></div>
+        ${chip(d, st.busy)}
+        <div class="cta">${st.busy ? `<span class="spinner"></span>` : ""}${esc(st.busy ? t().issuing : t().take)}${st.busy ? "" : icon("arrow_forward")}</div>
+      </div>`;
+    }
+    return `<div class="card ${st.cls}" style="--dept:${d.c}">
+      <div class="tile ${st.busy ? "on" : ""}">${icon(d.i)}</div>
+      <div style="min-width:0"><div class="name">${esc(dname(d))}</div><div class="alt">${esc(dalt(d))}</div>${chip(d, st.busy)}</div>
+      <div class="cue ${st.busy ? "on" : ""}">${st.busy ? `<span class="spinner"></span>` : icon("arrow_forward")}</div>
+    </div>`;
+  }).join("");
+  const serving = [
+    { tok: "A-104", ctr: 2 }, { tok: "F-031", ctr: 1 }, { tok: "T-012", ctr: 3 },
+  ].map((s) => `<div class="serve-row"><b>${s.tok}</b><span>${esc(t().counter)} ${s.ctr}</span></div>`).join("");
+
+  return `<div class="side">
+      <div class="mark">M</div>
+      <div class="branch">${state.lang === "ar" ? "الفرع الرئيسي" : "Main Branch"}</div>
+      <div>
+        <div class="clockbig">${esc(c.time)}</div>
+        <div class="datebig">${esc(c.date)}</div>
+      </div>
+      ${langSwitch()}
+      <div class="serving"><div class="now-h">${esc(t().serving)}</div>${serving}</div>
+    </div>
+    <div class="main">
+      ${leadRow(solo)}
+      <div class="grid" style="${solo ? "" : `grid-template-columns:repeat(${Math.min(cols, 2)},minmax(0,1fr));grid-auto-rows:minmax(0,1fr)`}">${cards}</div>
+      ${statusbar()}
+    </div>${confirmation()}`;
+}
+
+/* ── Direction 5 — Soft Keys ──────────────────────────────── */
+function renderSoft(w, h) {
+  const ds = list(), n = ds.length, cols = columns(n, w - 60);
+  const solo = n === 1;
+  const cards = ds.map((d, i) => {
+    const st = cardState(i);
+    return `<div class="card ${solo ? "hero" : ""} ${st.cls}" style="--dept:${d.c}${solo ? ";max-width:780px;max-height:470px;margin:auto" : ""}">
+      <div class="tile ${st.busy ? "on" : ""}">${icon(d.i)}</div>
+      <div><div class="name">${esc(dname(d))}</div><div class="alt">${esc(dalt(d))}</div></div>
+      ${chip(d, st.busy)}
+      ${solo ? `<div class="cta">${st.busy ? `<span class="spinner"></span>` : ""}${esc(st.busy ? t().issuing : t().take)}${st.busy ? "" : icon("arrow_forward")}</div>` : ""}
+    </div>`;
+  }).join("");
+  const gridStyle = solo
+    ? ""
+    : `grid-template-columns:repeat(${cols},minmax(0,${Math.min(500, (w - 60) / cols)}px));grid-auto-rows:minmax(0,1fr)`;
+  return `${header()}<div class="body">${solo ? "" : leadRow(false)}
+      <div class="grid" style="${gridStyle}">${cards}</div>
+    </div>
+    <div class="serving">
+      <span class="lbl">${esc(t().serving)}</span>
+      <span><b>A-104</b> · ${esc(t().counter)} 2</span>
+      <span><b>F-031</b> · ${esc(t().counter)} 1</span>
+      <span><b>T-012</b> · ${esc(t().counter)} 3</span>
+    </div>${statusbar()}${confirmation()}`;
+}
+
+const RENDER = { rail: renderRail, block: renderBlock, board: renderBoard, split: renderSplit, soft: renderSoft };
+
+/* ── Frame assembly ───────────────────────────────────────── */
+function frame(dirId, w, h) {
+  const html = RENDER[dirId](w, h);
+  return `<div class="frame" style="width:${w}px;height:${h}px">
+    <div class="k" data-a="${dirId}" data-h="${state.hdr}" dir="${state.lang === "ar" ? "rtl" : "ltr"}">${html}</div>
+  </div>`;
+}
+
+function size() { return SIZES.find((s) => s.id === state.size); }
+
+function paint() {
+  const stage = document.getElementById("stage");
+  const sz = size();
+  const avail = { w: stage.clientWidth - 8, h: Math.max(stage.clientHeight - 44, 260) };
+
+  if (state.compare) {
+    stage.innerHTML = `<div class="compare">${DIRECTIONS.map((d) => `
+      <button class="thumb" data-dir="${d.id}" aria-label="Show ${esc(d.name)} full size">
+        <div class="cap"><b>${esc(d.name)}</b><span>${esc(d.face)}</span></div>
+        <div class="fit-wrap"></div>
+      </button>`).join("")}</div>`;
+    stage.querySelectorAll(".thumb").forEach((btn) => {
+      const wrap = btn.querySelector(".fit-wrap");
+      const k = (btn.clientWidth || 320) / sz.w;
+      wrap.innerHTML = `<div class="fit" style="transform:scale(${k})">${frame(btn.dataset.dir, sz.w, sz.h)}</div>`;
+      wrap.style.height = `${sz.h * k}px`;
+      btn.onclick = () => { state.dir = btn.dataset.dir; state.compare = false; sync(); };
+    });
+  } else {
+    const k = Math.min(avail.w / sz.w, avail.h / sz.h, 1);
+    stage.innerHTML = `<div>
+      <div style="width:${sz.w * k}px;height:${sz.h * k}px">
+        <div class="fit" style="transform:scale(${k})">${frame(state.dir, sz.w, sz.h)}</div>
+      </div>
+      <div class="stage-foot">${sz.label} · ${sz.note} · shown at ${Math.round(k * 100)}%</div>
+    </div>`;
+  }
+  paintNotes();
+}
+
+function paintNotes() {
+  const d = DIRECTIONS.find((x) => x.id === state.dir);
+  document.getElementById("notes").innerHTML = `
+    <div class="note lead"><h3>${esc(d.name)} · ${esc(d.face)}</h3><p>${esc(d.thesis)}</p></div>
+    <div class="note"><h3>Works because</h3><p>${esc(d.good)}</p></div>
+    <div class="note"><h3>Watch out</h3><p>${esc(d.watch)}</p></div>
+    <div class="note"><h3>Cost to build</h3><p>${esc(d.cost)}</p></div>`;
+}
+
+/* ── Controls ─────────────────────────────────────────────── */
+function seg(hostId, items, isOn, onPick) {
+  const host = document.getElementById(hostId);
+  host.innerHTML = items.map((it) =>
+    `<button type="button" data-v="${it.v}" aria-pressed="${isOn(it.v)}">${esc(it.label)}</button>`).join("");
+  host.querySelectorAll("button").forEach((b) => { b.onclick = () => { onPick(b.dataset.v); sync(); }; });
+}
+
+function sync() {
+  document.getElementById("tabs").innerHTML = DIRECTIONS.map((d, i) =>
+    `<button class="tab" role="tab" data-dir="${d.id}" aria-selected="${!state.compare && state.dir === d.id}">
+      <span class="n">${String(i + 1).padStart(2, "0")}</span><span class="t">${esc(d.name)}</span>
+    </button>`).join("");
+  document.querySelectorAll(".tab").forEach((b) => {
+    b.onclick = () => { state.dir = b.dataset.dir; state.compare = false; sync(); };
+  });
+
+  seg("count", [1, 2, 3, 4, 6, 9, 12].map((n) => ({ v: n, label: n })),
+      (v) => +v === state.count, (v) => { state.count = +v; });
+  seg("hdr", HEADERS.map((h) => ({ v: h.id, label: h.label })),
+      (v) => v === state.hdr, (v) => { state.hdr = v; });
+  seg("size", SIZES.map((s) => ({ v: s.id, label: s.label })),
+      (v) => v === state.size, (v) => { state.size = v; });
+  seg("mode", MODES.map((m) => ({ v: m.id, label: m.label })),
+      (v) => v === state.mode, (v) => { state.mode = v; });
+  seg("lang", [{ v: "en", label: "English" }, { v: "ar", label: "العربية" }],
+      (v) => v === state.lang, (v) => { state.lang = v; });
+  seg("view", [{ v: "one", label: "Single" }, { v: "all", label: "Compare all" }],
+      (v) => (v === "all") === state.compare, (v) => { state.compare = v === "all"; });
+
+  paint();
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, textarea")) return;
+  const counts = [1, 2, 3, 4, 6, 9, 12];
+  const k = e.key.toLowerCase();
+  if (k >= "1" && k <= "5") { state.dir = DIRECTIONS[+k - 1].id; state.compare = false; sync(); }
+  else if (k === "c") { state.compare = !state.compare; sync(); }
+  else if (k === "l") { state.lang = state.lang === "en" ? "ar" : "en"; sync(); }
+  else if (k === "h") {
+    const i = HEADERS.findIndex((x) => x.id === state.hdr);
+    state.hdr = HEADERS[(i + 1) % HEADERS.length].id;
+    sync();
+  }
+  else if (k === "[" || k === "]") {
+    const i = counts.indexOf(state.count);
+    state.count = counts[Math.min(Math.max(i + (k === "]" ? 1 : -1), 0), counts.length - 1)];
+    sync();
+  }
+});
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(paint, 120);
+});
+setInterval(paint, 30000); // keep the header clock honest
+
+sync();
+</script>

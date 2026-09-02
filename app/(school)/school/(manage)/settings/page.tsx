@@ -1,12 +1,16 @@
 import { requireSchoolContext } from '@/lib/dal/school-context'
 import { getSchoolSettings } from '@/lib/dal/school'
+import { getSchoolPublicTrackingGranted } from '@/lib/dal/school-limits'
 import { SchoolSettingsForm } from '@/components/school/SchoolSettingsForm'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SchoolSettingsPage() {
   const { profile, branch } = await requireSchoolContext()
-  const settings = await getSchoolSettings(branch.id)
+  const [settings, publicTrackingGranted] = await Promise.all([
+    getSchoolSettings(branch.id),
+    getSchoolPublicTrackingGranted(profile.customerId),
+  ])
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-5">
@@ -18,6 +22,7 @@ export default async function SchoolSettingsPage() {
         branchId={branch.id}
         settings={settings}
         fallbackName={profile.businessName ?? branch.name}
+        publicTrackingGranted={publicTrackingGranted}
       />
     </div>
   )

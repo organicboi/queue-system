@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { ConfirmCancel, useNow, minutesSince, formatElapsed } from '@/components/counter/console'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { QRCodeCanvas } from 'qrcode.react'
 import {
   schoolIssueTokenAction, schoolKioskCancelTokenAction,
   schoolKioskMoveTokenAction, schoolKioskSetPriorityAction,
@@ -16,9 +17,11 @@ import {
 } from '@/lib/actions/school-tokens'
 import { fetchSchoolKioskFeedAction } from '@/lib/actions/school-read'
 import {
-  printSchoolTicket, prepareTicketLogo, waitingAheadLine, SCHOOL_PAPER,
+  printSchoolTicket, prepareTicketLogo, prepareTicketQr, waitingAheadLine,
+  qrCaptionLine, SCHOOL_PAPER, QR_SOURCE_PX, QR_TARGET_MM,
 } from '@/lib/school/printTicket'
 import type { TicketLogo } from '@/lib/school/printTicket'
+import { publicTrackingUrl } from '@/lib/school/constants'
 import { formatDate, formatTime } from '@/lib/queueUtils'
 import type {
   SchoolDepartmentDTO, SchoolSettingsDTO, SchoolTokenDTO, SchoolTokenStatus,
@@ -33,6 +36,11 @@ interface Props {
   silentPrintEnabled: boolean
   printerName: string
   initialFeed: SchoolKioskFeed
+  // Effective public-tracking gate (distributor grant AND the school's own
+  // switch) — see lib/dal/school-limits.ts#getSchoolPublicTrackingEnabled.
+  // Gates the QR on the printed ticket only; nothing else on the kiosk reads
+  // this.
+  publicTrackingEnabled: boolean
 }
 
 const FEED_POLL_MS = 6000
@@ -138,7 +146,7 @@ interface PrintJob {
  */
 export function SchoolKiosk({
   branchToken, branchName, departments, settings, silentPrintEnabled, printerName,
-  initialFeed,
+  initialFeed, publicTrackingEnabled,
 }: Props) {
   const languages: SchoolLanguage[] = settings?.languages?.length ? settings.languages : ['en']
   const [lang, setLang] = useState<SchoolLanguage>(languages[0])
@@ -159,6 +167,12 @@ export function SchoolKiosk({
   const printRef = useRef<HTMLDivElement>(null)
   const printChain = useRef<Promise<void>>(Promise.resolve())
   const jobKey = useRef(0)
+  // Scratch canvas: renders the current job's tracking URL off-screen so
+  // prepareTicketQr can read it back as a crisp bitmap. Never shown to the
+  // visitor — the printable ticket gets the derived <img> instead. See
+  // prepareTicketQr's comment in lib/school/printTicket.ts for why.
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null)
+  const qrImgRef = useRef<HTMLImageElement>(null)
   const now = useNow(15000)
 
   const t = COPY[lang]
@@ -211,8 +225,20 @@ export function SchoolKiosk({
     printChain.current = printChain.current.then(async () => {
       setPrinting(job)
       // One paint so the ticket for THIS job exists before it's rasterised,
-      // and so a preloaded logo has decoded.
+      // and so a preloaded logo has decoded. The off-screen QR canvas (keyed
+      // off `printing`, see qrValue below) repaints on this same commit —
+      // 120ms of real time is ample for its own effect to have run by the
+      // time the read below happens.
       await new Promise((r) => setTimeout(r, 120))
+      if (publicTrackingEnabled && qrCanvasRef.current && qrImgRef.current) {
+        const qr = prepareTicketQr(qrCanvasRef.current)
+        // Written straight to the DOM rather than through React state: both
+        // capture paths (html2canvas re-rendering the live DOM, and the
+        // desktop path's el.innerHTML string read) pick up whatever the
+        // <img>'s src attribute already is at the moment they run, and this
+        // guarantees it's set before either can fire.
+        if (qr) qrImgRef.current.src = qr.src
+      }
       const el = printRef.current
       const method = el
         ? await printSchoolTicket(el, { silentPrintEnabled, printerName })
@@ -221,7 +247,7 @@ export function SchoolKiosk({
       setPrinting(null)
       setPrintBusy((b) => b.filter((id) => id !== token.id))
     })
-  }, [silentPrintEnabled, printerName])
+  }, [silentPrintEnabled, printerName, publicTrackingEnabled])
 
   const heroPrinting = !!hero && printBusy.includes(hero.token.id)
 
@@ -352,6 +378,21 @@ export function SchoolKiosk({
   }
 
   const printedTicket = printing ?? (hero ? { key: -1, ...hero } : null)
+
+  // The URL the scratch QR canvas (and, after prepareTicketQr, the printed
+  // ticket) encodes. Tracks `printedTicket` rather than `hero`/`printing`
+  // separately so the canvas always has the QR for whichever job is about to
+  // be captured — see the wait in enqueuePrint.
+  const qrValue = publicTrackingEnabled && printedTicket
+    ? publicTrackingUrl(
+        printedTicket.token.publicCode,
+        typeof window !== 'undefined' ? window.location.origin : ''
+      )
+    : ''
+  // Bare host+path for the fallback line under the QR — shorter than the
+  // full https:// URL on a 48mm-wide ticket, and still enough to type by
+  // hand if a scan fails.
+  const qrDisplayValue = qrValue.replace(/^https?:\/\//, '')
 
   return (
     <div dir={rtl ? 'rtl' : 'ltr'} className="flex h-dvh w-screen flex-col overflow-hidden bg-slate-100">
@@ -682,9 +723,54 @@ export function SchoolKiosk({
             {settings?.ticketFooterAr && (
               <p style={{ fontSize: '7.5pt', lineHeight: 1.3, margin: '1mm 0 0' }} dir="rtl">{settings.ticketFooterAr}</p>
             )}
+            {/* publicTrackingEnabled gates this whole block — no QR, no
+                caption, no fallback line, when the feature isn't granted or
+                the school has switched it off. The <img> starts srcless and
+                is filled in imperatively right before capture (enqueuePrint)
+                — see prepareTicketQr's comment for why it isn't React state. */}
+            {publicTrackingEnabled && (
+              <div style={{ marginTop: '3mm', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  ref={qrImgRef}
+                  alt=""
+                  style={{ width: `${QR_TARGET_MM}mm`, height: `${QR_TARGET_MM}mm` }}
+                />
+                <p style={{ fontSize: '7.5pt', fontWeight: 700, margin: '1.5mm 0 0' }}>
+                  {qrCaptionLine().en}
+                </p>
+                <p style={{ fontSize: '7pt', fontWeight: 700, margin: '0.5mm 0 0' }} dir="rtl">
+                  {qrCaptionLine().ar}
+                </p>
+                {/* Scan-failure fallback: costs ~3mm of paper, saves a
+                    support call from someone who can't get the camera to
+                    pick it up. */}
+                <p style={{ fontSize: '6.5pt', color: '#333', margin: '1mm 0 0', wordBreak: 'break-all' }}>
+                  {qrDisplayValue}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Off-screen QR source. Re-renders every job (the URL changes per
+          ticket); prepareTicketQr reads its painted pixels back inside
+          enqueuePrint. Never captured directly — see that function's
+          comment in lib/school/printTicket.ts. */}
+      {publicTrackingEnabled && (
+        <div style={{ position: 'fixed', left: -99999, top: 0 }}>
+          <QRCodeCanvas
+            ref={qrCanvasRef}
+            value={qrValue || ' '}
+            size={QR_SOURCE_PX}
+            level="H"
+            marginSize={4}
+            fgColor="#000000"
+            bgColor="#ffffff"
+          />
+        </div>
+      )}
     </div>
   )
 }

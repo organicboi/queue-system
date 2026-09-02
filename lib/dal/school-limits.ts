@@ -81,3 +81,43 @@ export function quotaReachedMessage(kind: 'department' | 'counter', limit: numbe
     : `You've used all ${limit} ${limit === 1 ? kind : plural} included in your plan. ` +
       `Ask your provider to assign more, or deactivate one you no longer use.`
 }
+
+// ── Public ticket tracking (QR on the printed ticket) ─────────
+// Two questions, kept separate: has the distributor sold this (the grant a
+// tenant cannot raise itself), and is it effectively on right now (that grant
+// AND the school's own switch). /school/settings needs the first, to decide
+// whether its toggle is even shown; the kiosk and the public page need only
+// the second. Neither is react-cache'd, matching this file's other reads.
+export async function getSchoolPublicTrackingGranted(customerId: string): Promise<boolean> {
+  const supabase = createSupabaseServiceClient()
+  const { data } = await supabase
+    .from('customers')
+    .select('school_public_tracking_enabled')
+    .eq('id', customerId)
+    .maybeSingle()
+
+  return (data as { school_public_tracking_enabled: boolean | null } | null)
+    ?.school_public_tracking_enabled ?? false
+}
+
+export async function getSchoolPublicTrackingEnabled(
+  customerId: string,
+  branchId: string
+): Promise<boolean> {
+  const supabase = createSupabaseServiceClient()
+  const [granted, { data: settings }] = await Promise.all([
+    getSchoolPublicTrackingGranted(customerId),
+    supabase
+      .from('school_settings')
+      .select('public_tracking_enabled')
+      .eq('branch_id', branchId)
+      .maybeSingle(),
+  ])
+
+  // No settings row yet still defaults to on, matching the column default —
+  // nothing to configure before this works once granted.
+  const toggledOn = (settings as { public_tracking_enabled: boolean | null } | null)
+    ?.public_tracking_enabled ?? true
+
+  return granted && toggledOn
+}

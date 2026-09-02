@@ -1,18 +1,18 @@
 import { redirect } from 'next/navigation'
-import { getSession, getProfile } from '@/lib/dal/session'
+import { getUser, getProfile } from '@/lib/dal/session'
 import { logoutAction } from '@/lib/actions/auth'
 import { OnboardForm } from '@/components/auth/OnboardForm'
 import { LogOut } from 'lucide-react'
 
 export default async function OnboardPage() {
-  const session = await getSession()
+  const user = await getUser()
 
-  if (session) {
+  if (user) {
     const profile = await getProfile()
     if (profile) redirect('/dashboard')
   }
 
-  const isTrapped = !!session
+  const isTrapped = !!user
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">

@@ -245,17 +245,19 @@ class _DepartmentGridState extends State<DepartmentGrid>
   }
 }
 
-/// One service.
+/// One service, as a block of its own colour.
 ///
-/// The card is white and quiet at rest; the department's own colour is carried
-/// by three small things — the rail down its leading edge, the icon tile, and
-/// the arrow — so a parent who comes here every week recognises "the green
-/// one" before reading a word of it.
+/// The premise of this layout: the colour *is* the service. A parent who comes
+/// in every term learns "the teal one" long before they read a word of it, and
+/// a solid field carries that at four metres where a white card with a colour
+/// rail does not. Everything on the card is therefore white — the fill does
+/// the identifying, so nothing else has to compete for it.
 ///
-/// Pressing it commits, visibly, before the network answers: the card sinks a
-/// little, the rail thickens, and the icon tile and arrow fill with that
-/// colour. That is the whole point of the press state on a kiosk — the person
-/// has to know the machine heard them while the request is still in flight.
+/// Pressing sinks the card, deepens the fill and flips the arrow to a solid
+/// white disc. That inversion is the whole press state: on a coloured card
+/// there is no lighter surface left to tint, so the affordance has to invert
+/// instead. Busy holds that look until the ticket comes back, so the eye never
+/// loses which block it chose.
 class _Card extends StatefulWidget {
   const _Card({
     super.key,
@@ -316,12 +318,12 @@ class _CardState extends State<_Card> {
 
   @override
   Widget build(BuildContext context) {
-    final color = departmentInk(departmentColor(widget.department.color));
+    final block = departmentBlock(departmentColor(widget.department.color));
+    final fill = block.fill;
+    final on = block.on;
     final scale = kioskScale(context);
-    final radius = BorderRadius.circular(KioskPalette.radius);
+    final radius = BorderRadius.circular(26);
     final enabled = !widget.busy && !widget.dimmed;
-    // Busy holds the pressed look: the card that was tapped stays lit until
-    // its ticket comes back, so the eye never loses which one it chose.
     final active = _down || widget.busy;
 
     return LayoutBuilder(
@@ -355,48 +357,54 @@ class _CardState extends State<_Card> {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   borderRadius: radius,
-                  boxShadow: KioskPalette.cardShadow,
+                  // One layer, tinted with the card's own colour so the block
+                  // sits on the ground instead of floating over it.
+                  boxShadow: [
+                    BoxShadow(
+                      color: fill.withValues(alpha: 0.26),
+                      blurRadius: 20,
+                      offset: const Offset(0, 9),
+                    ),
+                  ],
                 ),
-                child: Material(
-                  color: KioskPalette.surface,
-                  borderRadius: radius,
+                child: AnimatedContainer(
+                  duration: _fast,
+                  decoration: BoxDecoration(
+                    color: active ? departmentFillPressed(fill) : fill,
+                    borderRadius: radius,
+                  ),
                   clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: enabled ? widget.onTap : null,
-                    onHighlightChanged: enabled ? _setDown : null,
-                    highlightColor: color.withValues(alpha: 0.05),
-                    splashColor: color.withValues(alpha: 0.09),
-                    child: AnimatedContainer(
-                      duration: _calm,
-                      decoration: BoxDecoration(
-                        borderRadius: radius,
-                        border: Border.all(
-                          color: active
-                              ? color.withValues(alpha: 0.55)
-                              : KioskPalette.border,
-                          width: active ? 1.6 : 1,
-                        ),
-                      ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: enabled ? widget.onTap : null,
+                      onHighlightChanged: enabled ? _setDown : null,
+                      highlightColor: on.withValues(alpha: 0.05),
+                      splashColor: on.withValues(alpha: 0.10),
                       child: Stack(
                         children: [
-                          // The colour rail. Thickens under a finger — the
-                          // cheapest possible "this one".
+                          // One soft highlight bled off the trailing corner:
+                          // enough to keep a large flat field from reading as
+                          // printed paper, cheap enough for the RK3566 (no
+                          // blur, no gradient — a translucent circle).
                           PositionedDirectional(
-                            start: 0,
-                            top: 0,
-                            bottom: 0,
-                            child: AnimatedContainer(
-                              duration: _fast,
-                              width: active ? 9 : 5,
-                              color: color,
+                            top: -70,
+                            end: -60,
+                            child: Container(
+                              width: 220,
+                              height: 220,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: on.withValues(alpha: 0.07),
+                              ),
                             ),
                           ),
                           Positioned.fill(
                             child: hero
-                                ? _hero(context, color, active, h)
+                                ? _hero(context, block, active, h)
                                 : dense
-                                    ? _dense(context, color, active, h)
-                                    : _stacked(context, color, active, roomy, h),
+                                    ? _dense(context, block, active, h)
+                                    : _stacked(context, block, active, roomy, h),
                           ),
                         ],
                       ),
@@ -411,6 +419,92 @@ class _CardState extends State<_Card> {
     );
   }
 
+  /// The whole card, as one object. With nothing to compare it against, a
+  /// corner-anchored layout just reads as a large coloured rectangle with a
+  /// label in it — so the icon, the name, the queue and the arrow stack down
+  /// the middle and the card becomes the thing a parent walks up to and
+  /// presses.
+  Widget _hero(
+    BuildContext context,
+    DepartmentBlock block,
+    bool active,
+    double height,
+  ) {
+    final tile = (height * 0.20).clamp(64.0, 104.0);
+    final title = (height * 0.10).clamp(28.0, 44.0);
+    final cue = (height * 0.115).clamp(46.0, 62.0);
+    final primary = widget.department.name(widget.lang);
+    final secondary =
+        widget.lang == 'ar' ? widget.department.nameEn : widget.department.nameAr;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 18, 24, 18),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _IconTile(
+            icon: departmentIcon(widget.department.icon),
+            on: block.on,
+            size: tile,
+            radius: tile * 0.3,
+          ),
+          const SizedBox(height: 18),
+          Text(
+            primary,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: title,
+              height: 1.12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.4,
+              color: block.on,
+            ),
+          ),
+          if (secondary.isNotEmpty && secondary != primary) ...[
+            const SizedBox(height: 4),
+            Text(
+              secondary,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 15,
+                color: block.on.withValues(alpha: 0.72),
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          _QueueChip(
+            waiting: widget.waiting,
+            busy: widget.busy,
+            on: block.on,
+            copy: widget.copy,
+          ),
+          const SizedBox(height: 18),
+          // The spelled-out call to action belongs to the one-service branch.
+          // Six of them, one per card, would be six competing buttons on a
+          // screen whose whole job is to make the choice between them obvious.
+          if (widget.solo)
+            _HeroCta(
+              block: block,
+              busy: widget.busy,
+              height: cue,
+              label: widget.busy ? widget.copy.issuing : widget.copy.takeNumber,
+            )
+          else
+            _TapCue(
+              block: block,
+              active: active,
+              busy: widget.busy,
+              size: cue,
+            ),
+        ],
+      ),
+    );
+  }
+
   /// Identity first — icon, then the name directly under it, read as one
   /// block — and the queue and the arrow together on a footer line. The two
   /// things a parent is deciding between (which service, how long) never share
@@ -418,7 +512,7 @@ class _CardState extends State<_Card> {
   /// middle.
   Widget _stacked(
     BuildContext context,
-    Color color,
+    DepartmentBlock block,
     bool active,
     bool roomy,
     double height,
@@ -428,19 +522,17 @@ class _CardState extends State<_Card> {
         widget.lang == 'ar' ? widget.department.nameEn : widget.department.nameAr;
 
     // The roomy card sizes its own parts from the height it was given rather
-    // than from a fixed table, so a lone service on a big panel — a 620×340
-    // card with nothing beside it — fills itself instead of floating a small
-    // icon in a large white box. Capped at both ends: a card can't shrink its
-    // glyph below legible or grow it into a poster.
-    final tile = roomy ? (height * 0.24).clamp(56.0, 88.0) : 50.0;
+    // than from a fixed table, so a card with a whole column to itself fills
+    // instead of floating a small icon in a large coloured box.
+    final tile = roomy ? (height * 0.23).clamp(56.0, 84.0) : 50.0;
     final title = roomy ? (height * 0.10).clamp(24.0, 34.0) : 22.0;
     final cue = roomy ? (height * 0.14).clamp(40.0, 52.0) : 38.0;
 
     return Padding(
-      padding: EdgeInsetsDirectional.fromSTEB(
+      padding: EdgeInsets.fromLTRB(
         roomy ? 26 : 22,
         roomy ? 22 : 17,
-        roomy ? 20 : 17,
+        roomy ? 22 : 17,
         roomy ? 20 : 17,
       ),
       child: Column(
@@ -448,9 +540,9 @@ class _CardState extends State<_Card> {
         children: [
           _IconTile(
             icon: departmentIcon(widget.department.icon),
-            color: color,
-            active: active,
+            on: block.on,
             size: tile,
+            radius: tile * 0.3,
           ),
           SizedBox(height: roomy ? 16 : 12),
           Text(
@@ -462,7 +554,7 @@ class _CardState extends State<_Card> {
               height: 1.14,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.2,
-              color: KioskPalette.ink,
+              color: block.on,
             ),
           ),
           if (roomy && secondary.isNotEmpty && secondary != primary) ...[
@@ -471,9 +563,9 @@ class _CardState extends State<_Card> {
               secondary,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: KioskPalette.inkFaint,
+                color: block.on.withValues(alpha: 0.68),
               ),
             ),
           ],
@@ -489,14 +581,14 @@ class _CardState extends State<_Card> {
                   child: _QueueChip(
                     waiting: widget.waiting,
                     busy: widget.busy,
-                    color: color,
+                    on: block.on,
                     copy: widget.copy,
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               _TapCue(
-                color: color,
+                block: block,
                 active: active,
                 busy: widget.busy,
                 size: cue,
@@ -508,90 +600,17 @@ class _CardState extends State<_Card> {
     );
   }
 
-  /// The whole screen, as one object. With nothing to compare it against, a
-  /// corner-anchored layout just reads as a large empty rectangle with a label
-  /// in it — so the icon, the name, the queue and the arrow stack down the
-  /// middle and the card becomes the thing a parent walks up to and presses.
-  Widget _hero(BuildContext context, Color color, bool active, double height) {
-    final tile = (height * 0.22).clamp(72.0, 112.0);
-    final title = (height * 0.10).clamp(28.0, 42.0);
-    final cue = (height * 0.115).clamp(46.0, 62.0);
-    final primary = widget.department.name(widget.lang);
-    final secondary =
-        widget.lang == 'ar' ? widget.department.nameEn : widget.department.nameAr;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 18, 24, 18),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          _IconTile(
-            icon: departmentIcon(widget.department.icon),
-            color: color,
-            active: active,
-            size: tile,
-          ),
-          const SizedBox(height: 18),
-          Text(
-            primary,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: title,
-              height: 1.12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.4,
-              color: KioskPalette.ink,
-            ),
-          ),
-          if (secondary.isNotEmpty && secondary != primary) ...[
-            const SizedBox(height: 4),
-            Text(
-              secondary,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 15, color: KioskPalette.inkFaint),
-            ),
-          ],
-          const SizedBox(height: 14),
-          _QueueChip(
-            waiting: widget.waiting,
-            busy: widget.busy,
-            color: color,
-            copy: widget.copy,
-          ),
-          const SizedBox(height: 18),
-          // The spelled-out call to action belongs to the one-service branch.
-          // Six of them, one per card, would be six competing buttons on a
-          // screen whose whole job is to make the choice between them obvious.
-          if (widget.solo)
-            _HeroCta(
-              color: color,
-              busy: widget.busy,
-              height: cue,
-              label: widget.busy ? widget.copy.issuing : widget.copy.takeNumber,
-            )
-          else
-            _TapCue(
-              color: color,
-              active: active,
-              busy: widget.busy,
-              size: cue,
-            ),
-        ],
-      ),
-    );
-  }
-
   /// One centred row for a card too short to stack anything: icon, name with
   /// the queue as a plain line under it, arrow. Same parts, same order, a
   /// third of the height.
-  Widget _dense(BuildContext context, Color color, bool active, double height) {
+  Widget _dense(
+    BuildContext context,
+    DepartmentBlock block,
+    bool active,
+    double height,
+  ) {
     // The tile grows with whatever height the row was given, so a two-row
-    // grid on a short panel doesn't leave a band of white inside every card.
+    // grid on a short panel doesn't leave a band of colour inside every card.
     final tile = height.isFinite ? (height * 0.4).clamp(42.0, 62.0) : 44.0;
 
     return Padding(
@@ -600,9 +619,9 @@ class _CardState extends State<_Card> {
         children: [
           _IconTile(
             icon: departmentIcon(widget.department.icon),
-            color: color,
-            active: active,
+            on: block.on,
             size: tile,
+            radius: tile * 0.3,
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -614,79 +633,74 @@ class _CardState extends State<_Card> {
                   widget.department.name(widget.lang),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 19,
                     height: 1.15,
                     fontWeight: FontWeight.w700,
-                    color: KioskPalette.ink,
+                    color: block.on,
                   ),
                 ),
                 const SizedBox(height: 2),
                 _QueueLine(
                   waiting: widget.waiting,
                   busy: widget.busy,
-                  color: color,
+                  on: block.on,
                   copy: widget.copy,
                 ),
               ],
             ),
           ),
           const SizedBox(width: 10),
-          _TapCue(color: color, active: active, busy: widget.busy, size: 34),
+          _TapCue(block: block, active: active, busy: widget.busy, size: 34),
         ],
       ),
     );
   }
 }
 
-/// The department's glyph. Tinted at rest, solid the moment the card is
-/// touched — the single element that carries the press across the whole card.
+/// The department's glyph, in a translucent white well. Nothing about it
+/// changes on press — on a coloured card the fill itself darkens, and a second
+/// moving part would be noise.
 class _IconTile extends StatelessWidget {
   const _IconTile({
     required this.icon,
-    required this.color,
-    required this.active,
+    required this.on,
     required this.size,
+    required this.radius,
   });
 
   final IconData icon;
-  final Color color;
-  final bool active;
+  final Color on;
   final double size;
+  final double radius;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      curve: Curves.easeOut,
+    return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: active ? color : color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(size * 0.32),
+        color: on.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(radius),
       ),
-      child: Icon(
-        icon,
-        color: active ? Colors.white : color,
-        size: size * 0.5,
-      ),
+      child: Icon(icon, color: on, size: size * 0.5),
     );
   }
 }
 
-/// A card is a big flat rectangle; this arrow is what says "tappable" without
-/// adding a second, competing hit target. It carries the in-flight state too —
-/// the spinner replaces the arrow in place, so nothing on the card moves while
-/// the ticket is being issued.
+/// A card is a big flat field; this arrow is what says "press me" without
+/// adding a second, competing hit target. It inverts under a finger — a solid
+/// white disc with the card's own colour inside it — and carries the in-flight
+/// state in place, so nothing on the card moves while the ticket is issued.
 class _TapCue extends StatelessWidget {
   const _TapCue({
-    required this.color,
+    required this.block,
     required this.active,
     required this.busy,
     required this.size,
   });
 
-  final Color color;
+  final DepartmentBlock block;
   final bool active;
   final bool busy;
   final double size;
@@ -701,7 +715,7 @@ class _TapCue extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: active ? color : color.withValues(alpha: 0.10),
+        color: active ? block.on : block.on.withValues(alpha: 0.2),
         shape: BoxShape.circle,
       ),
       child: AnimatedSwitcher(
@@ -710,16 +724,16 @@ class _TapCue extends StatelessWidget {
             ? Padding(
                 key: const ValueKey('busy'),
                 padding: EdgeInsets.all(size * 0.28),
-                child: const CircularProgressIndicator(
+                child: CircularProgressIndicator(
                   strokeWidth: 2.4,
-                  color: Colors.white,
+                  color: block.fill,
                 ),
               )
             : Icon(
                 rtl ? Icons.arrow_back_rounded : Icons.arrow_forward_rounded,
                 key: const ValueKey('idle'),
                 size: size * 0.5,
-                color: active ? Colors.white : color,
+                color: active ? block.fill : block.on,
               ),
       ),
     );
@@ -729,16 +743,17 @@ class _TapCue extends StatelessWidget {
 /// The hero card's call to action. Not a separate button — the whole card is
 /// the target — but on a one-service branch the arrow alone had nothing to
 /// explain it, and "select a service" above the grid is advice for a choice
-/// this parent doesn't have to make.
+/// this parent doesn't have to make. White on the colour, which is the one
+/// inversion strong enough to read as a button inside a coloured field.
 class _HeroCta extends StatelessWidget {
   const _HeroCta({
-    required this.color,
+    required this.block,
     required this.busy,
     required this.height,
     required this.label,
   });
 
-  final Color color;
+  final DepartmentBlock block;
   final bool busy;
   final double height;
   final String label;
@@ -749,9 +764,9 @@ class _HeroCta extends StatelessWidget {
 
     return Container(
       height: height,
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+      padding: const EdgeInsets.symmetric(horizontal: 30),
       decoration: BoxDecoration(
-        color: color,
+        color: block.on,
         borderRadius: BorderRadius.circular(KioskPalette.radiusPill),
       ),
       child: Row(
@@ -762,10 +777,10 @@ class _HeroCta extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 18,
+              style: TextStyle(
+                fontSize: 19,
                 fontWeight: FontWeight.w700,
-                color: Colors.white,
+                color: block.fill,
               ),
             ),
           ),
@@ -774,14 +789,11 @@ class _HeroCta extends StatelessWidget {
             width: 22,
             height: 22,
             child: busy
-                ? const CircularProgressIndicator(
-                    strokeWidth: 2.4,
-                    color: Colors.white,
-                  )
+                ? CircularProgressIndicator(strokeWidth: 2.4, color: block.fill)
                 : Icon(
                     rtl ? Icons.arrow_back_rounded : Icons.arrow_forward_rounded,
                     size: 22,
-                    color: Colors.white,
+                    color: block.fill,
                   ),
           ),
         ],
@@ -790,30 +802,29 @@ class _HeroCta extends StatelessWidget {
   }
 }
 
-/// Same pill whatever the queue is doing, so the eye can compare six cards at a
-/// glance without re-reading each one: a dot, then a number of people. Only a
-/// real queue is tinted in the department's colour — an empty one is the good
-/// news and stays quiet, and while a ticket is printing the pill says so.
+/// Same pill whatever the queue is doing, so the eye can compare six cards at
+/// a glance without re-reading each one: a dot, then a number of people. A
+/// real queue gets the brighter well and a solid dot; an empty one is the good
+/// news and stays quiet. While a ticket is printing the pill says so.
 class _QueueChip extends StatelessWidget {
   const _QueueChip({
     required this.waiting,
     required this.busy,
-    required this.color,
+    required this.on,
     required this.copy,
   });
 
   final int waiting;
   final bool busy;
-  final Color color;
+  final Color on;
   final KioskCopy copy;
 
   @override
   Widget build(BuildContext context) {
-    final queued = waiting > 0;
-    final tint = busy || queued ? color : KioskPalette.success;
+    final loud = busy || waiting > 0;
     final label = busy
         ? copy.issuing
-        : queued
+        : waiting > 0
             ? '$waiting ${copy.waitingHere}'
             : copy.noneWaiting;
 
@@ -821,9 +832,7 @@ class _QueueChip extends StatelessWidget {
       duration: const Duration(milliseconds: 180),
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
       decoration: BoxDecoration(
-        color: busy || queued
-            ? color.withValues(alpha: 0.11)
-            : KioskPalette.surfaceMuted,
+        color: on.withValues(alpha: loud ? 0.2 : 0.12),
         borderRadius: BorderRadius.circular(KioskPalette.radiusPill),
       ),
       child: Row(
@@ -832,7 +841,10 @@ class _QueueChip extends StatelessWidget {
           Container(
             width: 7,
             height: 7,
-            decoration: BoxDecoration(color: tint, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: on.withValues(alpha: loud ? 1 : 0.6),
+              shape: BoxShape.circle,
+            ),
           ),
           const SizedBox(width: 7),
           Flexible(
@@ -843,7 +855,7 @@ class _QueueChip extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w700,
-                color: busy || queued ? tint : KioskPalette.inkSoft,
+                color: on.withValues(alpha: loud ? 1 : 0.82),
               ),
             ),
           ),
@@ -859,21 +871,21 @@ class _QueueLine extends StatelessWidget {
   const _QueueLine({
     required this.waiting,
     required this.busy,
-    required this.color,
+    required this.on,
     required this.copy,
   });
 
   final int waiting;
   final bool busy;
-  final Color color;
+  final Color on;
   final KioskCopy copy;
 
   @override
   Widget build(BuildContext context) {
-    final queued = waiting > 0;
+    final loud = busy || waiting > 0;
     final label = busy
         ? copy.issuing
-        : queued
+        : waiting > 0
             ? '$waiting ${copy.waitingHere}'
             : copy.noneWaiting;
 
@@ -884,7 +896,7 @@ class _QueueLine extends StatelessWidget {
       style: TextStyle(
         fontSize: 13.5,
         fontWeight: FontWeight.w600,
-        color: busy || queued ? color : KioskPalette.inkFaint,
+        color: on.withValues(alpha: loud ? 0.95 : 0.7),
       ),
     );
   }

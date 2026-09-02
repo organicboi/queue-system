@@ -234,11 +234,20 @@ export async function changePlanAction(customerId: string, planId: string): Prom
 const SchoolLimitsSchema = z.object({
   maxSchoolDepartments: z.coerce.number().int().min(0).max(MAX_SCHOOL_ENTITLEMENT),
   maxSchoolCounters: z.coerce.number().int().min(0).max(MAX_SCHOOL_ENTITLEMENT),
+  // Public QR-tracking add-on. See
+  // supabase/migrations/20260902_school_public_tracking.sql — this is the
+  // sale; the school's own on/off switch on /school/settings only takes
+  // effect once this is granted.
+  publicTrackingEnabled: z.boolean(),
 })
 
 export async function setCustomerSchoolLimitsAction(
   customerId: string,
-  limits: { maxSchoolDepartments: number; maxSchoolCounters: number }
+  limits: {
+    maxSchoolDepartments: number
+    maxSchoolCounters: number
+    publicTrackingEnabled: boolean
+  }
 ): Promise<{ error?: string }> {
   await requireDistributor()
 
@@ -253,6 +262,7 @@ export async function setCustomerSchoolLimitsAction(
     .update({
       max_school_departments: parsed.data.maxSchoolDepartments,
       max_school_counters: parsed.data.maxSchoolCounters,
+      school_public_tracking_enabled: parsed.data.publicTrackingEnabled,
       updated_at: new Date().toISOString(),
     })
     .eq('id', customerId)

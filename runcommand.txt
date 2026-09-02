@@ -5,7 +5,15 @@ flutter run -d b96a9c8b --dart-define=KIOSK_BASE_URL=https://queue-system-urzl.v
 cd /home/akshay/Projects/queue-system/mobile/kiosk
 flutter build apk --release --dart-define=KIOSK_BASE_URL=https://queue-system-urzl.vercel.app
 
-
+R9ZWA0L8CRF
+cd /home/akshay/Projects/queue-system/mobile/kiosk
+flutter run -d R9ZWA0L8CRF --dart-define=KIOSK_BASE_URL=https://queue-system-urzl.vercel.app
 
 
 /home/akshay/Projects/queue-system/mobile/kiosk/build/app/outputs/flutter-apk/app-release.apk
+
+
+
+also add the app to have marathi/hindi language support 
+
+also i have added new db for the new client setup so push everything tho this db aswell 

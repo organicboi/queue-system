@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { getSchoolKioskPacket } from '@/lib/dal/school'
 import { json } from '@/lib/api/kiosk'
+import { publicTrackingBaseUrl } from '@/lib/school/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,8 +10,13 @@ export const dynamic = 'force-dynamic'
 // settings (names EN/AR, logo, ticket footer, print_enabled, languages), plus
 // silentPrint/printerName for parity with the web kiosk (the app manages its
 // own printer connection and can ignore them).
+//
+// publicBaseUrl rides along too: the app has no window.location of its own to
+// build a QR URL from, and its configured API host can be a LAN/internal
+// address a visitor's own phone can't reach — see
+// lib/school/constants.ts#publicTrackingBaseUrl.
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ branchToken: string }> }
 ) {
   const { branchToken } = await params
@@ -23,5 +29,5 @@ export async function GET(
     return json({ error: 'This branch is not active' }, 404)
   }
 
-  return json(packet)
+  return json({ ...packet, publicBaseUrl: publicTrackingBaseUrl(request.nextUrl.origin) })
 }

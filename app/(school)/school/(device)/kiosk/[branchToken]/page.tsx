@@ -50,6 +50,7 @@ export default async function SchoolKioskPage({ params }: Props) {
       silentPrintEnabled={packet.silentPrint ?? false}
       printerName={packet.printerName ?? ''}
       initialFeed={feed}
+      publicTrackingEnabled={packet.publicTrackingEnabled ?? false}
     />
   )
 }

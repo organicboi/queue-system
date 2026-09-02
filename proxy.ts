@@ -5,6 +5,14 @@ import { createServerClient } from '@supabase/ssr'
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Public ticket-tracking page (the QR on a printed ticket points here).
+  // Opened by a visitor's own phone, never signed in, and on a schedule (the
+  // adaptive poll in TrackerClient.tsx) — so it must not pay for a Supabase
+  // auth round trip it has no use for on every request.
+  if (pathname.startsWith('/t/')) {
+    return NextResponse.next({ request })
+  }
+
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -26,18 +34,19 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  // Authenticate against the Auth server rather than trusting the raw cookie.
+  const { data: { user } } = await supabase.auth.getUser()
 
   // School device surfaces authenticate with the long-lived token in their own
   // URL (branch_token / screen_token / counter_token), exactly like
   // /counter/[token] and /display/[token]. They must stay reachable without a
-  // Supabase session — a lobby kiosk and a ceiling-mounted TV never log in.
+  // Supabase user — a lobby kiosk and a ceiling-mounted TV never log in.
   const isSchoolDevice =
     pathname.startsWith('/school/kiosk') ||
     pathname.startsWith('/school/display') ||
     pathname.startsWith('/school/counter')
 
-  // Protected customer-admin routes (require Supabase session)
+  // Protected customer-admin routes (require Supabase user)
   const isAdminRoute =
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/branches') ||
@@ -47,11 +56,11 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/branch') ||
     (pathname.startsWith('/school') && !isSchoolDevice)
 
-  if (isAdminRoute && !session) {
+  if (isAdminRoute && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (pathname === '/login' && session) {
+  if (pathname === '/login' && user) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

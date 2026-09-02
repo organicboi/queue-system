@@ -47,7 +47,10 @@ class _ConfirmationOverlayState extends State<ConfirmationOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final color = departmentColor(widget.department.color);
+    // The ink variant, not the raw pick: this number is set on white, where
+    // a pale admin colour would be unreadable. (The service cards use
+    // `departmentFill` for the opposite reason — white on the colour.)
+    final color = departmentInk(departmentColor(widget.department.color));
     final curve = CurvedAnimation(parent: _in, curve: Curves.easeOutBack);
 
     return Positioned.fill(

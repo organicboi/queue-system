@@ -34,6 +34,7 @@ SchoolToken tok(int i) => SchoolToken(
       serviceDate: '2026-08-30',
       number: i,
       tokenCode: 'A-00$i',
+      publicCode: 'PC$i',
       status: 'waiting',
       isPriority: i.isEven,
       source: 'kiosk',

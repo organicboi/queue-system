@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 
+import '../models/kiosk_bootstrap.dart';
 import '../models/school_settings.dart';
 import 'escpos.dart';
 import 'print_job.dart';
@@ -98,6 +99,12 @@ class EscPosPrinter implements Printer {
         issuedAt: DateTime.now(),
         waitingAhead: job.waitingAhead,
         logo: _logo,
+        // Re-derived from the token's own public code rather than carried on
+        // PrintJob — a reprint always wants the current gate, and this is the
+        // same branch-level info schoolNameEn etc. already come from.
+        publicUrl: branchInfo.publicTrackingEnabled && job.token.publicCode.isNotEmpty
+            ? '${branchInfo.publicBaseUrl}/t/${job.token.publicCode}'
+            : null,
       );
 
       final bytes = await buildTicketPrintStream(
@@ -176,6 +183,8 @@ class BranchTicketInfo {
     required this.schoolNameAr,
     required this.ticketFooterEn,
     required this.ticketFooterAr,
+    required this.publicTrackingEnabled,
+    required this.publicBaseUrl,
   });
 
   final String schoolNameEn;
@@ -183,10 +192,21 @@ class BranchTicketInfo {
   final String ticketFooterEn;
   final String ticketFooterAr;
 
-  factory BranchTicketInfo.fromSettings(SchoolSettings? settings) => BranchTicketInfo(
-        schoolNameEn: settings?.schoolNameEn ?? '',
-        schoolNameAr: settings?.schoolNameAr ?? '',
-        ticketFooterEn: settings?.ticketFooterEn ?? '',
-        ticketFooterAr: settings?.ticketFooterAr ?? '',
+  /// Effective public-tracking gate — distributor grant AND the school's own
+  /// switch, already ANDed together server-side
+  /// (KioskBootstrap.publicTrackingEnabled).
+  final bool publicTrackingEnabled;
+
+  /// The origin the printed QR points at — never this device's own API base
+  /// URL, which can be unreachable from a visitor's phone.
+  final String publicBaseUrl;
+
+  factory BranchTicketInfo.fromBootstrap(KioskBootstrap? bootstrap) => BranchTicketInfo(
+        schoolNameEn: bootstrap?.settings?.schoolNameEn ?? '',
+        schoolNameAr: bootstrap?.settings?.schoolNameAr ?? '',
+        ticketFooterEn: bootstrap?.settings?.ticketFooterEn ?? '',
+        ticketFooterAr: bootstrap?.settings?.ticketFooterAr ?? '',
+        publicTrackingEnabled: bootstrap?.publicTrackingEnabled ?? false,
+        publicBaseUrl: bootstrap?.publicBaseUrl ?? '',
       );
 }

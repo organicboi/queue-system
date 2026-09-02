@@ -12,6 +12,8 @@ class KioskBootstrap {
     required this.settings,
     required this.silentPrint,
     required this.printerName,
+    required this.publicTrackingEnabled,
+    required this.publicBaseUrl,
   });
 
   final String branchId;
@@ -26,6 +28,16 @@ class KioskBootstrap {
   /// for parity with the web kiosk.
   final bool silentPrint;
   final String printerName;
+
+  /// Effective public-tracking gate (distributor grant AND the school's own
+  /// switch) — mirrors lib/dal/school-limits.ts#getSchoolPublicTrackingEnabled.
+  /// Gates whether the printed ticket carries a QR at all.
+  final bool publicTrackingEnabled;
+
+  /// The origin the QR points at. Not `KioskApi`'s own base URL — that can be
+  /// a LAN/internal address this device reaches but a visitor's own phone
+  /// cannot. See lib/school/constants.ts#publicTrackingBaseUrl on the server.
+  final String publicBaseUrl;
 
   List<String> get languages =>
       settings?.languages.isNotEmpty == true ? settings!.languages : const ['en'];
@@ -44,6 +56,8 @@ class KioskBootstrap {
           : SchoolSettings.fromJson(json['settings'] as Map<String, dynamic>),
       silentPrint: json['silentPrint'] as bool? ?? false,
       printerName: json['printerName'] as String? ?? '',
+      publicTrackingEnabled: json['publicTrackingEnabled'] as bool? ?? false,
+      publicBaseUrl: json['publicBaseUrl'] as String? ?? '',
     );
   }
 }

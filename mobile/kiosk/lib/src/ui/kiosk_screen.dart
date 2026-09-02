@@ -265,25 +265,31 @@ class _Shell extends ConsumerWidget {
           onLangChange: onLangChange,
         ),
         Expanded(
-          child: Stack(
-            children: [
-              LayoutBuilder(
-                builder: (context, c) {
-                  final wide = c.maxWidth >= 900;
-                  return wide
-                      ? _wide(context, copy, feed)
-                      : _narrow(context, copy, feed);
-                },
-              ),
-              if (confirm != null)
-                ConfirmationOverlay(
-                  token: confirm!.token,
-                  department: confirm!.department,
-                  lang: lang,
-                  copy: copy,
-                  onDismiss: onDismissConfirm,
+          child: ColoredBox(
+            // The blocks are the design; the ground is one step deeper than
+            // the app's default so a screen full of colour has something to
+            // sit on.
+            color: KioskPalette.bgDeep,
+            child: Stack(
+              children: [
+                LayoutBuilder(
+                  builder: (context, c) {
+                    final wide = c.maxWidth >= 900;
+                    return wide
+                        ? _wide(context, copy, feed)
+                        : _narrow(context, copy, feed);
+                  },
                 ),
-            ],
+                if (confirm != null)
+                  ConfirmationOverlay(
+                    token: confirm!.token,
+                    department: confirm!.department,
+                    lang: lang,
+                    copy: copy,
+                    onDismiss: onDismissConfirm,
+                  ),
+              ],
+            ),
           ),
         ),
         // Standing information, not a toast: while the server is unreachable

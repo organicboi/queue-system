@@ -159,7 +159,7 @@ final printerProvider = Provider<Printer>((ref) {
   if (cfg != null && cfg.printer.isConfigured) {
     printer = EscPosPrinter(
       settings: cfg.printer,
-      branchInfo: BranchTicketInfo.fromSettings(bootstrap?.settings),
+      branchInfo: BranchTicketInfo.fromBootstrap(bootstrap),
       logo: logo,
     );
   } else {

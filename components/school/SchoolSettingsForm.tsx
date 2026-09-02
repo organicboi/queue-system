@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Lock } from 'lucide-react'
+import { Lock, QrCode } from 'lucide-react'
 import { saveSchoolSettingsAction } from '@/lib/actions/school-admin'
 import type { SchoolSettingsDTO, SchoolLanguage } from '@/lib/db/school-types'
 
@@ -14,6 +14,9 @@ interface Props {
   branchId: string
   settings: SchoolSettingsDTO | null
   fallbackName: string
+  // Whether the distributor has sold this add-on. The toggle below only
+  // shows once this is true — it is not the tenant's to turn on unbought.
+  publicTrackingGranted: boolean
 }
 
 // Common Gulf timezones plus UTC. A school runs in one place; a free-text
@@ -23,7 +26,7 @@ const TIMEZONES = [
   'Asia/Kuwait', 'Asia/Muscat', 'Asia/Kolkata', 'Europe/London', 'UTC',
 ]
 
-export function SchoolSettingsForm({ branchId, settings, fallbackName }: Props) {
+export function SchoolSettingsForm({ branchId, settings, fallbackName, publicTrackingGranted }: Props) {
   const [pending, startTransition] = useTransition()
   const [form, setForm] = useState({
     languages: (settings?.languages ?? ['en']) as SchoolLanguage[],
@@ -33,6 +36,7 @@ export function SchoolSettingsForm({ branchId, settings, fallbackName }: Props) 
     priorityEnabled: settings?.priorityEnabled ?? true,
     announceEnabled: settings?.announceEnabled ?? true,
     printEnabled: settings?.printEnabled ?? true,
+    publicTrackingEnabled: settings?.publicTrackingEnabled ?? true,
     timezone: settings?.timezone ?? 'Asia/Qatar',
     dayStartTime: (settings?.dayStartTime ?? '00:00').slice(0, 5),
   })
@@ -173,6 +177,26 @@ export function SchoolSettingsForm({ branchId, settings, fallbackName }: Props) 
           checked={form.priorityEnabled}
           onChange={(v) => set('priorityEnabled', v)}
         />
+        {publicTrackingGranted ? (
+          <ToggleRow
+            label="Public ticket tracking (QR)"
+            hint="Prints a QR on every ticket linking to a live waiting-position page visitors can check from their own phone"
+            checked={form.publicTrackingEnabled}
+            onChange={(v) => set('publicTrackingEnabled', v)}
+          />
+        ) : (
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-dashed border-slate-200 px-3 py-2.5 opacity-70">
+            <div className="min-w-0 flex items-center gap-2">
+              <QrCode className="size-4 shrink-0 text-slate-400" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-600">Public ticket tracking (QR)</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Not included in your plan. Ask your provider to add it.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4 shadow-sm">
