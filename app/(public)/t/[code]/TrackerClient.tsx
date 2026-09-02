@@ -28,7 +28,7 @@ interface Props {
 //      of where the schedule is — that's what it's there for.
 const HARD_STOP_MS = 4 * 60 * 60 * 1000
 
-// Same three tiers the ring's colour and the caption below it read off —
+// Same three tiers the ticket's big number and its cadence read off —
 // nobody 40 back needs to feel "urgent", someone about to be called does.
 type Proximity = 'far' | 'near' | 'next'
 
@@ -89,6 +89,18 @@ function formatAgo(ms: number): string {
   if (m < 60) return `${m}m ago`
   const h = Math.round(m / 60)
   return `${h}h ago`
+}
+
+// Formats a fixed date string ("02 SEP 2026") for the ticket stub. Purely a
+// transform of the given string — never reads the wall clock — so it stays
+// safe to call during render.
+function formatStubDate(dateStr?: string): string {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return ''
+  return d
+    .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    .toUpperCase()
 }
 
 export function TrackerClient({ code, initial }: Props) {
@@ -237,64 +249,32 @@ export function TrackerClient({ code, initial }: Props) {
   const schoolName = status.schoolNameEn || 'Queue'
 
   return (
-    <div className="min-h-dvh bg-[radial-gradient(ellipse_120%_80%_at_50%_-10%,theme(colors.emerald.50),theme(colors.slate.50)_55%)] flex flex-col items-center px-4 py-10">
+    <div className="min-h-dvh bg-[#f3f6f1] bg-[radial-gradient(ellipse_120%_60%_at_50%_-10%,rgba(20,83,45,0.07),transparent_60%)] flex flex-col items-center px-4 py-10">
       <div className="w-full max-w-sm">
         <Header logoUrl={status.logoUrl} schoolName={schoolName} schoolNameAr={status.schoolNameAr} bilingual={bilingual} />
 
-        <TopStatusBar
-          connected={connected}
-          isFetching={isFetching}
-          agoLabel={agoLabel}
-          onRefresh={() => manualRefreshRef.current?.()}
-        />
-
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`${status.status}-${status.tokenStatus}-${status.isToday}`}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-          >
-            <Body status={status} bilingual={bilingual} justCalled={justCalled} />
-          </motion.div>
-        </AnimatePresence>
+        <div className="mt-6">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${status.status}-${status.tokenStatus}-${status.isToday}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+            >
+              <Body
+                status={status}
+                bilingual={bilingual}
+                justCalled={justCalled}
+                connected={connected}
+                isFetching={isFetching}
+                agoLabel={agoLabel}
+                onRefresh={() => manualRefreshRef.current?.()}
+              />
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
-    </div>
-  )
-}
-
-function TopStatusBar({ connected, isFetching, agoLabel, onRefresh }: {
-  connected: boolean
-  isFetching: boolean
-  agoLabel: string
-  onRefresh: () => void
-}) {
-  return (
-    <div className="mt-5 mb-4 flex items-center justify-between rounded-full border border-slate-200/70 bg-white/70 px-3.5 py-2 shadow-sm backdrop-blur-sm">
-      <div className="flex items-center gap-2 text-[12px] font-medium text-slate-500">
-        <span className="relative flex size-2">
-          {connected && (
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-          )}
-          <span
-            className={
-              'relative inline-flex size-2 rounded-full ' +
-              (connected ? 'bg-emerald-500' : 'bg-amber-400')
-            }
-          />
-        </span>
-        <span>Updated {agoLabel}</span>
-      </div>
-      <button
-        type="button"
-        onClick={onRefresh}
-        disabled={isFetching}
-        aria-label="Refresh"
-        className="flex size-7 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 active:scale-95 disabled:opacity-60"
-      >
-        <RefreshCw className={'size-3.5' + (isFetching ? ' animate-spin' : '')} />
-      </button>
     </div>
   )
 }
@@ -307,212 +287,260 @@ function Header({ logoUrl, schoolName, schoolNameAr, bilingual }: {
 }) {
   return (
     <div className="flex flex-col items-center gap-2.5 text-center">
-      {logoUrl && (
+      {logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={logoUrl}
           alt=""
-          className="size-14 rounded-2xl border border-slate-200 bg-white object-contain p-1.5 shadow-sm"
+          className="size-14 rounded-2xl border border-[#e7e0cd] bg-white object-contain p-1.5 shadow-sm"
         />
+      ) : (
+        <div className="flex size-11 items-center justify-center rounded-xl bg-[#14532d] text-[15px] font-extrabold text-[#fdfaf3]">
+          {schoolName.charAt(0).toUpperCase()}
+        </div>
       )}
       <div>
-        <p className="text-[15px] font-semibold tracking-tight text-slate-900">{schoolName}</p>
+        <p className="text-[15px] font-semibold tracking-tight text-[#14532d]">{schoolName}</p>
         {bilingual && schoolNameAr && (
-          <p className="text-[13px] text-slate-500" dir="rtl">{schoolNameAr}</p>
+          <p className="text-[13px] text-[#78877d]" dir="rtl">{schoolNameAr}</p>
         )}
       </div>
     </div>
   )
 }
 
-function Card({ children, tone = 'default' }: {
-  children: React.ReactNode
-  tone?: 'default' | 'accent'
+// The shared "boarding pass" shape: a light ivory stub, a perforated tear,
+// then a white body. `stub` carries its own background/padding classes so
+// the called state can flip it dark without this shell knowing about tone.
+function TicketShell({ stub, children }: { stub: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="overflow-visible rounded-[22px] shadow-[0_20px_44px_-18px_rgba(20,83,45,0.28)]">
+      {stub}
+      <Perforation />
+      <div className="rounded-b-[22px] bg-white px-6 pt-[22px] pb-6">{children}</div>
+    </div>
+  )
+}
+
+function Perforation() {
+  return (
+    <div className="relative h-px bg-[repeating-linear-gradient(90deg,#d9e2d3_0_8px,transparent_8px_16px)]">
+      <div className="absolute -left-2.5 -top-2.5 size-5 rounded-full bg-[#f3f6f1]" />
+      <div className="absolute -right-2.5 -top-2.5 size-5 rounded-full bg-[#f3f6f1]" />
+    </div>
+  )
+}
+
+// The "Updated Xs ago" + manual refresh row, only ever shown on a ticket
+// that's actually still polling (waiting/held or called) — everything
+// terminal has nothing left to refresh.
+function LiveRow({ connected, isFetching, agoLabel, onRefresh }: {
+  connected: boolean
+  isFetching: boolean
+  agoLabel: string
+  onRefresh: () => void
 }) {
   return (
-    <div
-      className={
-        'rounded-[28px] p-6 text-center space-y-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_16px_40px_-16px_rgba(15,23,42,0.18)] ' +
-        (tone === 'accent'
-          ? 'border border-emerald-200/70 bg-gradient-to-b from-emerald-50 to-white'
-          : 'border border-slate-200/70 bg-white')
-      }
-    >
+    <div className="mb-4 flex items-center justify-between">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#3f6b4a]">
+        <span className="relative flex size-1.5">
+          {connected && (
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#166534] opacity-60" />
+          )}
+          <span
+            className={
+              'relative inline-flex size-1.5 rounded-full ' +
+              (connected ? 'bg-[#166534]' : 'bg-amber-500')
+            }
+          />
+        </span>
+        <span>Updated {agoLabel}</span>
+      </div>
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={isFetching}
+        aria-label="Refresh"
+        className="flex size-6 items-center justify-center rounded-full text-[#3f6b4a] transition-colors hover:bg-[#eef3ea] active:scale-95 disabled:opacity-60"
+      >
+        <RefreshCw className={'size-3.5' + (isFetching ? ' animate-spin' : '')} />
+      </button>
+    </div>
+  )
+}
+
+// The decorative barcode + ticket-id footer line from the mockup. Purely a
+// ticket-authenticity flourish (the bar heights encode nothing) — cheap to
+// keep, cheap to cut if it ever needs to go.
+function BarcodeFooter({ tokenCode }: { tokenCode: string }) {
+  const heights = [100, 60, 90, 40, 100, 70, 50, 85, 100, 55, 75, 45, 95, 60, 100, 35, 80, 50]
+  return (
+    <div className="mt-5 border-t border-dashed border-[#d9e2d3] pt-4">
+      <div className="flex h-7 items-end gap-[2px] opacity-70">
+        {heights.map((h, i) => (
+          <div
+            key={i}
+            style={{ height: `${h}%` }}
+            className={(i % 3 === 0 ? 'w-[3px]' : i % 2 === 0 ? 'w-[2px]' : 'w-px') + ' bg-[#14532d]'}
+          />
+        ))}
+      </div>
+      <p className="mt-2 font-mono text-[10px] tracking-[0.1em] text-[#a8a29e]">
+        TICKET {tokenCode} · LIVE
+      </p>
+    </div>
+  )
+}
+
+// Flat notice card for states with no active pass to show (unknown code,
+// tracking off, previous-day, or a closed-out ticket) — same palette as the
+// boarding pass, just without the stub/perforation/barcode machinery.
+function InfoCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="space-y-3 rounded-[22px] border border-[#e7e0cd] bg-white p-6 text-center shadow-[0_16px_40px_-18px_rgba(20,83,45,0.2)]">
       {children}
     </div>
   )
 }
 
-// A quiet radial gauge behind the "people ahead" number — closes in as the
-// visitor's turn approaches. Purely a feeling instrument, not a literal
-// fraction of anything (there's no fixed denominator to a queue), so it's
-// keyed off the same three-tier proximity everything else here already
-// uses rather than inventing its own scale.
-function ProximityRing({ proximity, children }: {
-  proximity: Proximity
-  children: React.ReactNode
-}) {
-  const size = 168
-  const stroke = 8
-  const r = (size - stroke) / 2
-  const circumference = 2 * Math.PI * r
-  const fraction = proximity === 'next' ? 0.92 : proximity === 'near' ? 0.55 : 0.22
-  const color =
-    proximity === 'next' ? '#10b981' : proximity === 'near' ? '#f59e0b' : '#94a3b8'
-
-  return (
-    <div className="relative mx-auto flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={stroke}
-          className="text-slate-100"
-        />
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          initial={false}
-          animate={{ strokeDashoffset: circumference * (1 - fraction) }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">{children}</div>
-    </div>
-  )
-}
-
-function Body({ status, bilingual, justCalled }: {
+function Body({ status, bilingual, justCalled, connected, isFetching, agoLabel, onRefresh }: {
   status: PublicTicketStatus
   bilingual: boolean
   justCalled: boolean
+  connected: boolean
+  isFetching: boolean
+  agoLabel: string
+  onRefresh: () => void
 }) {
   if (status.status === 'not-found') {
     return (
-      <Card>
-        <XCircle className="mx-auto size-8 text-slate-300" strokeWidth={1.5} />
-        <p className="text-base font-semibold text-slate-800">We couldn&apos;t find this ticket</p>
-        <p className="text-sm text-slate-500">
+      <InfoCard>
+        <XCircle className="mx-auto size-8 text-[#c7c2b8]" strokeWidth={1.5} />
+        <p className="text-base font-semibold text-[#292524]">We couldn&apos;t find this ticket</p>
+        <p className="text-sm text-[#78716c]">
           The link may be mistyped, or the ticket is no longer available.
         </p>
         {bilingual && (
-          <p className="text-sm text-slate-500" dir="rtl">
+          <p className="text-sm text-[#78716c]" dir="rtl">
             تعذّر العثور على هذه التذكرة. قد يكون الرابط غير صحيح.
           </p>
         )}
-      </Card>
+      </InfoCard>
     )
   }
 
   if (status.status === 'disabled' || status.status === 'expired') {
     return (
-      <Card>
-        <Clock3 className="mx-auto size-8 text-slate-300" strokeWidth={1.5} />
-        <p className="text-base font-semibold text-slate-800">Live tracking isn&apos;t available</p>
-        <p className="text-sm text-slate-500">
+      <InfoCard>
+        <Clock3 className="mx-auto size-8 text-[#c7c2b8]" strokeWidth={1.5} />
+        <p className="text-base font-semibold text-[#292524]">Live tracking isn&apos;t available</p>
+        <p className="text-sm text-[#78716c]">
           Please watch the screen in the waiting area for your number.
         </p>
         {bilingual && (
-          <p className="text-sm text-slate-500" dir="rtl">
+          <p className="text-sm text-[#78716c]" dir="rtl">
             التتبع المباشر غير متاح حاليًا. يرجى متابعة الشاشة في منطقة الانتظار.
           </p>
         )}
-      </Card>
+      </InfoCard>
     )
   }
 
   // status === 'ok' from here on
   const dept = status.departmentNameEn ?? ''
   const deptAr = status.departmentNameAr ?? ''
+  const dateLabel = formatStubDate(status.serviceDate)
 
   if (status.isToday === false && (status.tokenStatus === 'waiting' || status.tokenStatus === 'held')) {
     return (
-      <Card>
-        <Clock3 className="mx-auto size-8 text-slate-300" strokeWidth={1.5} />
-        <p className="text-base font-semibold text-slate-800">This ticket was for a previous day</p>
-        <p className="text-sm text-slate-500">
+      <InfoCard>
+        <Clock3 className="mx-auto size-8 text-[#c7c2b8]" strokeWidth={1.5} />
+        <p className="text-base font-semibold text-[#292524]">This ticket was for a previous day</p>
+        <p className="text-sm text-[#78716c]">
           Token {status.tokenCode} is no longer being tracked. Please take a new ticket if you still need one.
         </p>
         {bilingual && (
-          <p className="text-sm text-slate-500" dir="rtl">
+          <p className="text-sm text-[#78716c]" dir="rtl">
             هذه التذكرة كانت ليوم سابق ولم تعد قيد التتبع. يرجى أخذ تذكرة جديدة إذا كنت لا تزال بحاجة إليها.
           </p>
         )}
-      </Card>
+      </InfoCard>
     )
   }
 
   if (status.tokenStatus === 'served') {
     return (
-      <Card tone="accent">
-        <CheckCircle2 className="mx-auto size-9 text-emerald-500" strokeWidth={1.5} />
-        <p className="font-mono text-3xl font-black tracking-tight tabular-nums text-slate-800" dir="ltr">
+      <InfoCard>
+        <CheckCircle2 className="mx-auto size-9 text-[#166534]" strokeWidth={1.5} />
+        <p className="font-mono text-3xl font-black tracking-tight tabular-nums text-[#14532d]" dir="ltr">
           {status.tokenCode}
         </p>
-        <p className="text-base font-semibold text-emerald-700">You&apos;ve been served — thank you</p>
-        {bilingual && <p className="text-sm text-slate-500" dir="rtl">تم إنهاء خدمتك، شكرًا لك</p>}
-      </Card>
+        <p className="text-base font-semibold text-[#166534]">You&apos;ve been served — thank you</p>
+        {bilingual && <p className="text-sm text-[#78716c]" dir="rtl">تم إنهاء خدمتك، شكرًا لك</p>}
+      </InfoCard>
     )
   }
 
   if (status.tokenStatus === 'no-show' || status.tokenStatus === 'cancelled') {
     return (
-      <Card>
-        <XCircle className="mx-auto size-8 text-slate-300" strokeWidth={1.5} />
-        <p className="font-mono text-3xl font-black tracking-tight tabular-nums text-slate-800" dir="ltr">
+      <InfoCard>
+        <XCircle className="mx-auto size-8 text-[#c7c2b8]" strokeWidth={1.5} />
+        <p className="font-mono text-3xl font-black tracking-tight tabular-nums text-[#292524]" dir="ltr">
           {status.tokenCode}
         </p>
-        <p className="text-base font-semibold text-slate-600">
+        <p className="text-base font-semibold text-[#57534e]">
           {status.tokenStatus === 'no-show' ? 'This ticket was marked as missed' : 'This ticket was cancelled'}
         </p>
         {bilingual && (
-          <p className="text-sm text-slate-500" dir="rtl">
+          <p className="text-sm text-[#78716c]" dir="rtl">
             {status.tokenStatus === 'no-show' ? 'تم تسجيل هذه التذكرة كغياب' : 'تم إلغاء هذه التذكرة'}
           </p>
         )}
-      </Card>
+      </InfoCard>
     )
   }
 
   if (status.tokenStatus === 'called') {
     return (
-      <motion.div
-        initial={justCalled ? { scale: 0.96 } : false}
-        animate={{ scale: 1 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-        className="relative overflow-hidden rounded-[28px] border border-emerald-300/70 bg-gradient-to-b from-emerald-500 to-emerald-600 p-7 text-center shadow-[0_20px_50px_-16px_rgba(16,185,129,0.55)]"
-      >
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.25),transparent_60%)]" />
-        <div className="relative space-y-3">
-          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-white/15">
-            <PartyPopper className="size-7 text-white" strokeWidth={1.75} />
+      <TicketShell
+        stub={
+          <div className="rounded-t-[22px] bg-[#14532d] px-6 pt-[22px] pb-[26px]">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#bfe0cb]">It&apos;s your turn</p>
+              <p className="text-[11px] font-medium text-[#5f8a6d]">{dateLabel}</p>
+            </div>
+            <p className="mt-3.5 text-xs text-[#9fc2ab]">{dept}</p>
+            {bilingual && deptAr && (
+              <p className="mt-0.5 text-[11px] text-[#5f8a6d]" dir="rtl">{deptAr}</p>
+            )}
+            <p className="mt-2.5 font-mono text-[52px] font-black leading-none tracking-tight text-white" dir="ltr">
+              {status.tokenCode}
+            </p>
           </div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-50">
-            It&apos;s your turn
-          </p>
-          <p className="font-mono text-5xl font-black tracking-tight tabular-nums text-white" dir="ltr">
-            {status.tokenCode}
-          </p>
-          <div className="flex items-center justify-center gap-1.5 text-lg font-bold text-white">
+        }
+      >
+        <LiveRow connected={connected} isFetching={isFetching} agoLabel={agoLabel} onRefresh={onRefresh} />
+        <motion.div
+          initial={justCalled ? { scale: 0.9, opacity: 0 } : false}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+          className="text-center"
+        >
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#e6f4ea]">
+            <PartyPopper className="size-6 text-[#14532d]" strokeWidth={1.75} />
+          </div>
+          <p className="mt-3 flex items-center justify-center gap-1.5 text-lg font-bold text-[#14532d]">
             <MapPin className="size-5" />
             Go to {status.counterNameEn || 'the counter'}
-          </div>
+          </p>
           {bilingual && (
-            <p className="text-base font-semibold text-emerald-50" dir="rtl">
+            <p className="mt-1 text-sm font-semibold text-[#3f6b4a]" dir="rtl">
               توجه إلى {status.counterNameAr || 'الكاونتر'}
             </p>
           )}
-        </div>
-      </motion.div>
+        </motion.div>
+        <BarcodeFooter tokenCode={status.tokenCode ?? ''} />
+      </TicketShell>
     )
   }
 
@@ -523,51 +551,74 @@ function Body({ status, bilingual, justCalled }: {
   const proximity = proximityOf(status)
 
   return (
-    <Card>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Your ticket</p>
-      <p className="font-mono text-4xl font-black tracking-tight tabular-nums text-slate-900" dir="ltr">
-        {status.tokenCode}
-      </p>
-      <p className="text-sm text-slate-500">
-        {dept}{bilingual && deptAr ? ` · ${deptAr}` : ''}
-      </p>
-
-      <ProximityRing proximity={proximity}>
-        <div className="text-center">
-          <motion.p
-            key={ahead}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="text-4xl font-black tabular-nums text-slate-900"
-          >
-            {ahead}
-          </motion.p>
-          <p className="text-[11px] font-medium text-slate-400">ahead of you</p>
+    <TicketShell
+      stub={
+        <div className="rounded-t-[22px] border-b border-[#e7e0cd] bg-[#fdfaf3] px-6 pt-[22px] pb-[26px]">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#166534]">Queue Pass</p>
+            <p className="text-[11px] font-medium text-[#a8a29e]">{dateLabel}</p>
+          </div>
+          <p className="mt-3.5 text-xs text-[#57534e]">{dept}</p>
+          {bilingual && deptAr && (
+            <p className="mt-0.5 text-[11px] text-[#a8a29e]" dir="rtl">{deptAr}</p>
+          )}
+          <p className="mt-2.5 font-mono text-[52px] font-black leading-none tracking-tight text-[#14532d]" dir="ltr">
+            {status.tokenCode}
+          </p>
         </div>
-      </ProximityRing>
+      }
+    >
+      <LiveRow connected={connected} isFetching={isFetching} agoLabel={agoLabel} onRefresh={onRefresh} />
 
-      <div>
-        <p className="text-sm font-semibold text-slate-800">{line.en}</p>
-        {bilingual && <p className="text-sm text-slate-500 mt-0.5" dir="rtl">{line.ar}</p>}
+      <div
+        className={
+          'inline-flex items-baseline gap-2.5 rounded-2xl' +
+          (proximity === 'next' ? ' bg-[#e6f4ea] px-3 py-1.5 -mx-1' : '')
+        }
+      >
+        <motion.p
+          key={ahead}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="font-mono text-[44px] font-black leading-none tracking-tight tabular-nums text-[#14532d]"
+        >
+          {String(ahead).padStart(2, '0')}
+        </motion.p>
+        <p className="text-sm font-medium leading-tight text-[#57534e]">
+          {ahead > 0 ? <>people waiting<br />before you</> : <>you&apos;re<br />next</>}
+        </p>
       </div>
 
-      {eta && (
-        <p className="text-sm text-slate-500">
-          Estimated wait <span className="font-semibold text-slate-700">{eta.en}</span>
-          {bilingual && <span dir="rtl"> · {eta.ar}</span>}
+      {ahead > 0 && (
+        <p className="mt-1.5 text-xs text-[#78716c]" dir="rtl">
+          {line.ar}
         </p>
       )}
 
-      {status.nowServingCode && (
-        <div className="border-t border-slate-100 pt-3.5">
-          <p className="text-xs text-slate-400">
-            Now serving{' '}
-            <span className="font-mono font-semibold text-slate-600">{status.nowServingCode}</span>
-            {' '}in {dept}
-          </p>
+      {(eta || status.nowServingCode) && (
+        <div
+          className={
+            'mt-5 grid gap-3 border-t border-dashed border-[#d9e2d3] pt-4 text-left ' +
+            (eta && status.nowServingCode ? 'grid-cols-2' : 'grid-cols-1')
+          }
+        >
+          {eta && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#a8a29e]">Est. wait</p>
+              <p className="mt-0.5 text-[15px] font-bold text-[#1c2e22]">{eta.en}</p>
+            </div>
+          )}
+          {status.nowServingCode && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#a8a29e]">Now serving</p>
+              <p className="mt-0.5 font-mono text-[15px] font-bold text-[#1c2e22]">{status.nowServingCode}</p>
+            </div>
+          )}
         </div>
       )}
-    </Card>
+
+      <BarcodeFooter tokenCode={status.tokenCode ?? ''} />
+    </TicketShell>
   )
 }

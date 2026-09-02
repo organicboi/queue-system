@@ -17,6 +17,10 @@ export function InstallPrompt() {
   // Staff kiosk terminals: the prompt overlays the primary action button
   // and staff never need to install the PWA on a shared branch tablet.
   if (pathname?.startsWith("/counter")) return null
+  // Public ticket tracking: a visitor scanning the QR on their own phone is
+  // never a candidate to install this app — showing an install prompt over
+  // their live queue position reads as a bait-and-switch, not a feature.
+  if (pathname?.startsWith("/t/")) return null
   if (!canInstall || dismissed) return null
 
   return (
