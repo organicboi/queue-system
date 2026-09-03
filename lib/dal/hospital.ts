@@ -18,6 +18,7 @@ import {
 } from '@/lib/db/hospital-types'
 import { HOSPITAL_TOKEN_PAGE_SIZE } from '@/lib/hospital/constants'
 import { getHospitalPublicTrackingEnabled } from '@/lib/dal/hospital-limits'
+import type { PublicTicketStatus } from '@/lib/db/school-types'
 
 // Reads use the service-role client and rely on the requireX() guards in
 // lib/dal/session.ts — RLS in this schema is self-referentially broken, so the
@@ -217,6 +218,56 @@ export async function getHospitalTicketStatus(code: string): Promise<HospitalTic
   return data as HospitalTicketStatus
 }
 
+// The shared /t/[code] tracker + /api/public/ticket/[code] route are
+// school-shaped (PublicTicketStatus). Rather than fork a 700-line client, a
+// hospital ticket is normalised into the same shape: the room (with the doctor
+// appended) stands in for the school's "counter", the department maps straight
+// across, and stage is folded into the department line so the patient sees
+// where they are in the journey. NO patient PII is in the RPC output.
+export async function getHospitalPublicTicketStatus(
+  code: string
+): Promise<PublicTicketStatus | null> {
+  const s = await getHospitalTicketStatus(code)
+  if (s.status === 'not-found') return null
+
+  const STAGE_LABEL: Record<string, string> = {
+    registration: 'Registration', triage: 'Triage', consult: 'Consultation', lab: 'Lab',
+    radiology: 'Radiology', pharmacy: 'Pharmacy', billing: 'Billing', review: 'Review with doctor',
+  }
+  const deptEn = s.departmentNameEn ?? ''
+  const stageEn = s.stage ? STAGE_LABEL[s.stage] ?? s.stage : ''
+  const deptLine = stageEn && stageEn.toLowerCase() !== deptEn.toLowerCase()
+    ? `${deptEn} · ${stageEn}`
+    : deptEn || stageEn
+  const roomLine = [s.roomLabel, s.doctorName].filter(Boolean).join(' · ')
+
+  return {
+    status: s.status,
+    schoolName: s.hospitalNameI18n ?? (s.hospitalName ? { en: s.hospitalName } : undefined),
+    schoolNameEn: s.hospitalName,
+    logoUrl: s.logoUrl,
+    languages: s.languages,
+    locale: s.locale ?? null,
+    tokenCode: s.tokenCode,
+    // SchoolTokenStatus has no 'serving' — the hospital flow never persists it
+    // either, but fold it to 'called' defensively for the shared tracker.
+    tokenStatus: s.tokenStatus === 'serving' ? 'called' : s.tokenStatus,
+    isPriority: !!s.priorityCategory,
+    joinedAt: s.joinedAt,
+    calledAt: s.calledAt ?? null,
+    departmentName: deptLine ? { en: deptLine } : undefined,
+    departmentNameEn: deptLine,
+    counterName: roomLine ? { en: roomLine } : undefined,
+    counterNameEn: roomLine || null,
+    serviceDate: s.serviceDate,
+    isToday: s.isToday,
+    waitingAhead: s.waitingAhead,
+    nowServingCode: s.nowServingCode ?? null,
+    etaSeconds: s.etaSeconds,
+    paceSampleCount: s.paceSampleCount,
+  }
+}
+
 // ── Tokens ────────────────────────────────────────────────────
 export const getTodayHospitalTokens = cache(async (branchId: string): Promise<HospitalTokenDTO[]> => {
   const serviceDate = await getHospitalServiceDate(branchId)
@@ -321,6 +372,58 @@ export async function searchHospitalPatients(
   }
 
   return rows.map(toHospitalPatientDTO)
+}
+
+// A single patient record with their visit history and every token those
+// visits have issued. Writes one DPDP access-log row — this is a detail view.
+export interface HospitalPatientDetail {
+  patient: HospitalPatientDTO
+  visits: HospitalVisitDTO[]
+  tokens: HospitalTokenDTO[]
+}
+
+export async function getHospitalPatientDetail(
+  customerId: string,
+  patientId: string,
+  accessedBy: string
+): Promise<HospitalPatientDetail | null> {
+  const supabase = createSupabaseServiceClient()
+  const { data: patient } = await supabase
+    .from('hospital_patients')
+    .select('*')
+    .eq('id', patientId)
+    .eq('customer_id', customerId)
+    .maybeSingle()
+
+  if (!patient) return null
+
+  const [{ data: visits }, { data: tokens }] = await Promise.all([
+    supabase
+      .from('hospital_visits')
+      .select('*')
+      .eq('patient_id', patientId)
+      .order('visit_date', { ascending: false })
+      .limit(30),
+    supabase
+      .from('hospital_tokens')
+      .select('*, hospital_visits!inner(patient_id)')
+      .eq('hospital_visits.patient_id', patientId)
+      .order('joined_at', { ascending: false })
+      .limit(60),
+  ])
+
+  await supabase.from('hospital_patient_access_logs').insert({
+    customer_id: customerId,
+    patient_id: patientId,
+    accessed_by: accessedBy,
+    reason: 'reception-detail',
+  })
+
+  return {
+    patient: toHospitalPatientDTO(patient as DbHospitalPatient),
+    visits: ((visits ?? []) as DbHospitalVisit[]).map(toHospitalVisitDTO),
+    tokens: ((tokens ?? []) as DbHospitalToken[]).map(toHospitalTokenDTO),
+  }
 }
 
 // ── Visits ────────────────────────────────────────────────────
@@ -445,4 +548,142 @@ export async function getHospitalKioskFeed(branchToken: string): Promise<Hospita
     waitingTotal: waitingRows.length,
     issuedToday: issuedToday ?? 0,
   }
+}
+
+// ── Reports ───────────────────────────────────────────────────
+// Wait time here is the honest per-stage figure: called_at − joined_at on the
+// token row, where joined_at was reset by each transfer (a transferred token's
+// clock restarts because the patient *was* being served in between). This is
+// NOT the restaurant completed_at − started_at mislabel the school plan flagged.
+export interface HospitalReport {
+  from: string
+  to: string
+  totalTokens: number
+  served: number
+  noShow: number
+  cancelled: number
+  avgWaitMinutes: number
+  noShowRate: number
+  byDay: { date: string; issued: number; served: number }[]
+  byDepartment: { id: string; name: string; color: string; total: number; served: number; noShow: number; avgWaitMinutes: number }[]
+  byDoctor: { id: string; name: string; served: number; avgWaitMinutes: number }[]
+  byHour: { hour: number; count: number }[]
+  stageFunnel: { stage: string; reached: number }[]
+}
+
+const REPORT_STAGES = ['registration', 'triage', 'consult', 'lab', 'radiology', 'review', 'pharmacy', 'billing']
+
+export async function getHospitalReport(
+  branchId: string,
+  from: string,
+  to: string
+): Promise<HospitalReport> {
+  const supabase = createSupabaseServiceClient()
+
+  const [{ data: tokenRows }, { data: eventRows }, departments, doctors] = await Promise.all([
+    supabase
+      .from('hospital_tokens')
+      .select('*')
+      .eq('branch_id', branchId)
+      .gte('service_date', from)
+      .lte('service_date', to)
+      .limit(20000),
+    supabase
+      .from('hospital_token_events')
+      .select('token_id, to_stage')
+      .eq('branch_id', branchId)
+      .gte('created_at', `${from}T00:00:00`)
+      .lte('created_at', `${to}T23:59:59`)
+      .not('to_stage', 'is', null)
+      .limit(50000),
+    getHospitalDepartments(branchId),
+    getHospitalDoctors(branchId),
+  ])
+
+  const tokens = ((tokenRows ?? []) as DbHospitalToken[]).map(toHospitalTokenDTO)
+  const docById = new Map(doctors.map((d) => [d.id, d]))
+
+  const waitMin = (t: HospitalTokenDTO): number | null => {
+    if (!t.calledAt) return null
+    const m = Math.round((new Date(t.calledAt).getTime() - new Date(t.joinedAt).getTime()) / 60000)
+    return m >= 0 ? m : null
+  }
+  const avg = (nums: number[]) => (nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : 0)
+
+  const served = tokens.filter((t) => t.status === 'served').length
+  const noShow = tokens.filter((t) => t.status === 'no-show').length
+  const cancelled = tokens.filter((t) => t.status === 'cancelled').length
+
+  // By day
+  const dayMap = new Map<string, { issued: number; served: number }>()
+  for (const t of tokens) {
+    const d = dayMap.get(t.serviceDate) ?? { issued: 0, served: 0 }
+    d.issued++
+    if (t.status === 'served') d.served++
+    dayMap.set(t.serviceDate, d)
+  }
+  const byDay = [...dayMap.entries()].sort().map(([date, v]) => ({ date, ...v }))
+
+  // By department
+  const byDepartment = departments.map((dept) => {
+    const list = tokens.filter((t) => t.departmentId === dept.id)
+    return {
+      id: dept.id,
+      name: pickLocaleName(dept.name),
+      color: dept.color,
+      total: list.length,
+      served: list.filter((t) => t.status === 'served').length,
+      noShow: list.filter((t) => t.status === 'no-show').length,
+      avgWaitMinutes: avg(list.map(waitMin).filter((m): m is number => m !== null)),
+    }
+  }).filter((d) => d.total > 0)
+
+  // By doctor
+  const doctorIds = [...new Set(tokens.map((t) => t.doctorId).filter((x): x is string => !!x))]
+  const byDoctor = doctorIds.map((id) => {
+    const list = tokens.filter((t) => t.doctorId === id)
+    return {
+      id,
+      name: docById.get(id)?.name ?? 'Unknown',
+      served: list.filter((t) => t.status === 'served').length,
+      avgWaitMinutes: avg(list.map(waitMin).filter((m): m is number => m !== null)),
+    }
+  }).sort((a, b) => b.served - a.served)
+
+  // By hour of issuance
+  const hourCounts = new Array(24).fill(0)
+  for (const t of tokens) hourCounts[new Date(t.joinedAt).getHours()]++
+  const byHour = hourCounts.map((count, hour) => ({ hour, count }))
+
+  // Stage funnel — distinct tokens that ever reached each stage (from events).
+  const reachedByStage = new Map<string, Set<string>>()
+  for (const e of (eventRows ?? []) as { token_id: string | null; to_stage: string | null }[]) {
+    if (!e.token_id || !e.to_stage) continue
+    const set = reachedByStage.get(e.to_stage) ?? new Set<string>()
+    set.add(e.token_id)
+    reachedByStage.set(e.to_stage, set)
+  }
+  const stageFunnel = REPORT_STAGES
+    .map((stage) => ({ stage, reached: reachedByStage.get(stage)?.size ?? 0 }))
+    .filter((s) => s.reached > 0)
+
+  return {
+    from,
+    to,
+    totalTokens: tokens.length,
+    served,
+    noShow,
+    cancelled,
+    avgWaitMinutes: avg(tokens.map(waitMin).filter((m): m is number => m !== null)),
+    noShowRate: tokens.length ? Math.round((noShow / tokens.length) * 100) : 0,
+    byDay,
+    byDepartment,
+    byDoctor,
+    byHour,
+    stageFunnel,
+  }
+}
+
+function pickLocaleName(name: { en: string } & Record<string, string | undefined>): string {
+  return name.en ?? Object.values(name)[0] ?? ''
 }

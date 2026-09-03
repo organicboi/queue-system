@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { getPublicTicketStatus } from '@/lib/dal/school'
+import { getHospitalPublicTicketStatus } from '@/lib/dal/hospital'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,14 @@ export async function GET(
   { params }: { params: Promise<{ code: string }> }
 ) {
   const { code } = await params
-  const result = await getPublicTicketStatus(code)
+  // Same opaque 8-char code space for both verticals; a school deployment has
+  // no hospital tokens and vice versa. Try school, then fall back to the
+  // hospital tracker (normalised into the same shape) on an unknown code.
+  let result = await getPublicTicketStatus(code)
+  if (result.status === 'not-found') {
+    const hospital = await getHospitalPublicTicketStatus(code)
+    if (hospital) result = hospital
+  }
 
   return Response.json(result, {
     status: 200,

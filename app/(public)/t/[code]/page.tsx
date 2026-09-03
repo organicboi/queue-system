@@ -1,4 +1,5 @@
 import { getPublicTicketStatus } from '@/lib/dal/school'
+import { getHospitalPublicTicketStatus } from '@/lib/dal/hospital'
 import { TrackerClient } from './TrackerClient'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,11 @@ interface Props {
 // a wrong QR scan should explain itself, not throw a framework error page.
 export default async function PublicTicketPage({ params }: Props) {
   const { code } = await params
-  const initial = await getPublicTicketStatus(code)
+  let initial = await getPublicTicketStatus(code)
+  if (initial.status === 'not-found') {
+    const hospital = await getHospitalPublicTicketStatus(code)
+    if (hospital) initial = hospital
+  }
 
   return <TrackerClient code={code} initial={initial} />
 }

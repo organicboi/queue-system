@@ -24,14 +24,6 @@ const navItems = [
   { href: '/hospital/settings',    label: 'Settings',      icon: Settings },
 ]
 
-// Which nav destinations exist yet — the operating loop shipped first, the rest
-// land in later phases. A pending item still renders (so the shape of the
-// product is visible) but is not a link.
-const LIVE = new Set([
-  '/hospital/dashboard', '/hospital/departments', '/hospital/doctors',
-  '/hospital/rooms', '/hospital/screens', '/hospital/settings', '/hospital/users',
-])
-
 export function HospitalSidebar({ onNavigate, hospitalName }: {
   onNavigate?: () => void
   hospitalName?: string
@@ -55,20 +47,7 @@ export function HospitalSidebar({ onNavigate, hospitalName }: {
           Menu
         </p>
         {navItems.map(({ href, label, icon: Icon }) => {
-          const live = LIVE.has(href)
           const isActive = pathname === href || pathname.startsWith(`${href}/`)
-          if (!live) {
-            return (
-              <span
-                key={href}
-                className="flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg text-slate-300 cursor-not-allowed"
-                title="Coming in a later phase"
-              >
-                <Icon className="size-4 shrink-0" />
-                {label}
-              </span>
-            )
-          }
           return (
             <Link
               key={href}
