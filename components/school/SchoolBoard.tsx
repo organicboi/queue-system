@@ -9,6 +9,55 @@ import { DisplayClock } from '@/components/display/DisplayClock'
 import { useSchoolBoard } from '@/lib/hooks/useSchoolBoard'
 import { SchoolAnnouncer } from '@/lib/school/announce'
 import type { SchoolBoardPacket } from '@/lib/db/school-types'
+import type { Locale } from '@/lib/region'
+import { coerceLocales, defaultLocale, dirFor, pickLocale, regionLocales } from '@/lib/region'
+
+// The board renders in the market's base locale (lib/region.ts) — a single
+// public screen, one language, like the school kiosk's primary column.
+type BoardCopy = Record<Locale, {
+  tokenNo: string; counter: string; status: string
+  pleaseProceed: string; available: string; noCounters: string
+  nowCalling: string; callingAgain: string
+  notActive: string; enableSound: string; enableSoundHint: string
+}>
+const BOARD_COPY: BoardCopy = {
+  en: {
+    tokenNo: 'TOKEN NO.', counter: 'COUNTER', status: 'STATUS',
+    pleaseProceed: 'Please proceed', available: 'Available',
+    noCounters: 'No counters are open right now',
+    nowCalling: 'Now calling', callingAgain: 'Calling again',
+    notActive: 'This display is not active.',
+    enableSound: 'Tap anywhere to enable sound',
+    enableSoundHint: 'Announcements and ad audio',
+  },
+  ar: {
+    tokenNo: 'رقم التذكرة', counter: 'الشباك', status: 'الحالة',
+    pleaseProceed: 'يرجى التوجه', available: 'متاح',
+    noCounters: 'لا توجد شبابيك مفتوحة الآن',
+    nowCalling: 'النداء الآن', callingAgain: 'إعادة النداء',
+    notActive: 'هذه الشاشة غير مفعّلة.',
+    enableSound: 'انقر في أي مكان لتفعيل الصوت',
+    enableSoundHint: 'الإعلانات وصوت الإعلانات',
+  },
+  mr: {
+    tokenNo: 'टोकन क्र.', counter: 'काउंटर', status: 'स्थिती',
+    pleaseProceed: 'कृपया पुढे या', available: 'उपलब्ध',
+    noCounters: 'सध्या कोणतेही काउंटर उघडे नाही',
+    nowCalling: 'आता बोलावत आहे', callingAgain: 'पुन्हा बोलावत आहे',
+    notActive: 'हा डिस्प्ले सक्रिय नाही.',
+    enableSound: 'आवाज सुरू करण्यासाठी कुठेही स्पर्श करा',
+    enableSoundHint: 'घोषणा आणि जाहिरात आवाज',
+  },
+  hi: {
+    tokenNo: 'टोकन नं.', counter: 'काउंटर', status: 'स्थिति',
+    pleaseProceed: 'कृपया आगे बढ़ें', available: 'उपलब्ध',
+    noCounters: 'अभी कोई काउंटर खुला नहीं है',
+    nowCalling: 'अभी बुला रहे हैं', callingAgain: 'फिर से बुला रहे हैं',
+    notActive: 'यह डिस्प्ले सक्रिय नहीं है.',
+    enableSound: 'ध्वनि चालू करने के लिए कहीं भी स्पर्श करें',
+    enableSoundHint: 'घोषणाएँ और विज्ञापन ध्वनि',
+  },
+}
 
 // Guest waiting-area board. Light canvas to match the rest of the product,
 // mono token numbers sized with clamp() to stay legible from across a lobby,
@@ -23,6 +72,17 @@ export function SchoolBoard({ screenToken, initial }: {
   initial: SchoolBoardPacket
 }) {
   const { packet, lastCall } = useSchoolBoard(screenToken, initial)
+  const boardLocale = defaultLocale()
+  const bc = BOARD_COPY[boardLocale] ?? BOARD_COPY.en
+  const boardRtl = dirFor(boardLocale) === 'rtl'
+  // Which locales the announcer speaks. Phase 2: the RPC emits announceLocales
+  // from school_settings.languages. Fall back to the screen's announcement_lang
+  // for an un-migrated board packet ('both' → every market locale).
+  const announceLocales: Locale[] = packet.announceLocales?.length
+    ? coerceLocales(packet.announceLocales)
+    : packet.announcementLang === 'both'
+      ? regionLocales()
+      : coerceLocales(packet.announcementLang ? [packet.announcementLang] : [boardLocale])
   // Lazy initialiser rather than a ref written during render: the announcer is
   // created once, and reading it while rendering stays legal.
   const [announcer] = useState(() => new SchoolAnnouncer())
@@ -48,11 +108,12 @@ export function SchoolBoard({ screenToken, initial }: {
     if (packet.announceEnabled !== false && audioReady) {
       announcer.announce({
         tokenCode: lastCall.tokenCode,
-        counterEn: lastCall.counterEn,
-        counterAr: lastCall.counterAr,
-        lang: packet.announcementLang ?? 'en',
-        templateEn: packet.announceTemplateEn ?? 'Token {token}, please proceed to {counter}',
-        templateAr: packet.announceTemplateAr ?? '',
+        counter: lastCall.counter ?? { en: lastCall.counterEn, ar: lastCall.counterAr },
+        templates: packet.announceTemplateI18n ?? {
+          en: packet.announceTemplateEn ?? 'Token {token}, please proceed to {counter}',
+          ar: packet.announceTemplateAr ?? '',
+        },
+        locales: announceLocales,
       })
     }
 
@@ -87,13 +148,16 @@ export function SchoolBoard({ screenToken, initial }: {
   if (packet.status === 'expired') {
     return (
       <div className="flex h-dvh w-screen items-center justify-center bg-slate-50 text-slate-500">
-        <p className="text-2xl font-semibold">This display is not active.</p>
+        <p className="text-2xl font-semibold" dir={dirFor(boardLocale)}>{bc.notActive}</p>
       </div>
     )
   }
 
   return (
-    <div className="relative flex h-dvh w-screen flex-col overflow-hidden bg-slate-50 text-slate-900">
+    <div
+      dir={dirFor(boardLocale)}
+      className="relative flex h-dvh w-screen flex-col overflow-hidden bg-slate-50 text-slate-900"
+    >
       {/* Header */}
       <header className="flex shrink-0 items-center gap-4 border-b border-slate-200 bg-white px-6 py-3">
         {packet.logoUrl ? (
@@ -113,11 +177,14 @@ export function SchoolBoard({ screenToken, initial }: {
           >
             {packet.schoolName}
           </p>
-          {packet.schoolNameAr ? (
-            <p dir="rtl" className="truncate text-slate-500" style={{ fontSize: 'clamp(0.8rem, 1.2vw, 1.3rem)' }}>
-              {packet.schoolNameAr}
-            </p>
-          ) : null}
+          {regionLocales().slice(1).map((l) => {
+            const name = packet.schoolNameI18n?.[l] || (l === 'ar' ? packet.schoolNameAr : '')
+            return name ? (
+              <p key={l} dir={dirFor(l)} className="truncate text-slate-500" style={{ fontSize: 'clamp(0.8rem, 1.2vw, 1.3rem)' }}>
+                {name}
+              </p>
+            ) : null
+          })}
         </div>
         {packet.showClock !== false && (
           <DisplayClock timeColor="#0F172A" dateColor="#64748B" />
@@ -128,9 +195,9 @@ export function SchoolBoard({ screenToken, initial }: {
       <div className="flex min-h-0 flex-1">
         <main className={hasAds ? 'flex min-w-0 flex-[62] flex-col' : 'flex min-w-0 flex-1 flex-col'}>
           <div className="grid shrink-0 grid-cols-[1fr_1fr_1fr] gap-4 border-b border-slate-200 bg-white px-6 py-2 text-slate-500">
-            <HeaderCell en="TOKEN NO." ar="رقم التذكرة" />
-            <HeaderCell en="COUNTER" ar="الشباك" />
-            <HeaderCell en="STATUS" ar="الحالة" />
+            <HeaderCell label={bc.tokenNo} dir={dirFor(boardLocale)} />
+            <HeaderCell label={bc.counter} dir={dirFor(boardLocale)} />
+            <HeaderCell label={bc.status} dir={dirFor(boardLocale)} />
           </div>
 
           <div
@@ -142,7 +209,7 @@ export function SchoolBoard({ screenToken, initial }: {
           >
             {counters.length === 0 ? (
               <div className="col-span-full flex flex-1 items-center justify-center text-slate-400">
-                <p style={{ fontSize: 'clamp(1rem, 2vw, 2rem)' }}>No counters are open right now</p>
+                <p style={{ fontSize: 'clamp(1rem, 2vw, 2rem)' }}>{bc.noCounters}</p>
               </div>
             ) : (
               counters.map((counter) => {
@@ -169,14 +236,14 @@ export function SchoolBoard({ screenToken, initial }: {
                     </p>
                     <div className="min-w-0">
                       <p className="truncate font-semibold" style={{ fontSize: 'clamp(1rem, 2.4vw, 2.6rem)' }}>
-                        {counter.name_en}
+                        {pickLocale(counter.name, boardLocale) || counter.name_en}
                       </p>
-                      {counter.department_en && (
+                      {(pickLocale(counter.department, boardLocale) || counter.department_en) && (
                         <p
                           className={called ? 'truncate text-white/80' : 'truncate text-slate-500'}
                           style={{ fontSize: 'clamp(0.7rem, 1.1vw, 1.2rem)' }}
                         >
-                          {counter.department_en}
+                          {pickLocale(counter.department, boardLocale) || counter.department_en}
                         </p>
                       )}
                     </div>
@@ -184,7 +251,7 @@ export function SchoolBoard({ screenToken, initial }: {
                       className="truncate font-semibold"
                       style={{ fontSize: 'clamp(0.9rem, 2vw, 2.2rem)' }}
                     >
-                      {called ? 'Please proceed' : 'Available'}
+                      {called ? bc.pleaseProceed : bc.available}
                     </p>
                   </motion.div>
                 )
@@ -203,7 +270,7 @@ export function SchoolBoard({ screenToken, initial }: {
                 >
                   <span className="size-2 rounded-full" style={{ backgroundColor: d.color }} />
                   <span className="text-slate-600" style={{ fontSize: 'clamp(0.65rem, 0.9vw, 1rem)' }}>
-                    {d.name_en}
+                    {pickLocale(d.name, boardLocale) || d.name_en}
                   </span>
                   <span
                     dir="ltr"
@@ -230,7 +297,13 @@ export function SchoolBoard({ screenToken, initial }: {
         <footer className="flex shrink-0 items-stretch overflow-hidden border-t border-slate-200 bg-white">
           <div className="w-1.5 shrink-0 bg-accent-600" />
           <div className="flex-1 overflow-hidden py-2">
-            <div className="animate-[school-marquee_38s_linear_infinite] whitespace-nowrap">
+            <div
+              className={
+                boardRtl
+                  ? 'animate-[school-marquee-rtl_38s_linear_infinite] whitespace-nowrap'
+                  : 'animate-[school-marquee_38s_linear_infinite] whitespace-nowrap'
+              }
+            >
               <span className="px-8 text-slate-600" style={{ fontSize: 'clamp(0.8rem, 1.2vw, 1.4rem)' }}>
                 {ticker}
               </span>
@@ -255,7 +328,7 @@ export function SchoolBoard({ screenToken, initial }: {
               className="flex w-full max-w-4xl flex-col items-center rounded-3xl border border-slate-200 bg-white px-10 py-12 text-center shadow-2xl"
             >
               <p className="font-semibold uppercase tracking-[0.2em] text-slate-400" style={{ fontSize: 'clamp(0.9rem, 1.6vw, 1.6rem)' }}>
-                {flash.recallCount > 0 ? 'Calling again' : 'Now calling'}
+                {flash.recallCount > 0 ? bc.callingAgain : bc.nowCalling}
               </p>
               <p
                 dir="ltr"
@@ -265,11 +338,11 @@ export function SchoolBoard({ screenToken, initial }: {
                 {flash.tokenCode}
               </p>
               <p className="mt-3 font-semibold text-slate-900" style={{ fontSize: 'clamp(1.4rem, 4vw, 3.5rem)' }}>
-                {flash.counterEn}
+                {pickLocale(flash.counter, boardLocale) || flash.counterEn}
               </p>
-              {flash.departmentEn && (
+              {(pickLocale(flash.department, boardLocale) || flash.departmentEn) && (
                 <p className="text-slate-500" style={{ fontSize: 'clamp(0.9rem, 1.6vw, 1.6rem)' }}>
-                  {flash.departmentEn}
+                  {pickLocale(flash.department, boardLocale) || flash.departmentEn}
                 </p>
               )}
             </motion.div>
@@ -289,22 +362,19 @@ export function SchoolBoard({ screenToken, initial }: {
           className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-white/95 text-slate-700"
         >
           <Volume2 className="size-12 text-accent-600" />
-          <span className="text-2xl font-semibold">Tap anywhere to enable sound</span>
-          <span className="text-sm text-slate-500">Announcements and ad audio</span>
+          <span className="text-2xl font-semibold">{bc.enableSound}</span>
+          <span className="text-sm text-slate-500">{bc.enableSoundHint}</span>
         </button>
       )}
     </div>
   )
 }
 
-function HeaderCell({ en, ar }: { en: string; ar: string }) {
+function HeaderCell({ label, dir }: { label: string; dir: 'rtl' | 'ltr' }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0" dir={dir}>
       <p className="truncate font-semibold tracking-wider" style={{ fontSize: 'clamp(0.7rem, 1.1vw, 1.2rem)' }}>
-        {en}
-      </p>
-      <p dir="rtl" className="truncate text-slate-400" style={{ fontSize: 'clamp(0.6rem, 0.9vw, 1rem)' }}>
-        {ar}
+        {label}
       </p>
     </div>
   )

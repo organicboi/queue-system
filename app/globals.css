@@ -72,7 +72,10 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
-  --font-sans: var(--font-geist-sans), var(--font-arabic), sans-serif;
+  /* --font-script is bound by the market's secondary-script face in
+     app/layout.tsx (Arabic for AE, Devanagari for IN); it is absent for an
+     English-only market, hence the sans-serif fallback inside var(). */
+  --font-sans: var(--font-geist-sans), var(--font-script, sans-serif), sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
@@ -119,4 +122,12 @@ body {
 @keyframes school-marquee {
   from { transform: translateX(100%); }
   to   { transform: translateX(-100%); }
+}
+
+/* RTL twin of the above — SchoolBoard names this keyframe instead when the
+   board's primary locale is right-to-left (Arabic). LTR markets (en/mr/hi)
+   never reference it. */
+@keyframes school-marquee-rtl {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
 }

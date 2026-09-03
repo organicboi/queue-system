@@ -12,6 +12,7 @@ import type { ScreenActionResult } from '@/lib/actions/branches'
 import { Tv, Plus, Copy, RefreshCw, Trash2, ExternalLink, Megaphone, Globe } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ScreenDTO, AnnouncementLang, AdDTO } from '@/lib/db/types'
+import { defaultLocale, regionLocales } from '@/lib/region'
 
 interface Props {
   branchId: string
@@ -160,13 +161,18 @@ export function ScreensManager({ branchId, initialScreens, availableAds = [], sc
                     <div className="flex items-center gap-1.5">
                       <span className="text-[11px] font-medium text-muted-foreground">Announce</span>
                       <select
-                        value={screen.announcementLang ?? 'en'}
+                        value={screen.announcementLang ?? defaultLocale()}
                         onChange={(e) => handleLangChange(screen.id, e.target.value as AnnouncementLang)}
                         className="h-7 rounded-md border border-border bg-white px-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-accent-400 cursor-pointer"
                       >
-                        <option value="en">EN</option>
-                        <option value="ar">AR</option>
-                        <option value="both">EN + AR</option>
+                        {regionLocales().map((l) => (
+                          <option key={l} value={l}>{l.toUpperCase()}</option>
+                        ))}
+                        {regionLocales().length > 1 && (
+                          <option value="both">
+                            {regionLocales().map((l) => l.toUpperCase()).join(' + ')}
+                          </option>
+                        )}
                       </select>
                     </div>
                     <Button

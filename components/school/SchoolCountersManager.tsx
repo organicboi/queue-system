@@ -18,6 +18,7 @@ import {
   type SchoolCounterResult,
 } from '@/lib/actions/school-admin'
 import type { SchoolCounterDTO, SchoolDepartmentDTO, SchoolQuota } from '@/lib/db/school-types'
+import { dirFor, LOCALE_LABEL, regionLocales } from '@/lib/region'
 
 const INIT: SchoolCounterResult = {}
 
@@ -105,16 +106,18 @@ export function SchoolCountersManager({ branchId, initialCounters, departments, 
             <form action={createAction} className="space-y-4">
               <input type="hidden" name="branchId" value={branchId} />
               <div className="space-y-1.5">
-                <Label htmlFor="nameEn">Counter name</Label>
-                <Input id="nameEn" name="nameEn" required maxLength={100} placeholder="Counter 1" />
+                <Label htmlFor="name_en">Counter name</Label>
+                <Input id="name_en" name="name_en" required maxLength={100} placeholder="Counter 1" />
                 <p className="text-[11px] text-muted-foreground">
                   This is what the TV shows visitors, so name it the way the window is signed.
                 </p>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="nameAr">Counter name (Arabic)</Label>
-                <Input id="nameAr" name="nameAr" maxLength={100} dir="rtl" placeholder="شباك ١" />
-              </div>
+              {regionLocales().slice(1).map((l) => (
+                <div key={l} className="space-y-1.5">
+                  <Label htmlFor={`name_${l}`}>Counter name ({LOCALE_LABEL[l]})</Label>
+                  <Input id={`name_${l}`} name={`name_${l}`} maxLength={100} dir={dirFor(l)} />
+                </div>
+              ))}
               <div className="space-y-1.5">
                 <Label htmlFor="keypadCode">Hardware keypad code</Label>
                 <Input id="keypadCode" name="keypadCode" maxLength={8} inputMode="numeric" placeholder="Optional" />

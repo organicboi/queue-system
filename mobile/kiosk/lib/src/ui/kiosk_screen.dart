@@ -40,7 +40,12 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
   bool _issueSlow = false;
   Timer? _slowTimer;
 
-  ({SchoolToken token, SchoolDepartment department})? _confirm;
+  ({
+    SchoolToken token,
+    SchoolDepartment department,
+    String? publicUrl,
+    Duration linger,
+  })? _confirm;
   Timer? _confirmTimer;
   Timer? _bootRetryTimer;
   bool _langInitialised = false;
@@ -80,8 +85,23 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
 
   void _showConfirmation(SchoolToken token, SchoolDepartment department) {
     _confirmTimer?.cancel();
-    setState(() => _confirm = (token: token, department: department));
-    _confirmTimer = Timer(AppConfig.heroLinger, _dismissConfirmation);
+    // Same gate `escpos_printer.dart` uses to decide whether the printed
+    // ticket gets a QR — the on-screen confirmation should never offer a
+    // scan the paper ticket doesn't also carry, or vice versa.
+    final bootstrap = ref.read(bootstrapProvider).value;
+    final publicUrl = (bootstrap != null &&
+            bootstrap.publicTrackingEnabled &&
+            token.publicCode.isNotEmpty)
+        ? '${bootstrap.publicBaseUrl}/t/${token.publicCode}'
+        : null;
+    final linger = publicUrl != null ? AppConfig.qrLinger : AppConfig.heroLinger;
+    setState(() => _confirm = (
+          token: token,
+          department: department,
+          publicUrl: publicUrl,
+          linger: linger,
+        ));
+    _confirmTimer = Timer(linger, _dismissConfirmation);
   }
 
   void _dismissConfirmation() {
@@ -238,7 +258,12 @@ class _Shell extends ConsumerWidget {
   final String? issuingDeptId;
   final bool issueSlow;
   final ValueChanged<SchoolDepartment> onIssue;
-  final ({SchoolToken token, SchoolDepartment department})? confirm;
+  final ({
+    SchoolToken token,
+    SchoolDepartment department,
+    String? publicUrl,
+    Duration linger,
+  })? confirm;
   final VoidCallback onDismissConfirm;
 
   @override
@@ -284,6 +309,8 @@ class _Shell extends ConsumerWidget {
                   ConfirmationOverlay(
                     token: confirm!.token,
                     department: confirm!.department,
+                    publicUrl: confirm!.publicUrl,
+                    linger: confirm!.linger,
                     lang: lang,
                     copy: copy,
                     onDismiss: onDismissConfirm,

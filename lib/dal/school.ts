@@ -3,7 +3,7 @@ import { cache } from 'react'
 import { createSupabaseServiceClient } from '@/lib/db/server'
 import {
   toSchoolSettingsDTO, toSchoolDepartmentDTO, toSchoolCounterDTO,
-  toSchoolTokenDTO, toSchoolActivityLogDTO,
+  toSchoolTokenDTO, toSchoolActivityLogDTO, toLocaleMap,
   type SchoolSettingsDTO, type SchoolDepartmentDTO, type SchoolCounterDTO,
   type SchoolTokenDTO, type SchoolActivityLogDTO, type SchoolBoardPacket,
   type SchoolDashboardStats, type SchoolDepartmentStats, type SchoolKioskFeed,
@@ -383,12 +383,13 @@ export async function getSchoolBranchIdentities(
 
   const { data: settings } = await supabase
     .from('school_settings')
-    .select('branch_id, school_name_en, school_name_ar, logo_url')
+    .select('branch_id, school_name_en, school_name_ar, school_name, logo_url')
     .in('branch_id', branchRows.map((b) => b.id))
 
   const byBranch = new Map(
     ((settings ?? []) as {
-      branch_id: string; school_name_en: string; school_name_ar: string; logo_url: string
+      branch_id: string; school_name_en: string; school_name_ar: string
+      school_name: unknown; logo_url: string
     }[]).map((r) => [r.branch_id, r])
   )
 
@@ -401,6 +402,7 @@ export async function getSchoolBranchIdentities(
       customerId: branch.customer_id,
       schoolNameEn: row?.school_name_en ?? '',
       schoolNameAr: row?.school_name_ar ?? '',
+      schoolName: toLocaleMap(row?.school_name, row?.school_name_en ?? ''),
       logoUrl: row?.logo_url ?? '',
     })
   }

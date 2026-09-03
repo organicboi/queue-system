@@ -6,6 +6,7 @@
 // re-exported from there, never redefined.
 
 import type { AnnouncementLang } from '@/lib/db/types'
+import type { Locale, LocaleMap } from '@/lib/region'
 
 // ── Primitive types ───────────────────────────────────────────
 export type SchoolTokenStatus =
@@ -17,7 +18,10 @@ export type SchoolActivityType =
   | 'issued' | 'called' | 'recalled' | 'held' | 'resumed' | 'served'
   | 'no-show' | 'cancelled' | 'transferred' | 'counter-opened' | 'counter-closed'
 
-export type SchoolLanguage = 'en' | 'ar'
+// The set of locales actually offered is per-deployment (lib/region.ts); this
+// union is the superset any market could use. Callers must run stored values
+// through coerceLocales() to drop anything the current market does not offer.
+export type SchoolLanguage = Locale
 
 // The provider-owned branding for one school branch, as the distributor panel
 // edits it. Tenants see it read-only on /school/settings.
@@ -27,6 +31,7 @@ export interface SchoolBranchIdentity {
   customerId: string
   schoolNameEn: string
   schoolNameAr: string
+  schoolName: LocaleMap
   logoUrl: string
 }
 
@@ -46,15 +51,21 @@ export interface DbSchoolSettings {
   branch_id: string
   school_name_en: string
   school_name_ar: string
+  // Locale maps (Region rollout, Phase 2). Dual-written with the _en/_ar
+  // columns above until every client reads the maps — see
+  // supabase/migrations/20260904_school_content_locale_jsonb.sql.
+  school_name: LocaleMap
   logo_url: string
   languages: SchoolLanguage[]
   ticket_footer_en: string
   ticket_footer_ar: string
+  ticket_footer: LocaleMap
   kiosk_idle_seconds: number
   priority_enabled: boolean
   announce_enabled: boolean
   announce_template_en: string
   announce_template_ar: string
+  announce_template: LocaleMap
   print_enabled: boolean
   // The school's own switch for the public QR-tracking page. Effective only
   // together with customers.school_public_tracking_enabled (the distributor
@@ -72,6 +83,7 @@ export interface DbSchoolDepartment {
   branch_id: string
   name_en: string
   name_ar: string
+  name: LocaleMap
   prefix: string
   number_start: number
   color: string
@@ -89,6 +101,7 @@ export interface DbSchoolCounter {
   branch_id: string
   name_en: string
   name_ar: string
+  name: LocaleMap
   counter_token: string
   keypad_code: string | null
   keypad_map: Record<string, string>
@@ -157,15 +170,20 @@ export interface SchoolSettingsDTO {
   branchId: string
   schoolNameEn: string
   schoolNameAr: string
+  /** Locale map (Region rollout). `schoolNameEn`/`schoolNameAr` stay as
+   *  base-locale convenience projections until Phase 3. */
+  schoolName: LocaleMap
   logoUrl: string
   languages: SchoolLanguage[]
   ticketFooterEn: string
   ticketFooterAr: string
+  ticketFooter: LocaleMap
   kioskIdleSeconds: number
   priorityEnabled: boolean
   announceEnabled: boolean
   announceTemplateEn: string
   announceTemplateAr: string
+  announceTemplate: LocaleMap
   printEnabled: boolean
   publicTrackingEnabled: boolean
   timezone: string
@@ -178,6 +196,7 @@ export interface SchoolDepartmentDTO {
   branchId: string
   nameEn: string
   nameAr: string
+  name: LocaleMap
   prefix: string
   numberStart: number
   color: string
@@ -194,6 +213,7 @@ export interface SchoolCounterDTO {
   branchId: string
   nameEn: string
   nameAr: string
+  name: LocaleMap
   token: string
   keypadCode: string | null
   keypadMap: Record<string, string>
@@ -252,6 +272,7 @@ export interface SchoolBoardCounter {
   id: string
   name_en: string
   name_ar: string
+  name: LocaleMap | null
   display_order: number
   is_open: boolean
   last_seen_at: string | null
@@ -262,6 +283,7 @@ export interface SchoolBoardCounter {
   is_priority: boolean | null
   department_en: string | null
   department_ar: string | null
+  department: LocaleMap | null
   department_color: string | null
 }
 
@@ -270,12 +292,14 @@ export interface SchoolBoardRecent {
   served_at: string
   counter_en: string | null
   counter_ar: string | null
+  counter: LocaleMap | null
 }
 
 export interface SchoolBoardDepartment {
   id: string
   name_en: string
   name_ar: string
+  name: LocaleMap | null
   color: string
   display_order: number
   waiting: number
@@ -300,12 +324,16 @@ export interface SchoolBoardPacket {
   serviceDate?: string
   schoolName?: string
   schoolNameAr?: string
+  schoolNameI18n?: LocaleMap
   logoUrl?: string
   primaryColor?: string
   announcementLang?: AnnouncementLang
+  /** School languages, in order — what the board should speak (Phase 2 RPC). */
+  announceLocales?: Locale[]
   announceEnabled?: boolean
   announceTemplateEn?: string
   announceTemplateAr?: string
+  announceTemplateI18n?: LocaleMap
   showClock?: boolean
   tickerText?: string
   counters?: SchoolBoardCounter[]
@@ -352,6 +380,18 @@ export interface SchoolDashboardStats {
 }
 
 // ── Mapper Functions ───────────────────────────────────────────
+
+// Normalise a jsonb locale map from the DB: tolerate `{}` / null / a missing
+// 'en' key (an old row the backfill somehow skipped) by falling the base
+// locale back to the paired `_en` column.
+export function toLocaleMap(raw: unknown, fallbackEn = ''): LocaleMap {
+  const m = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? { ...(raw as Record<string, string>) }
+    : {}
+  if (!m.en) m.en = fallbackEn
+  return m as LocaleMap
+}
+
 export function toSchoolSettingsDTO(row: DbSchoolSettings): SchoolSettingsDTO {
   return {
     id: row.id,
@@ -359,15 +399,18 @@ export function toSchoolSettingsDTO(row: DbSchoolSettings): SchoolSettingsDTO {
     branchId: row.branch_id,
     schoolNameEn: row.school_name_en,
     schoolNameAr: row.school_name_ar,
+    schoolName: toLocaleMap(row.school_name, row.school_name_en),
     logoUrl: row.logo_url,
     languages: row.languages ?? ['en'],
     ticketFooterEn: row.ticket_footer_en,
     ticketFooterAr: row.ticket_footer_ar,
+    ticketFooter: toLocaleMap(row.ticket_footer, row.ticket_footer_en),
     kioskIdleSeconds: row.kiosk_idle_seconds,
     priorityEnabled: row.priority_enabled,
     announceEnabled: row.announce_enabled,
     announceTemplateEn: row.announce_template_en,
     announceTemplateAr: row.announce_template_ar,
+    announceTemplate: toLocaleMap(row.announce_template, row.announce_template_en),
     printEnabled: row.print_enabled,
     publicTrackingEnabled: row.public_tracking_enabled,
     timezone: row.timezone,
@@ -382,6 +425,7 @@ export function toSchoolDepartmentDTO(row: DbSchoolDepartment): SchoolDepartment
     branchId: row.branch_id,
     nameEn: row.name_en,
     nameAr: row.name_ar,
+    name: toLocaleMap(row.name, row.name_en),
     prefix: row.prefix,
     numberStart: row.number_start,
     color: row.color,
@@ -400,6 +444,7 @@ export function toSchoolCounterDTO(row: DbSchoolCounter): SchoolCounterDTO {
     branchId: row.branch_id,
     nameEn: row.name_en,
     nameAr: row.name_ar,
+    name: toLocaleMap(row.name, row.name_en),
     token: row.counter_token,
     keypadCode: row.keypad_code,
     keypadMap: row.keypad_map ?? {},
@@ -462,6 +507,7 @@ export interface PublicTicketStatus {
   status: 'ok' | 'not-found' | 'disabled' | 'expired'
   schoolNameEn?: string
   schoolNameAr?: string
+  schoolName?: LocaleMap
   logoUrl?: string
   languages?: SchoolLanguage[]
   tokenCode?: string
@@ -471,8 +517,10 @@ export interface PublicTicketStatus {
   calledAt?: string | null
   departmentNameEn?: string
   departmentNameAr?: string
+  departmentName?: LocaleMap
   counterNameEn?: string | null
   counterNameAr?: string | null
+  counterName?: LocaleMap
   serviceDate?: string
   // False when this ticket was issued on an earlier service day — the token
   // row may still say 'waiting' if the day rolled over before it was ever

@@ -1,6 +1,7 @@
 'use client'
 
-import type { AnnouncementLang } from '@/lib/db/types'
+import type { Locale, LocaleMap } from '@/lib/region'
+import { pickLocale } from '@/lib/region'
 
 // Three-tier announcer, ported from components/display/TVDisplay.tsx rather
 // than extracted from it: the board we promised not to destabilise is the
@@ -13,11 +14,22 @@ import type { AnnouncementLang } from '@/lib/db/types'
 
 export interface AnnounceInput {
   tokenCode: string
-  counterEn: string
-  counterAr: string
-  lang: AnnouncementLang
-  templateEn: string
-  templateAr: string
+  /** Counter name per locale. `en` is the mandatory fallback. */
+  counter: LocaleMap
+  /** Announcement template per locale, with {token} / {counter} placeholders. */
+  templates: LocaleMap
+  /** Locales to speak, in order. 'both' resolves to [base, first-secondary]
+   *  before it reaches here. */
+  locales: Locale[]
+}
+
+// Which locales need which BCP-47 voice. A locale with no matching voice
+// installed falls back to the English text on the en-US voice (see doSpeak).
+const VOICE: Record<Locale, string> = {
+  en: 'en-US',
+  ar: 'ar-SA',
+  mr: 'mr-IN',
+  hi: 'hi-IN',
 }
 
 // Speech engines read "A102" as a word, and a bare number as a cardinal
@@ -110,19 +122,29 @@ export class SchoolAnnouncer {
     } catch { /* chime is decoration; never let it break the call */ }
   }
 
-  announce({ tokenCode, counterEn, counterAr, lang, templateEn, templateAr }: AnnounceInput) {
+  announce({ tokenCode, counter, templates, locales }: AnnounceInput) {
     if (typeof window === 'undefined') return
     // Nothing to say without a token code, and announcing "please proceed to
     // Fees" with no number is worse than silence. Belt-and-braces with the
     // server-side guard: this runs on a ceiling-mounted TV nobody can reload.
     if (!tokenCode) return
 
-    const enText = fill(templateEn, spellToken(tokenCode), counterEn)
-    const arText = fill(templateAr, spellTokenArabic(tokenCode), counterAr || counterEn)
+    const speakLocales = locales.length ? locales : (['en'] as Locale[])
+
+    // Arabic TTS mishandles a Latin prefix letter, so it gets a transliteration
+    // table; Devanagari (mr/hi) reads digits and a spelled Latin letter fine,
+    // so it uses the plain speller.
+    const spell = (l: Locale) =>
+      l === 'ar' ? spellTokenArabic(tokenCode) : spellToken(tokenCode)
+    const DEFAULT_TEMPLATE = 'Token {token}, please proceed to {counter}'
+    const textFor = (l: Locale) => {
+      const template = pickLocale(templates, l) || templates.en || DEFAULT_TEMPLATE
+      const counterName = pickLocale(counter, l) || counter.en
+      return fill(template, spell(l), counterName)
+    }
 
     if ('AndroidTTS' in window) {
-      const text =
-        lang === 'ar' ? arText : lang === 'both' ? `${enText} ${arText}` : enText
+      const text = speakLocales.map(textFor).filter(Boolean).join('  ')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(window as any).AndroidTTS.speak(text)
       return
@@ -155,15 +177,21 @@ export class SchoolAnnouncer {
       })
 
     const doSpeak = async () => {
-      const hasArabic = !!findVoice('ar-SA')
-      if (lang === 'ar') {
-        // No Arabic voice installed on this TV — English is better than silence.
-        await speakOne(hasArabic ? arText : enText, hasArabic ? 'ar-SA' : 'en-US')
-      } else if (lang === 'both') {
-        await speakOne(enText, 'en-US')
-        if (hasArabic && arText.trim()) await speakOne(arText, 'ar-SA')
-      } else {
-        await speakOne(enText, 'en-US')
+      let lastSpoken = ''
+      const say = async (text: string, voiceLang: string) => {
+        if (!text.trim() || text === lastSpoken) return
+        lastSpoken = text
+        await speakOne(text, voiceLang)
+      }
+      for (const l of speakLocales) {
+        const target = VOICE[l] ?? 'en-US'
+        if (findVoice(target)) {
+          await say(textFor(l), target)
+        } else {
+          // No voice for this locale on this TV — the English wording on the
+          // English voice beats silence (and never repeats a line just said).
+          await say(textFor('en'), 'en-US')
+        }
       }
     }
 

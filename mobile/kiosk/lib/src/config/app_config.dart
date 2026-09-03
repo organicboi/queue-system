@@ -26,6 +26,12 @@ class AppConfig {
   /// is done sooner taps Done, or anywhere.
   static const Duration heroLinger = Duration(seconds: 3);
 
+  /// Same idea as [heroLinger], but for a ticket whose confirmation also
+  /// shows a trackable QR code: long enough for a visitor to actually raise
+  /// their phone and scan it, with the on-screen progress bar counting the
+  /// same window down so it never looks like an arbitrary wait.
+  static const Duration qrLinger = Duration(seconds: 10);
+
   /// Backoff for the bootstrap/feed retry loop on network failure — mirrors
   /// MainActivity.kt's reload-on-error in android-kiosk/.
   static const Duration retryInterval = Duration(seconds: 5);

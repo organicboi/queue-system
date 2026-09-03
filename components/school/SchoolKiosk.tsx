@@ -27,6 +27,8 @@ import type {
   SchoolDepartmentDTO, SchoolSettingsDTO, SchoolTokenDTO, SchoolTokenStatus,
   SchoolLanguage, SchoolKioskFeed,
 } from '@/lib/db/school-types'
+import type { Locale } from '@/lib/region'
+import { coerceLocales, defaultLocale, dirFor, LOCALE_LABEL, pickLocale } from '@/lib/region'
 
 interface Props {
   branchToken: string
@@ -99,15 +101,68 @@ const COPY = {
     priorityTag: 'أولوية',
     cancel: 'إلغاء التذكرة',
   },
+  mr: {
+    prompt: 'कृपया सेवा निवडा',
+    promptHint: 'क्रमांक घेण्यासाठी सेवेला स्पर्श करा',
+    priority: 'प्राधान्य सहाय्य',
+    priorityHint: 'ज्येष्ठ नागरिक आणि सहाय्याची गरज असलेले अभ्यागत',
+    priorityArmed: 'पुढील तिकीट प्राधान्याचे असेल',
+    yourToken: 'तुमचा टोकन क्रमांक',
+    watch: 'तुमच्या क्रमांकासाठी कृपया स्क्रीनकडे लक्ष द्या',
+    printing: 'तुमचे तिकीट छापत आहे…',
+    printFailed: 'प्रिंटर उपलब्ध नाही. कृपया तुमचा क्रमांक लक्षात ठेवा.',
+    issuing: 'देत आहे…',
+    waitingHere: 'प्रतीक्षेत',
+    noneWaiting: 'रांग नाही',
+    recent: 'आजची तिकिटे',
+    recentEmpty: 'येथे दिलेली तिकिटे या यादीत दिसतील.',
+    heroEmpty: 'तुमचे तिकीट येथे दिसेल',
+    inQueue: 'रांगेत',
+    issuedToday: 'आज दिलेली',
+    reprint: 'पुन्हा छापा',
+    move: 'हलवा',
+    moveTitle: 'दुसऱ्या सेवेकडे हलवा',
+    makePriority: 'प्राधान्य द्या',
+    clearPriority: 'प्राधान्य काढा',
+    priorityTag: 'प्राधान्य',
+    cancel: 'रद्द करा',
+  },
+  hi: {
+    prompt: 'कृपया सेवा चुनें',
+    promptHint: 'नंबर लेने के लिए सेवा को स्पर्श करें',
+    priority: 'प्राथमिकता सहायता',
+    priorityHint: 'वरिष्ठ नागरिक और सहायता चाहने वाले आगंतुक',
+    priorityArmed: 'अगला टिकट प्राथमिकता वाला होगा',
+    yourToken: 'आपका टोकन नंबर',
+    watch: 'अपने नंबर के लिए कृपया स्क्रीन देखें',
+    printing: 'आपका टिकट प्रिंट हो रहा है…',
+    printFailed: 'प्रिंटर उपलब्ध नहीं है. कृपया अपना नंबर नोट करें.',
+    issuing: 'जारी हो रहा है…',
+    waitingHere: 'प्रतीक्षा में',
+    noneWaiting: 'कोई कतार नहीं',
+    recent: 'आज के टिकट',
+    recentEmpty: 'यहाँ जारी किए गए टिकट इस सूची में दिखाई देंगे.',
+    heroEmpty: 'आपका टिकट यहाँ दिखाई देगा',
+    inQueue: 'कतार में',
+    issuedToday: 'आज जारी',
+    reprint: 'पुनः प्रिंट',
+    move: 'स्थानांतरित करें',
+    moveTitle: 'दूसरी सेवा में स्थानांतरित करें',
+    makePriority: 'प्राथमिकता दें',
+    clearPriority: 'प्राथमिकता हटाएँ',
+    priorityTag: 'प्राथमिकता',
+    cancel: 'रद्द करें',
+  },
 } as const
 
-const STATUS: Record<SchoolTokenStatus, { en: string; ar: string; className: string }> = {
-  waiting: { en: 'Waiting', ar: 'في الانتظار', className: 'bg-slate-100 text-slate-600 border-slate-200' },
-  called: { en: 'Called', ar: 'تم النداء', className: 'bg-accent-50 text-accent-700 border-accent-200' },
-  held: { en: 'On hold', ar: 'معلّق', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  served: { en: 'Served', ar: 'تمت الخدمة', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  'no-show': { en: 'No-show', ar: 'لم يحضر', className: 'bg-orange-50 text-orange-700 border-orange-200' },
-  cancelled: { en: 'Cancelled', ar: 'ملغاة', className: 'bg-slate-100 text-slate-400 border-slate-200' },
+type StatusCopy = Record<Locale, string> & { className: string }
+const STATUS: Record<SchoolTokenStatus, StatusCopy> = {
+  waiting: { en: 'Waiting', ar: 'في الانتظار', mr: 'प्रतीक्षेत', hi: 'प्रतीक्षारत', className: 'bg-slate-100 text-slate-600 border-slate-200' },
+  called: { en: 'Called', ar: 'تم النداء', mr: 'बोलावले', hi: 'बुलाया गया', className: 'bg-accent-50 text-accent-700 border-accent-200' },
+  held: { en: 'On hold', ar: 'معلّق', mr: 'रोखलेले', hi: 'होल्ड पर', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  served: { en: 'Served', ar: 'تمت الخدمة', mr: 'सेवा पूर्ण', hi: 'सेवा पूर्ण', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  'no-show': { en: 'No-show', ar: 'لم يحضر', mr: 'अनुपस्थित', hi: 'अनुपस्थित', className: 'bg-orange-50 text-orange-700 border-orange-200' },
+  cancelled: { en: 'Cancelled', ar: 'ملغاة', mr: 'रद्द', hi: 'रद्द', className: 'bg-slate-100 text-slate-400 border-slate-200' },
 }
 
 // A queued ticket carries its own department: a reprint from the recent list
@@ -148,8 +203,8 @@ export function SchoolKiosk({
   branchToken, branchName, departments, settings, silentPrintEnabled, printerName,
   initialFeed, publicTrackingEnabled,
 }: Props) {
-  const languages: SchoolLanguage[] = settings?.languages?.length ? settings.languages : ['en']
-  const [lang, setLang] = useState<SchoolLanguage>(languages[0])
+  const languages = coerceLocales(settings?.languages)
+  const [lang, setLang] = useState<Locale>(languages[0])
   const [priority, setPriority] = useState(false)
   const [issuingId, setIssuingId] = useState<string | null>(null)
   const [hero, setHero] = useState<HeroTicket | null>(null)
@@ -175,13 +230,24 @@ export function SchoolKiosk({
   const qrImgRef = useRef<HTMLImageElement>(null)
   const now = useNow(15000)
 
-  const t = COPY[lang]
-  const rtl = lang === 'ar'
+  const t = COPY[lang] ?? COPY[defaultLocale()] ?? COPY.en
+  const rtl = dirFor(lang) === 'rtl'
   const idleSeconds = settings?.kioskIdleSeconds ?? 20
   const priorityEnabled = settings?.priorityEnabled ?? true
   const printEnabled = settings?.printEnabled ?? true
   const schoolName =
-    (rtl ? settings?.schoolNameAr : settings?.schoolNameEn) || settings?.schoolNameEn || branchName
+    (settings ? pickLocale(settings.schoolName, lang) : '') || settings?.schoolNameEn || branchName
+
+  // The printed ticket carries every enabled language, base locale first — it is
+  // read by whoever picks the ticket up, not by the person who set the kiosk
+  // language. (Phase 1: only en/ar have content columns; mr/hi department names
+  // and footers fall back / stay blank until the jsonb migration.)
+  const printLocale = languages[0]
+  const ticketLocales = languages
+  const ticketDeptName = (l: Locale, d: SchoolDepartmentDTO) =>
+    pickLocale(d.name, l) || d.nameEn
+  const ticketFooter = (l: Locale) =>
+    settings ? (settings.ticketFooter[l] ?? (l === 'en' ? settings.ticketFooterEn : '')) : ''
 
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
@@ -189,8 +255,8 @@ export function SchoolKiosk({
   )
   const deptName = useCallback(
     (d: SchoolDepartmentDTO | undefined) =>
-      !d ? '' : rtl ? d.nameAr || d.nameEn : d.nameEn,
-    [rtl]
+      !d ? '' : pickLocale(d.name, lang) || d.nameEn,
+    [lang]
   )
 
   const recent = feed.recent ?? []
@@ -445,7 +511,7 @@ export function SchoolKiosk({
                     : 'rounded-xl px-4 py-2 text-sm font-medium text-slate-300 active:bg-white/10 md:text-base'
                 }
               >
-                {l === 'en' ? 'English' : 'العربية'}
+                {LOCALE_LABEL[l]}
               </button>
             ))}
           </div>
@@ -685,11 +751,21 @@ export function SchoolKiosk({
             <p style={{ fontSize: '40pt', fontWeight: 900, lineHeight: 1, margin: '0 0 4mm' }}>
               {printedTicket.token.tokenCode}
             </p>
-            <p style={{ fontSize: '11pt', fontWeight: 700, lineHeight: 1.25, margin: '0 0 3mm' }}>
-              {printedTicket.department.nameEn}
-            </p>
+            {ticketLocales.map((l) => {
+              const name = ticketDeptName(l, printedTicket.department)
+              if (!name) return null
+              return (
+                <p
+                  key={l}
+                  dir={dirFor(l)}
+                  style={{ fontSize: l === printLocale ? '11pt' : '9.5pt', fontWeight: 700, lineHeight: 1.25, margin: '0 0 2mm' }}
+                >
+                  {name}
+                </p>
+              )
+            })}
             {printedTicket.token.isPriority && (
-              <p style={{ fontSize: '9pt', fontWeight: 700, margin: '0 0 3mm' }}>PRIORITY</p>
+              <p style={{ fontSize: '9pt', fontWeight: 700, margin: '1mm 0 3mm' }}>PRIORITY</p>
             )}
             {/* Boxed because it is the one line a visitor re-reads while they
                 wait, and on a thermal ticket a rule is the only emphasis that
@@ -703,26 +779,36 @@ export function SchoolKiosk({
                   boxSizing: 'border-box',
                 }}
               >
-                <p style={{ fontSize: '9pt', fontWeight: 700, lineHeight: 1.25, margin: 0 }}>
-                  {waitingAheadLine(printedTicket.waitingAhead).en}
-                </p>
-                <p
-                  dir="rtl"
-                  style={{ fontSize: '8.5pt', fontWeight: 700, lineHeight: 1.35, margin: '1mm 0 0' }}
-                >
-                  {waitingAheadLine(printedTicket.waitingAhead).ar}
-                </p>
+                {ticketLocales.map((l, i) => (
+                  <p
+                    key={l}
+                    dir={dirFor(l)}
+                    style={{
+                      fontSize: i === 0 ? '9pt' : '8.5pt', fontWeight: 700,
+                      lineHeight: i === 0 ? 1.25 : 1.35, margin: i === 0 ? 0 : '1mm 0 0',
+                    }}
+                  >
+                    {waitingAheadLine(printedTicket.waitingAhead!)[l]}
+                  </p>
+                ))}
               </div>
             )}
             <p style={{ fontSize: '8pt', fontWeight: 700, margin: 0 }}>
               {formatDate(printedTicket.token.joinedAt)} · {formatTime(printedTicket.token.joinedAt)}
             </p>
-            {settings?.ticketFooterEn && (
-              <p style={{ fontSize: '7.5pt', lineHeight: 1.3, margin: '3mm 0 0' }}>{settings.ticketFooterEn}</p>
-            )}
-            {settings?.ticketFooterAr && (
-              <p style={{ fontSize: '7.5pt', lineHeight: 1.3, margin: '1mm 0 0' }} dir="rtl">{settings.ticketFooterAr}</p>
-            )}
+            {ticketLocales.map((l, i) => {
+              const footer = ticketFooter(l)
+              if (!footer) return null
+              return (
+                <p
+                  key={l}
+                  dir={dirFor(l)}
+                  style={{ fontSize: '7.5pt', lineHeight: 1.3, margin: i === 0 ? '3mm 0 0' : '1mm 0 0' }}
+                >
+                  {footer}
+                </p>
+              )
+            })}
             {/* publicTrackingEnabled gates this whole block — no QR, no
                 caption, no fallback line, when the feature isn't granted or
                 the school has switched it off. The <img> starts srcless and
@@ -736,12 +822,15 @@ export function SchoolKiosk({
                   alt=""
                   style={{ width: `${QR_TARGET_MM}mm`, height: `${QR_TARGET_MM}mm` }}
                 />
-                <p style={{ fontSize: '7.5pt', fontWeight: 700, margin: '1.5mm 0 0' }}>
-                  {qrCaptionLine().en}
-                </p>
-                <p style={{ fontSize: '7pt', fontWeight: 700, margin: '0.5mm 0 0' }} dir="rtl">
-                  {qrCaptionLine().ar}
-                </p>
+                {ticketLocales.map((l, i) => (
+                  <p
+                    key={l}
+                    dir={dirFor(l)}
+                    style={{ fontSize: i === 0 ? '7.5pt' : '7pt', fontWeight: 700, margin: i === 0 ? '1.5mm 0 0' : '0.5mm 0 0' }}
+                  >
+                    {qrCaptionLine()[l]}
+                  </p>
+                ))}
                 {/* Scan-failure fallback: costs ~3mm of paper, saves a
                     support call from someone who can't get the camera to
                     pick it up. */}

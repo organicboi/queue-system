@@ -8,7 +8,9 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Lock, QrCode } from 'lucide-react'
 import { saveSchoolSettingsAction } from '@/lib/actions/school-admin'
-import type { SchoolSettingsDTO, SchoolLanguage } from '@/lib/db/school-types'
+import type { SchoolSettingsDTO } from '@/lib/db/school-types'
+import type { Locale } from '@/lib/region'
+import { coerceLocales, defaultLocale, dirFor, LOCALE_LABEL, region, regionLocales } from '@/lib/region'
 
 interface Props {
   branchId: string
@@ -19,25 +21,36 @@ interface Props {
   publicTrackingGranted: boolean
 }
 
-// Common Gulf timezones plus UTC. A school runs in one place; a free-text
-// IANA field would only invite typos that silently break the daily reset.
+// A school runs in one place; a free-text IANA field would only invite typos
+// that silently break the daily reset. The market's own timezone leads the list
+// (lib/region.ts), then the other common ones.
+const ALL_TIMEZONES = [
+  'Asia/Kolkata', 'Asia/Qatar', 'Asia/Dubai', 'Asia/Riyadh', 'Asia/Bahrain',
+  'Asia/Kuwait', 'Asia/Muscat', 'Europe/London', 'UTC',
+]
 const TIMEZONES = [
-  'Asia/Qatar', 'Asia/Dubai', 'Asia/Riyadh', 'Asia/Bahrain',
-  'Asia/Kuwait', 'Asia/Muscat', 'Asia/Kolkata', 'Europe/London', 'UTC',
+  region().defaultTimezone,
+  ...ALL_TIMEZONES.filter((tz) => tz !== region().defaultTimezone),
 ]
 
 export function SchoolSettingsForm({ branchId, settings, fallbackName, publicTrackingGranted }: Props) {
   const [pending, startTransition] = useTransition()
   const [form, setForm] = useState({
-    languages: (settings?.languages ?? ['en']) as SchoolLanguage[],
-    ticketFooterEn: settings?.ticketFooterEn ?? '',
-    ticketFooterAr: settings?.ticketFooterAr ?? '',
+    languages: coerceLocales(settings?.languages),
+    ticketFooter: Object.fromEntries(
+      regionLocales().map((l) => [
+        l,
+        settings?.ticketFooter?.[l]
+          ?? (l === 'en' ? settings?.ticketFooterEn : l === 'ar' ? settings?.ticketFooterAr : '')
+          ?? '',
+      ]),
+    ) as Record<Locale, string>,
     kioskIdleSeconds: settings?.kioskIdleSeconds ?? 20,
     priorityEnabled: settings?.priorityEnabled ?? true,
     announceEnabled: settings?.announceEnabled ?? true,
     printEnabled: settings?.printEnabled ?? true,
     publicTrackingEnabled: settings?.publicTrackingEnabled ?? true,
-    timezone: settings?.timezone ?? 'Asia/Qatar',
+    timezone: settings?.timezone ?? region().defaultTimezone,
     dayStartTime: (settings?.dayStartTime ?? '00:00').slice(0, 5),
   })
 
@@ -45,15 +58,18 @@ export function SchoolSettingsForm({ branchId, settings, fallbackName, publicTra
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  function toggleLanguage(lang: SchoolLanguage) {
+  function toggleLanguage(lang: Locale) {
+    // The market's base locale is always on — the kiosk, board and ticket all
+    // fall back to it — so it cannot be toggled off.
+    if (lang === defaultLocale()) return
     setForm((prev) => {
       const has = prev.languages.includes(lang)
-      // At least one language must stay on or the kiosk has nothing to render.
-      if (has && prev.languages.length === 1) return prev
-      return {
-        ...prev,
-        languages: has ? prev.languages.filter((l) => l !== lang) : [...prev.languages, lang],
-      }
+      // Keep the stored order aligned with regionLocales() so the kiosk switch
+      // and the printed ticket list read base-first.
+      const next = has
+        ? prev.languages.filter((l) => l !== lang)
+        : regionLocales().filter((l) => l === lang || prev.languages.includes(l))
+      return { ...prev, languages: next }
     })
   }
 
@@ -110,24 +126,32 @@ export function SchoolSettingsForm({ branchId, settings, fallbackName, publicTra
         <h2 className="text-sm font-semibold text-slate-800">Kiosk</h2>
         <div className="space-y-2">
           <Label>Languages</Label>
-          <div className="flex gap-2">
-            {(['en', 'ar'] as SchoolLanguage[]).map((lang) => (
-              <button
-                key={lang}
-                type="button"
-                onClick={() => toggleLanguage(lang)}
-                className={
-                  form.languages.includes(lang)
-                    ? 'rounded-xl border-2 border-accent-400 bg-accent-50 px-4 py-2 text-sm font-semibold text-accent-700'
-                    : 'rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 active:bg-slate-50'
-                }
-              >
-                {lang === 'en' ? 'English' : 'العربية'}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {regionLocales().map((lang) => {
+              const on = form.languages.includes(lang)
+              const locked = lang === defaultLocale()
+              return (
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() => toggleLanguage(lang)}
+                  disabled={locked}
+                  dir={dirFor(lang)}
+                  className={
+                    on
+                      ? 'rounded-xl border-2 border-accent-400 bg-accent-50 px-4 py-2 text-sm font-semibold text-accent-700 disabled:opacity-100'
+                      : 'rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 active:bg-slate-50'
+                  }
+                >
+                  {LOCALE_LABEL[lang]}
+                </button>
+              )
+            })}
           </div>
           <p className="text-[11px] text-muted-foreground">
-            With both on, the kiosk shows a language switch and the ticket prints bilingually.
+            {defaultLocale() === 'en' ? 'English' : LOCALE_LABEL[defaultLocale()]} is always on. Turn
+            on another language and the kiosk shows a language switch and the ticket prints in every
+            enabled language.
           </p>
         </div>
         <div className="space-y-1.5">
@@ -145,26 +169,23 @@ export function SchoolSettingsForm({ branchId, settings, fallbackName, publicTra
             <span className="text-sm text-muted-foreground">seconds, then reset</span>
           </div>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="ticketFooterEn">Ticket footer</Label>
-          <Input
-            id="ticketFooterEn"
-            value={form.ticketFooterEn}
-            onChange={(e) => set('ticketFooterEn', e.target.value)}
-            maxLength={200}
-            placeholder="Please watch the screen for your number"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="ticketFooterAr">Ticket footer (Arabic)</Label>
-          <Input
-            id="ticketFooterAr"
-            dir="rtl"
-            value={form.ticketFooterAr}
-            onChange={(e) => set('ticketFooterAr', e.target.value)}
-            maxLength={200}
-          />
-        </div>
+        {regionLocales().map((l, i) => (
+          <div key={l} className="space-y-1.5">
+            <Label htmlFor={`ticketFooter_${l}`}>
+              {i === 0 ? 'Ticket footer' : `Ticket footer (${LOCALE_LABEL[l]})`}
+            </Label>
+            <Input
+              id={`ticketFooter_${l}`}
+              dir={dirFor(l)}
+              value={form.ticketFooter[l] ?? ''}
+              onChange={(e) =>
+                set('ticketFooter', { ...form.ticketFooter, [l]: e.target.value })
+              }
+              maxLength={200}
+              placeholder={i === 0 ? 'Please watch the screen for your number' : undefined}
+            />
+          </div>
+        ))}
         <ToggleRow
           label="Print a ticket"
           hint="Turn off for a screen-only kiosk with no printer attached"

@@ -7,6 +7,7 @@ import { requireDistributor } from '@/lib/dal/session'
 import type { CustomerVertical, DistributorStats } from '@/lib/db/types'
 import { MAX_SCHOOL_ENTITLEMENT } from '@/lib/db/types'
 import { DEFAULT_VERTICAL, VERTICALS, isVertical } from '@/lib/verticals'
+import { regionLocales } from '@/lib/region'
 
 const LICENSE_KEY_VALIDITY_DAYS = 30
 
@@ -279,8 +280,11 @@ export async function setCustomerSchoolLimitsAction(
 // fields for them at all; this is the only way in.
 const SchoolIdentitySchema = z.object({
   branchId: z.string().uuid(),
-  schoolNameEn: z.string().min(1, 'School name is required').max(120),
-  schoolNameAr: z.string().max(120),
+  // Locale map keyed by locale ({ en, mr, hi } / { en, ar }). The legacy
+  // schoolNameEn/schoolNameAr keys are still accepted and folded in.
+  schoolName: z.record(z.string(), z.string().max(120)).optional(),
+  schoolNameEn: z.string().max(120).optional(),
+  schoolNameAr: z.string().max(120).optional(),
   logoUrl: z.string().url('Logo must be a full https:// URL').or(z.literal('')),
 })
 
@@ -292,6 +296,18 @@ export async function setSchoolIdentityAction(
   const parsed = SchoolIdentitySchema.safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0].message }
   const d = parsed.data
+
+  // Fold legacy scalars into the map, keep only the market's locales, force en.
+  const merged: Record<string, string> = { ...(d.schoolName ?? {}) }
+  if (d.schoolNameEn !== undefined) merged.en = d.schoolNameEn
+  if (d.schoolNameAr !== undefined) merged.ar = d.schoolNameAr
+  const schoolName: Record<string, string> = {}
+  for (const l of regionLocales()) {
+    const v = (merged[l] ?? '').trim()
+    if (v) schoolName[l] = v
+  }
+  schoolName.en = (merged.en ?? schoolName.en ?? '').trim()
+  if (!schoolName.en) return { error: 'School name is required' }
 
   const service = createSupabaseServiceClient()
 
@@ -310,8 +326,9 @@ export async function setSchoolIdentityAction(
     .upsert({
       customer_id: (branch as { customer_id: string }).customer_id,
       branch_id: d.branchId,
-      school_name_en: d.schoolNameEn,
-      school_name_ar: d.schoolNameAr,
+      school_name: schoolName,
+      school_name_en: schoolName.en,
+      school_name_ar: schoolName.ar ?? '',
       logo_url: d.logoUrl,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'branch_id' })

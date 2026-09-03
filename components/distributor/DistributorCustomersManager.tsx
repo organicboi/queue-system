@@ -15,6 +15,7 @@ import {
 } from '@/lib/actions/distributor'
 import type { SchoolBranchIdentity } from '@/lib/db/school-types'
 import { MAX_SCHOOL_ENTITLEMENT } from '@/lib/db/types'
+import { dirFor, LOCALE_LABEL, regionLocales } from '@/lib/region'
 import { Plus, Power, Copy, Check, Key, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import type { CustomerDTO } from '@/lib/db/types'
@@ -264,8 +265,7 @@ function SchoolSetupDialog({ customer, branches, onClose }: {
   const [savingLimits, setSavingLimits] = useState(false)
 
   const [branchId, setBranchId] = useState('')
-  const [nameEn, setNameEn] = useState('')
-  const [nameAr, setNameAr] = useState('')
+  const [nameByLocale, setNameByLocale] = useState<Record<string, string>>({})
   const [logoUrl, setLogoUrl] = useState('')
   const [savingIdentity, setSavingIdentity] = useState(false)
 
@@ -274,8 +274,12 @@ function SchoolSetupDialog({ customer, branches, onClose }: {
     setBranchId(id)
     // A tenant created before branding moved here may have no name saved; fall
     // back to what the account is called so the field is never blank.
-    setNameEn(b?.schoolNameEn || customerName)
-    setNameAr(b?.schoolNameAr ?? '')
+    const seed: Record<string, string> = {}
+    for (const l of regionLocales()) {
+      seed[l] = b?.schoolName?.[l]
+        ?? (l === 'en' ? (b?.schoolNameEn || customerName) : l === 'ar' ? (b?.schoolNameAr ?? '') : '')
+    }
+    setNameByLocale(seed)
     setLogoUrl(b?.logoUrl ?? '')
   }
 
@@ -303,7 +307,7 @@ function SchoolSetupDialog({ customer, branches, onClose }: {
   async function saveIdentity() {
     if (!branchId) return
     setSavingIdentity(true)
-    const r = await setSchoolIdentityAction({ branchId, schoolNameEn: nameEn, schoolNameAr: nameAr, logoUrl })
+    const r = await setSchoolIdentityAction({ branchId, schoolName: nameByLocale, logoUrl })
     setSavingIdentity(false)
     if (r.error) toast.error(r.error)
     else toast.success('Identity updated')
@@ -347,25 +351,20 @@ function SchoolSetupDialog({ customer, branches, onClose }: {
                   </Select>
                 </div>
               )}
-              <div className="space-y-1.5">
-                <Label htmlFor="schoolNameEn">School name</Label>
-                <Input
-                  id="schoolNameEn"
-                  value={nameEn}
-                  maxLength={120}
-                  onChange={(e) => setNameEn(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="schoolNameAr">School name (Arabic)</Label>
-                <Input
-                  id="schoolNameAr"
-                  dir="rtl"
-                  value={nameAr}
-                  maxLength={120}
-                  onChange={(e) => setNameAr(e.target.value)}
-                />
-              </div>
+              {regionLocales().map((l, i) => (
+                <div key={l} className="space-y-1.5">
+                  <Label htmlFor={`schoolName_${l}`}>
+                    {i === 0 ? 'School name' : `School name (${LOCALE_LABEL[l]})`}
+                  </Label>
+                  <Input
+                    id={`schoolName_${l}`}
+                    dir={dirFor(l)}
+                    value={nameByLocale[l] ?? ''}
+                    maxLength={120}
+                    onChange={(e) => setNameByLocale((p) => ({ ...p, [l]: e.target.value }))}
+                  />
+                </div>
+              ))}
               <div className="space-y-1.5">
                 <Label htmlFor="logoUrl">Logo URL</Label>
                 <Input

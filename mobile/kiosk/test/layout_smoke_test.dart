@@ -227,6 +227,35 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       });
+
+      // The two-card layout (token card + QR card) is the wider shape, so it
+      // is the one most likely to overflow on a narrow viewport — swept
+      // across the same size matrix as the plain card above.
+      testWidgets('confirmation overlay with QR lays out at $size / $lang',
+          (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(host(
+          lang: lang,
+          Stack(
+            children: [
+              ConfirmationOverlay(
+                token: tok(7),
+                department: dept(1),
+                lang: lang,
+                copy: KioskCopy.of(lang),
+                onDismiss: () {},
+                publicUrl: 'https://queue-system-urzl.vercel.app/t/PC7',
+                linger: const Duration(milliseconds: 100),
+              ),
+            ],
+          ),
+        ));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
     }
   }
 }

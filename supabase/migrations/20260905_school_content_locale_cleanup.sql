@@ -1,0 +1,38 @@
+-- ══════════════════════════════════════════════════════════════
+-- School content jsonb — Phase 3 cleanup   ⚠️  DO NOT RUN YET
+-- ══════════════════════════════════════════════════════════════
+-- Drops the legacy `_en` / `_ar` content columns now that every string lives
+-- in the jsonb locale maps added by 20260904_school_content_locale_jsonb.sql.
+--
+-- PRECONDITIONS — all must be true before running this on any instance:
+--   1. The web app is deployed WITHOUT the back-compat DTO fields
+--      (school-types.ts: nameEn/nameAr/schoolNameEn/... removed, mappers read
+--      only the maps) and WITHOUT the dual-write in the school actions.
+--   2. The Flutter kiosk build in the field parses the jsonb map keys
+--      (`name`, `schoolName`, `departmentName`, `counterName`) — NOT
+--      `name_en` / `schoolNameEn` / etc.
+--   3. get_school_board / get_public_ticket_status have been re-deployed from
+--      the "Phase 3" versions that stop emitting the legacy scalar keys.
+--
+-- Until then this migration file is a placeholder: keep it unapplied.
+-- ══════════════════════════════════════════════════════════════
+
+-- ALTER TABLE public.school_settings
+--   DROP COLUMN IF EXISTS school_name_en,
+--   DROP COLUMN IF EXISTS school_name_ar,
+--   DROP COLUMN IF EXISTS ticket_footer_en,
+--   DROP COLUMN IF EXISTS ticket_footer_ar,
+--   DROP COLUMN IF EXISTS announce_template_en,
+--   DROP COLUMN IF EXISTS announce_template_ar;
+--
+-- ALTER TABLE public.school_departments
+--   DROP COLUMN IF EXISTS name_en,
+--   DROP COLUMN IF EXISTS name_ar;
+--
+-- ALTER TABLE public.school_counters
+--   DROP COLUMN IF EXISTS name_en,
+--   DROP COLUMN IF EXISTS name_ar;
+--
+-- Plus: re-CREATE OR REPLACE get_school_board / get_public_ticket_status
+-- without the legacy keys, and drop the row_to_json legacy columns from their
+-- sub-selects.

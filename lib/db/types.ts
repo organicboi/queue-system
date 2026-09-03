@@ -1,3 +1,5 @@
+import type { Locale } from '@/lib/region'
+
 // ── Primitive types ───────────────────────────────────────────
 export type UserRole = 'admin' | 'branch_user'
 export type CounterType = 'order' | 'billing' | 'kitchen' | 'delivery' | 'call'
@@ -8,7 +10,10 @@ export type ActivityType = 'joined' | 'called' | 'recalled' | 'completed' | 'can
 export type AdMergeMode = 'replace' | 'prepend' | 'append'
 export type ScreenLayout = 'split-standard' | 'rates-wide' | 'rates-full' | 'ads-full' | 'portrait'
 export type ScreenTheme = 'standard' | 'dark' | 'vibrant' | 'minimal'
-export type AnnouncementLang = 'en' | 'ar' | 'both'
+// A single spoken locale, or 'both' = the market's base locale followed by its
+// first configured secondary. The concrete locale set is per-deployment
+// (lib/region.ts). Widened from 'en' | 'ar' | 'both' when India (mr/hi) landed.
+export type AnnouncementLang = Locale | 'both'
 // Which queue product a tenant runs. Set at onboarding; drives every
 // post-login redirect and the admin nav.
 export type CustomerVertical = 'business' | 'school'

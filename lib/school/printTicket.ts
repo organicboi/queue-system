@@ -1,6 +1,7 @@
 'use client'
 
 import { silentPrint, buildReceiptHtml } from '@/lib/silentPrint'
+import type { Locale } from '@/lib/region'
 
 // School-local print path.
 //
@@ -59,11 +60,22 @@ const LOGO_THRESHOLD = 0.62
  * purpose: it takes any number without the singular/dual/plural agreement a
  * "N people" phrasing would need.
  */
-export function waitingAheadLine(count: number): { en: string; ar: string } {
-  if (count <= 0) return { en: 'You are next in line', ar: 'أنت التالي في الطابور' }
+export function waitingAheadLine(count: number): Record<Locale, string> {
+  if (count <= 0) {
+    return {
+      en: 'You are next in line',
+      ar: 'أنت التالي في الطابور',
+      mr: 'तुमचा नंबर पुढे आहे',
+      hi: 'अगली बारी आपकी है',
+    }
+  }
   return {
     en: count === 1 ? '1 person waiting before you' : `${count} people waiting before you`,
+    // Phrased as a count, not "N people", in ar/mr/hi — takes any number
+    // without singular/plural agreement.
     ar: `عدد المنتظرين قبلك: ${count}`,
+    mr: `तुमच्या आधी प्रतीक्षेत असलेले: ${count}`,
+    hi: `आपसे पहले प्रतीक्षा में: ${count}`,
   }
 }
 
@@ -89,8 +101,13 @@ export const QR_TARGET_MM = 26
 export const QR_SOURCE_PX = 300
 const QR_THRESHOLD = 0.62
 
-export function qrCaptionLine(): { en: string; ar: string } {
-  return { en: 'Scan to track your turn', ar: 'امسح لمتابعة دورك' }
+export function qrCaptionLine(): Record<Locale, string> {
+  return {
+    en: 'Scan to track your turn',
+    ar: 'امسح لمتابعة دورك',
+    mr: 'तुमची बारी पाहण्यासाठी स्कॅन करा',
+    hi: 'अपनी बारी देखने के लिए स्कैन करें',
+  }
 }
 
 /*

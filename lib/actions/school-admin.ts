@@ -13,6 +13,46 @@ import {
   type SchoolDepartmentDTO, type SchoolCounterDTO, type SchoolSettingsDTO,
   type DbSchoolDepartment, type DbSchoolCounter, type DbSchoolSettings,
 } from '@/lib/db/school-types'
+import { coerceLocales, regionLocales, type LocaleMap } from '@/lib/region'
+
+// Read one translatable field out of a native <form> as a locale map: the
+// form renders `<input name="${field}_${locale}">` for each regionLocales()
+// entry. `en` is forced present (it is every surface's fallback) — from the
+// `${field}_en` input, or a bare `${field}` input for older single-field forms.
+function localeMapFromForm(fd: FormData, field: string): LocaleMap {
+  const out: Record<string, string> = {}
+  for (const l of regionLocales()) {
+    const v = (fd.get(`${field}_${l}`) ?? '').toString().trim()
+    if (v) out[l] = v
+  }
+  if (!out.en) {
+    out.en = ((fd.get(`${field}_en`) ?? fd.get(field)) ?? '').toString().trim()
+  }
+  return out as LocaleMap
+}
+
+// Legacy `_en` / `_ar` scalar columns to dual-write alongside a jsonb map,
+// until Phase 3 drops them (20260905_school_content_locale_cleanup.sql).
+function legacyPair(prefix: string, map: LocaleMap): Record<string, string> {
+  return { [`${prefix}_en`]: map.en ?? '', [`${prefix}_ar`]: map.ar ?? '' }
+}
+
+// A locale map validated for a native-form text field: keys limited to the
+// market's locales, every value length-capped, `en` required non-empty.
+function localeMapSchema(max: number, requiredMsg: string) {
+  return z
+    .record(z.string(), z.string().max(max))
+    .transform((m) => {
+      const out: Record<string, string> = {}
+      for (const l of regionLocales()) {
+        const v = (m[l] ?? '').trim()
+        if (v) out[l] = v
+      }
+      if (!out.en) out.en = (m.en ?? '').trim()
+      return out as LocaleMap
+    })
+    .refine((m) => !!m.en, requiredMsg)
+}
 
 export interface SchoolDepartmentResult {
   department?: SchoolDepartmentDTO
@@ -32,8 +72,7 @@ export interface SchoolSettingsResult {
 // ── Departments ───────────────────────────────────────────────
 const DepartmentSchema = z.object({
   branchId: z.string().uuid(),
-  nameEn: z.string().min(1, 'Department name is required').max(100),
-  nameAr: z.string().max(100).optional().default(''),
+  name: localeMapSchema(100, 'Department name is required'),
   // The prefix is the visible half of every token this department issues, so
   // it's constrained to what fits on a ticket and reads at TV distance.
   prefix: z.string().regex(/^[A-Za-z]{1,3}$/, 'Prefix must be 1–3 letters'),
@@ -50,8 +89,7 @@ export async function createSchoolDepartmentAction(
 ): Promise<SchoolDepartmentResult> {
   const parsed = DepartmentSchema.safeParse({
     branchId: formData.get('branchId'),
-    nameEn: formData.get('nameEn'),
-    nameAr: formData.get('nameAr') ?? '',
+    name: localeMapFromForm(formData, 'name'),
     prefix: formData.get('prefix'),
     numberStart: formData.get('numberStart') || 101,
     color: formData.get('color') || '#0F766E',
@@ -79,8 +117,8 @@ export async function createSchoolDepartmentAction(
     .insert({
       customer_id: profile.customerId,
       branch_id: parsed.data.branchId,
-      name_en: parsed.data.nameEn,
-      name_ar: parsed.data.nameAr,
+      name: parsed.data.name,
+      ...legacyPair('name', parsed.data.name),
       prefix: parsed.data.prefix.toUpperCase(),
       number_start: parsed.data.numberStart,
       color: parsed.data.color,
@@ -106,7 +144,7 @@ export async function updateSchoolDepartmentAction(
   departmentId: string,
   branchId: string,
   patch: Partial<{
-    nameEn: string; nameAr: string; prefix: string; numberStart: number
+    name: LocaleMap; prefix: string; numberStart: number
     color: string; icon: string; isPriority: boolean; displayOrder: number
     isActive: boolean
   }>
@@ -130,8 +168,7 @@ export async function updateSchoolDepartmentAction(
   const { data, error } = await supabase
     .from('school_departments')
     .update({
-      ...(patch.nameEn !== undefined && { name_en: patch.nameEn }),
-      ...(patch.nameAr !== undefined && { name_ar: patch.nameAr }),
+      ...(patch.name !== undefined && { name: patch.name, ...legacyPair('name', patch.name) }),
       ...(patch.prefix !== undefined && { prefix: patch.prefix.toUpperCase() }),
       ...(patch.numberStart !== undefined && { number_start: patch.numberStart }),
       ...(patch.color !== undefined && { color: patch.color }),
@@ -167,8 +204,7 @@ export async function editSchoolDepartmentAction(
   const parsed = EditDepartmentSchema.safeParse({
     departmentId: formData.get('departmentId'),
     branchId: formData.get('branchId'),
-    nameEn: formData.get('nameEn'),
-    nameAr: formData.get('nameAr') ?? '',
+    name: localeMapFromForm(formData, 'name'),
     prefix: formData.get('prefix'),
     numberStart: formData.get('numberStart') || 101,
     color: formData.get('color') || '#0F766E',
@@ -180,8 +216,7 @@ export async function editSchoolDepartmentAction(
 
   const d = parsed.data
   return updateSchoolDepartmentAction(d.departmentId, d.branchId, {
-    nameEn: d.nameEn,
-    nameAr: d.nameAr,
+    name: d.name,
     prefix: d.prefix,
     numberStart: d.numberStart,
     color: d.color,
@@ -331,21 +366,27 @@ export async function seedSchoolDepartmentsAction(
   const dq = await getSchoolDepartmentQuota(profile.customerId, branchId)
   if (dq.remaining <= 0) return { error: quotaReachedMessage('department', dq.limit) }
 
+  // Arabic seed values only apply where the market offers Arabic; India seeds
+  // English only and the admin adds Marathi/Hindi names afterwards.
+  const seedAr = regionLocales().includes('ar')
   const taken = new Set(((existing ?? []) as { prefix: string }[]).map((d) => d.prefix))
   const rows = DEFAULT_DEPARTMENTS
     .filter((d) => !taken.has(d.prefix))
     .slice(0, dq.remaining)
-    .map((d, i) => ({
-      customer_id: profile.customerId,
-      branch_id: branchId,
-      name_en: d.nameEn,
-      name_ar: d.nameAr,
-      prefix: d.prefix,
-      color: d.color,
-      icon: d.icon,
-      is_priority: d.isPriority ?? false,
-      display_order: i + 1,
-    }))
+    .map((d, i) => {
+      const name = (seedAr ? { en: d.nameEn, ar: d.nameAr } : { en: d.nameEn }) as LocaleMap
+      return {
+        customer_id: profile.customerId,
+        branch_id: branchId,
+        name,
+        ...legacyPair('name', name),
+        prefix: d.prefix,
+        color: d.color,
+        icon: d.icon,
+        is_priority: d.isPriority ?? false,
+        display_order: i + 1,
+      }
+    })
 
   if (rows.length === 0) return { created: 0 }
 
@@ -359,8 +400,7 @@ export async function seedSchoolDepartmentsAction(
 // ── Counters ──────────────────────────────────────────────────
 const CounterSchema = z.object({
   branchId: z.string().uuid(),
-  nameEn: z.string().min(1, 'Counter name is required').max(100),
-  nameAr: z.string().max(100).optional().default(''),
+  name: localeMapSchema(100, 'Counter name is required'),
   keypadCode: z.string().max(8).optional().default(''),
   acceptsPriority: z.coerce.boolean().default(true),
   displayOrder: z.coerce.number().int().min(0).max(999).default(0),
@@ -372,8 +412,7 @@ export async function createSchoolCounterAction(
 ): Promise<SchoolCounterResult> {
   const parsed = CounterSchema.safeParse({
     branchId: formData.get('branchId'),
-    nameEn: formData.get('nameEn'),
-    nameAr: formData.get('nameAr') ?? '',
+    name: localeMapFromForm(formData, 'name'),
     keypadCode: formData.get('keypadCode') ?? '',
     acceptsPriority: formData.get('acceptsPriority') !== 'off',
     displayOrder: formData.get('displayOrder') || 0,
@@ -396,8 +435,8 @@ export async function createSchoolCounterAction(
     .insert({
       customer_id: profile.customerId,
       branch_id: parsed.data.branchId,
-      name_en: parsed.data.nameEn,
-      name_ar: parsed.data.nameAr,
+      name: parsed.data.name,
+      ...legacyPair('name', parsed.data.name),
       keypad_code: parsed.data.keypadCode || null,
       accepts_priority: parsed.data.acceptsPriority,
       display_order: parsed.data.displayOrder,
@@ -450,7 +489,7 @@ export async function updateSchoolCounterAction(
   counterId: string,
   branchId: string,
   patch: Partial<{
-    nameEn: string; nameAr: string; keypadCode: string | null
+    name: LocaleMap; keypadCode: string | null
     acceptsPriority: boolean; displayOrder: number; isActive: boolean; isOpen: boolean
     keypadMap: Record<string, string>
   }>
@@ -471,8 +510,7 @@ export async function updateSchoolCounterAction(
   const { data, error } = await supabase
     .from('school_counters')
     .update({
-      ...(patch.nameEn !== undefined && { name_en: patch.nameEn }),
-      ...(patch.nameAr !== undefined && { name_ar: patch.nameAr }),
+      ...(patch.name !== undefined && { name: patch.name, ...legacyPair('name', patch.name) }),
       ...(patch.keypadCode !== undefined && { keypad_code: patch.keypadCode || null }),
       ...(patch.acceptsPriority !== undefined && { accepts_priority: patch.acceptsPriority }),
       ...(patch.displayOrder !== undefined && { display_order: patch.displayOrder }),
@@ -534,12 +572,24 @@ export async function deactivateSchoolCounterAction(counterId: string, branchId:
 // is a public entry point a tenant can post to directly.
 const SettingsSchema = z.object({
   branchId: z.string().uuid(),
-  languages: z.array(z.enum(['en', 'ar'])).min(1).optional(),
+  // The menu of locales is per-deployment (lib/region.ts) and not the tenant's
+  // to change; coerceLocales drops anything this market does not offer (e.g. a
+  // client POSTing 'ar' to the India build) and never yields an empty list.
+  languages: z
+    .array(z.string())
+    .min(1)
+    .optional()
+    .transform((v) => (v ? coerceLocales(v) : undefined)),
+  // Locale maps, keyed by locale ({ en, mr, hi } / { en, ar }). The old
+  // ticketFooterEn/Ar / announceTemplateEn/Ar object keys are still accepted
+  // and folded in, so an un-migrated caller keeps working.
+  ticketFooter: z.record(z.string(), z.string().max(200)).optional(),
   ticketFooterEn: z.string().max(200).optional(),
   ticketFooterAr: z.string().max(200).optional(),
   kioskIdleSeconds: z.coerce.number().int().min(3).max(120).optional(),
   priorityEnabled: z.boolean().optional(),
   announceEnabled: z.boolean().optional(),
+  announceTemplate: z.record(z.string(), z.string().max(200)).optional(),
   announceTemplateEn: z.string().max(200).optional(),
   announceTemplateAr: z.string().max(200).optional(),
   printEnabled: z.boolean().optional(),
@@ -567,6 +617,29 @@ export async function saveSchoolSettingsAction(
   }
 
   const d = parsed.data
+
+  // Fold the legacy `${field}En` / `${field}Ar` scalars into the map form, then
+  // keep only the market's locales and force an `en` key.
+  const buildMap = (
+    map: Record<string, string> | undefined,
+    en: string | undefined,
+    ar: string | undefined,
+  ): LocaleMap | undefined => {
+    if (map === undefined && en === undefined && ar === undefined) return undefined
+    const merged: Record<string, string> = { ...(map ?? {}) }
+    if (en !== undefined) merged.en = en
+    if (ar !== undefined) merged.ar = ar
+    const out: Record<string, string> = {}
+    for (const l of regionLocales()) {
+      const v = (merged[l] ?? '').trim()
+      if (v) out[l] = v
+    }
+    out.en = (merged.en ?? out.en ?? '').trim()
+    return out as LocaleMap
+  }
+  const ticketFooter = buildMap(d.ticketFooter, d.ticketFooterEn, d.ticketFooterAr)
+  const announceTemplate = buildMap(d.announceTemplate, d.announceTemplateEn, d.announceTemplateAr)
+
   const supabase = createSupabaseServiceClient()
   const { data, error } = await supabase
     .from('school_settings')
@@ -574,13 +647,11 @@ export async function saveSchoolSettingsAction(
       customer_id: profile.customerId,
       branch_id: d.branchId,
       ...(d.languages !== undefined && { languages: d.languages }),
-      ...(d.ticketFooterEn !== undefined && { ticket_footer_en: d.ticketFooterEn }),
-      ...(d.ticketFooterAr !== undefined && { ticket_footer_ar: d.ticketFooterAr }),
+      ...(ticketFooter !== undefined && { ticket_footer: ticketFooter, ...legacyPair('ticket_footer', ticketFooter) }),
       ...(d.kioskIdleSeconds !== undefined && { kiosk_idle_seconds: d.kioskIdleSeconds }),
       ...(d.priorityEnabled !== undefined && { priority_enabled: d.priorityEnabled }),
       ...(d.announceEnabled !== undefined && { announce_enabled: d.announceEnabled }),
-      ...(d.announceTemplateEn !== undefined && { announce_template_en: d.announceTemplateEn }),
-      ...(d.announceTemplateAr !== undefined && { announce_template_ar: d.announceTemplateAr }),
+      ...(announceTemplate !== undefined && { announce_template: announceTemplate, ...legacyPair('announce_template', announceTemplate) }),
       ...(d.printEnabled !== undefined && { print_enabled: d.printEnabled }),
       ...(d.publicTrackingEnabled !== undefined && { public_tracking_enabled: d.publicTrackingEnabled }),
       ...(d.timezone !== undefined && { timezone: d.timezone }),

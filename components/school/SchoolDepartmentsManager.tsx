@@ -30,6 +30,7 @@ import {
   SCHOOL_DEPARTMENT_COLORS, SCHOOL_DEPARTMENT_ICONS,
 } from '@/lib/school/constants'
 import type { SchoolDepartmentDTO, SchoolQuota } from '@/lib/db/school-types'
+import { dirFor, LOCALE_LABEL, regionLocales } from '@/lib/region'
 
 const INIT: SchoolDepartmentResult = {}
 
@@ -242,7 +243,9 @@ export function SchoolDepartmentsManager({ branchId, initialDepartments, quota }
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-slate-800">{dept.nameEn}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {dept.nameAr && <span dir="rtl">{dept.nameAr} · </span>}
+                  {regionLocales().slice(1).map((l) =>
+                    dept.name?.[l] ? <span key={l} dir={dirFor(l)}>{dept.name[l]} · </span> : null
+                  )}
                   Numbers from {dept.numberStart}
                 </p>
               </div>
@@ -337,20 +340,22 @@ function DepartmentFields({ department }: { department?: SchoolDepartmentDTO }) 
 
   return (
     <>
-      <div className="space-y-1.5">
-        <Label htmlFor="nameEn">Name</Label>
-        <Input
-          id="nameEn" name="nameEn" required maxLength={100} placeholder="Fees & Accounts"
-          defaultValue={department?.nameEn}
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="nameAr">Name (Arabic)</Label>
-        <Input
-          id="nameAr" name="nameAr" maxLength={100} dir="rtl" placeholder="الرسوم والحسابات"
-          defaultValue={department?.nameAr}
-        />
-      </div>
+      {regionLocales().map((l, i) => (
+        <div key={l} className="space-y-1.5">
+          <Label htmlFor={`name_${l}`}>
+            {i === 0 ? 'Name' : `Name (${LOCALE_LABEL[l]})`}
+          </Label>
+          <Input
+            id={`name_${l}`}
+            name={`name_${l}`}
+            required={i === 0}
+            maxLength={100}
+            dir={dirFor(l)}
+            placeholder={i === 0 ? 'Fees & Accounts' : undefined}
+            defaultValue={department?.name?.[l] ?? (l === 'en' ? department?.nameEn : l === 'ar' ? department?.nameAr : '')}
+          />
+        </div>
+      ))}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="prefix">Token prefix</Label>

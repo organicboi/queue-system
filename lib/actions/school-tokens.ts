@@ -2,9 +2,10 @@
 
 import { createSupabaseServiceClient } from '@/lib/db/server'
 import {
-  toSchoolTokenDTO,
+  toSchoolTokenDTO, toLocaleMap,
   type SchoolTokenDTO, type SchoolActivityType, type DbSchoolToken,
 } from '@/lib/db/school-types'
+import type { LocaleMap } from '@/lib/region'
 
 export interface SchoolTokenResult {
   token?: SchoolTokenDTO
@@ -26,6 +27,7 @@ interface VerifiedCounter {
   branch_id: string
   name_en: string
   name_ar: string
+  name: LocaleMap
   accepts_priority: boolean
   is_open: boolean
 }
@@ -34,7 +36,7 @@ async function verifySchoolCounter(token: string): Promise<VerifiedCounter | nul
   const supabase = createSupabaseServiceClient()
   const { data } = await supabase
     .from('school_counters')
-    .select('id, customer_id, branch_id, name_en, name_ar, accepts_priority, is_open, is_active')
+    .select('id, customer_id, branch_id, name_en, name_ar, name, accepts_priority, is_open, is_active')
     .eq('counter_token', token)
     .maybeSingle()
 
@@ -52,6 +54,10 @@ export interface SchoolCallSignal {
   counterAr: string
   departmentEn: string
   departmentAr: string
+  // Locale maps (Region rollout) — the board's overlay + TTS render these; the
+  // _en/_ar pairs stay for older board bundles.
+  counter: LocaleMap
+  department: LocaleMap
   isPriority: boolean
   recallCount: number
 }
@@ -112,13 +118,13 @@ async function logSchoolActivity(supabase: any, row: {
 async function departmentNames(supabase: any, departmentId: string) {
   const { data } = await supabase
     .from('school_departments')
-    .select('name_en, name_ar')
+    .select('name_en, name_ar, name')
     .eq('id', departmentId)
     .maybeSingle()
-  return {
-    en: (data as { name_en?: string } | null)?.name_en ?? '',
-    ar: (data as { name_ar?: string } | null)?.name_ar ?? '',
-  }
+  const row = data as { name_en?: string; name_ar?: string; name?: unknown } | null
+  const en = row?.name_en ?? ''
+  const map = toLocaleMap(row?.name, en)
+  return { en, ar: row?.name_ar ?? '', map }
 }
 
 // ── Queue depth ahead of a token ──────────────────────────────
@@ -416,6 +422,8 @@ export async function schoolCallNextAction(counterToken: string): Promise<School
     counterAr: counter.name_ar,
     departmentEn: dept.en,
     departmentAr: dept.ar,
+    counter: toLocaleMap(counter.name, counter.name_en),
+    department: dept.map,
     isPriority: token.isPriority,
     recallCount: token.recallCount,
   })
@@ -593,6 +601,8 @@ export async function schoolCallCodeAction(
     counterAr: counter.name_ar,
     departmentEn: dept.en,
     departmentAr: dept.ar,
+    counter: toLocaleMap(counter.name, counter.name_en),
+    department: dept.map,
     isPriority: token.isPriority,
     recallCount: token.recallCount,
   })
@@ -654,6 +664,8 @@ export async function schoolRecallAction(counterToken: string): Promise<SchoolTo
     counterAr: counter.name_ar,
     departmentEn: dept.en,
     departmentAr: dept.ar,
+    counter: toLocaleMap(counter.name, counter.name_en),
+    department: dept.map,
     isPriority: token.isPriority,
     recallCount: token.recallCount,
   })

@@ -31,8 +31,9 @@ class KioskCopy {
     required this.clearPriority,
     required this.priorityTag,
     required this.cancel,
-    required this.doneLabel,
+    required this.newTokenLabel,
     required this.tapAnywhere,
+    required this.trackTurn,
     required this.takeNumber,
     required this.offlineBanner,
     required this.offlineTitle,
@@ -73,8 +74,14 @@ class KioskCopy {
   final String cancel;
 
   // Not in the web COPY — kiosk-app-only affordances.
-  final String doneLabel;
+  /// Dismisses the confirmation early so the next visitor isn't stuck behind
+  /// the previous one's linger/QR window — named for what it does, not for
+  /// "closing a dialog".
+  final String newTokenLabel;
   final String tapAnywhere;
+
+  /// Uppercase label on the confirmation's QR card, parallel to [yourToken].
+  final String trackTurn;
 
   /// The call to action on a single-service branch's hero card. The heading
   /// above the grid ("touch a service…") assumes a choice; when there is only
@@ -125,8 +132,9 @@ class KioskCopy {
     clearPriority: 'Clear priority',
     priorityTag: 'Priority',
     cancel: 'Cancel',
-    doneLabel: 'Done',
+    newTokenLabel: 'Next customer',
     tapAnywhere: 'Tap anywhere to continue',
+    trackTurn: 'Track your turn',
     takeNumber: 'Take a number',
     offlineBanner: 'No connection to the queue server — tickets cannot be issued right now.',
     offlineTitle: 'No connection to the queue server',
@@ -167,8 +175,9 @@ class KioskCopy {
     clearPriority: 'إلغاء الأولوية',
     priorityTag: 'أولوية',
     cancel: 'إلغاء التذكرة',
-    doneLabel: 'تم',
+    newTokenLabel: 'العميل التالي',
     tapAnywhere: 'المس أي مكان للمتابعة',
+    trackTurn: 'تتبع دورك',
     takeNumber: 'احصل على رقم',
     offlineBanner: 'لا يوجد اتصال بخادم الطابور — لا يمكن إصدار التذاكر حالياً.',
     offlineTitle: 'لا يوجد اتصال بخادم الطابور',
