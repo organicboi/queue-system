@@ -148,6 +148,12 @@ class _DepartmentGridState extends State<DepartmentGrid>
   Widget build(BuildContext context) {
     final sorted = [...widget.departments]
       ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+
+    // No departments → the grid math below (rows == 0) would hand a negative
+    // extent to a SizedBox and take the whole screen down with a layout
+    // assertion. Degrade to a readable message instead.
+    if (sorted.isEmpty) return _EmptyServices(copy: widget.copy);
+
     final scale = kioskScale(context);
     final minRow = _minRowExtent * scale;
     final maxRow = _maxRowExtent * scale;
@@ -241,6 +247,56 @@ class _DepartmentGridState extends State<DepartmentGrid>
           ),
         );
       },
+    );
+  }
+}
+
+/// Stand-in for the grid when a branch has no active services. A parent should
+/// never reach this — it means the kiosk is paired to the wrong branch, or the
+/// office hasn't set its departments up yet — so it stays quiet and points at
+/// staff rather than trying to look like a normal state.
+class _EmptyServices extends StatelessWidget {
+  const _EmptyServices({required this.copy});
+
+  final KioskCopy copy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: const BoxDecoration(
+                  color: KioskPalette.surfaceMuted,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.dns_outlined,
+                  size: 34,
+                  color: KioskPalette.inkFaint,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                copy.noServices,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 17,
+                  height: 1.4,
+                  color: KioskPalette.inkSoft,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

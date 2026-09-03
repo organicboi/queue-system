@@ -44,6 +44,7 @@ class KioskCopy {
     required this.issueFailedTitle,
     required this.tryAgain,
     required this.closeLabel,
+    required this.noServices,
   });
 
   final String prompt;
@@ -105,6 +106,12 @@ class KioskCopy {
   final String tryAgain;
   final String closeLabel;
 
+  /// Shown in place of the service grid when the branch has no active
+  /// departments — a misconfiguration or a kiosk paired to the wrong branch.
+  /// A parent should never see this; it is here so the screen degrades to a
+  /// readable message instead of a layout crash.
+  final String noServices;
+
   static const en = KioskCopy(
     prompt: 'Please select a service',
     promptHint: 'Touch a service to take a number',
@@ -146,6 +153,7 @@ class KioskCopy {
     issueFailedTitle: 'Could not issue a ticket',
     tryAgain: 'Try again',
     closeLabel: 'Close',
+    noServices: 'No services are set up for this kiosk yet. Please ask staff for help.',
   );
 
   static const ar = KioskCopy(
@@ -189,6 +197,7 @@ class KioskCopy {
     issueFailedTitle: 'تعذّر إصدار التذكرة',
     tryAgain: 'إعادة المحاولة',
     closeLabel: 'إغلاق',
+    noServices: 'لم يتم إعداد أي خدمات لهذا الجهاز بعد. يرجى طلب المساعدة من الموظفين.',
   );
 
   static const mr = KioskCopy(
@@ -233,6 +242,7 @@ class KioskCopy {
     issueFailedTitle: 'तिकीट देता आले नाही',
     tryAgain: 'पुन्हा प्रयत्न करा',
     closeLabel: 'बंद करा',
+    noServices: 'या कियॉस्कसाठी अद्याप कोणतीही सेवा सेट केलेली नाही. कृपया कर्मचाऱ्यांची मदत घ्या.',
   );
 
   static const hi = KioskCopy(
@@ -277,6 +287,7 @@ class KioskCopy {
     issueFailedTitle: 'टिकट जारी नहीं किया जा सका',
     tryAgain: 'फिर से प्रयास करें',
     closeLabel: 'बंद करें',
+    noServices: 'इस कियॉस्क के लिए अभी तक कोई सेवा सेट नहीं की गई है. कृपया स्टाफ़ से सहायता लें.',
   );
 
   static KioskCopy of(String lang) {
