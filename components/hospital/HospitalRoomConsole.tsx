@@ -139,6 +139,15 @@ export function HospitalRoomConsole({ roomToken, initial }: {
                 )}
 
                 {isTriage && <VitalsForm roomToken={roomToken} onSaved={refresh} disabled={pending} />}
+                {isTriage && (view.consultTargets ?? []).length > 0 && (
+                  <TriageRouting
+                    targets={view.consultTargets ?? []}
+                    disabled={pending}
+                    onSend={(deptId, docId) =>
+                      run('sendconsult', () => hospitalSendToAction(roomToken, deptId, docId).then(refreshWrap), 'Sent to consultation')
+                    }
+                  />
+                )}
 
                 <div className="mt-auto grid grid-cols-2 gap-2">
                   <Button variant="outline" disabled={pending} onClick={() => run('recall', () => hospitalRecallAction(roomToken))}>
@@ -262,6 +271,47 @@ export function HospitalRoomConsole({ roomToken, initial }: {
         }
       />
     </ConsoleFrame>
+  )
+}
+
+function TriageRouting({ targets, disabled, onSend }: {
+  targets: NonNullable<HospitalRoomView['consultTargets']>
+  disabled: boolean
+  onSend: (departmentId: string, doctorId: string) => void
+}) {
+  const [deptId, setDeptId] = useState(targets[0]?.departmentId ?? '')
+  const dept = targets.find((t) => t.departmentId === deptId) ?? targets[0]
+  const [docId, setDocId] = useState(dept?.doctors[0]?.id ?? '')
+  const docs = dept?.doctors ?? []
+  const effectiveDoc = docs.some((d) => d.id === docId) ? docId : docs[0]?.id ?? ''
+
+  return (
+    <div className="rounded-xl border border-slate-200 p-2.5">
+      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Send to consultation</p>
+      <div className="flex flex-wrap gap-1.5">
+        <select
+          value={deptId}
+          onChange={(e) => { setDeptId(e.target.value); const t = targets.find((x) => x.departmentId === e.target.value); setDocId(t?.doctors[0]?.id ?? '') }}
+          className="h-9 rounded-lg border border-border bg-white px-2 text-sm"
+        >
+          {targets.map((t) => <option key={t.departmentId} value={t.departmentId}>{t.departmentName}</option>)}
+        </select>
+        <select
+          value={effectiveDoc}
+          onChange={(e) => setDocId(e.target.value)}
+          className="h-9 flex-1 rounded-lg border border-border bg-white px-2 text-sm"
+        >
+          {docs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+        <Button
+          disabled={disabled || !effectiveDoc}
+          onClick={() => onSend(deptId, effectiveDoc)}
+          className="h-9 bg-accent-600 hover:bg-accent-700 text-white"
+        >
+          Send
+        </Button>
+      </div>
+    </div>
   )
 }
 

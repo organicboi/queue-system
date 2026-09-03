@@ -805,12 +805,18 @@ $$;
 --
 -- The review re-entry is just this RPC with p_to_stage='review' and the
 -- original doctor restored — no special-case table.
+--
+-- p_assign_doctor_id is the triage → consult hop: a registration/triage token
+-- carries no doctor, so routing it into an OPD queue needs one named here. It
+-- is ignored for a transfer to a non-OPD service point.
+DROP FUNCTION IF EXISTS public.transfer_hospital_token(uuid, uuid, text, text, boolean);
 CREATE OR REPLACE FUNCTION public.transfer_hospital_token(
   p_token_id          uuid,
   p_to_department_id  uuid,
   p_to_stage          text,
   p_actor             text DEFAULT 'room',
-  p_restore_doctor    boolean DEFAULT false
+  p_restore_doctor    boolean DEFAULT false,
+  p_assign_doctor_id  uuid DEFAULT NULL
 )
 RETURNS public.hospital_tokens
 LANGUAGE plpgsql
@@ -839,6 +845,8 @@ BEGIN
   -- non-null doctor_id on a lab/pharmacy token is harmless. Only an explicit
   -- move to a *different* OPD speciality drops it, for reception to reassign.
   v_doctor := CASE
+    WHEN v_dept.type = 'opd' AND p_assign_doctor_id IS NOT NULL
+      THEN p_assign_doctor_id
     WHEN v_dept.type = 'opd'
          AND p_to_department_id <> v_token.department_id
          AND NOT p_restore_doctor
@@ -846,6 +854,19 @@ BEGIN
       THEN NULL
     ELSE v_token.doctor_id
   END;
+
+  -- If a doctor is being assigned, it must belong to the target OPD department.
+  IF p_assign_doctor_id IS NOT NULL THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.hospital_doctors
+      WHERE id = p_assign_doctor_id
+        AND department_id = p_to_department_id
+        AND branch_id = v_token.branch_id
+        AND is_active
+    ) THEN
+      RAISE EXCEPTION 'Doctor % is not in department %', p_assign_doctor_id, p_to_department_id;
+    END IF;
+  END IF;
 
   UPDATE public.hospital_tokens
      SET department_id = p_to_department_id,
@@ -1200,7 +1221,7 @@ $$;
 REVOKE ALL ON FUNCTION public.hospital_service_date(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.claim_hospital_token(uuid, uuid, uuid, uuid, text, text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.call_next_hospital_token(uuid, int, int) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.transfer_hospital_token(uuid, uuid, text, text, boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.transfer_hospital_token(uuid, uuid, text, text, boolean, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_hospital_board(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_hospital_ticket_status(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.gen_hospital_public_code() FROM PUBLIC;
@@ -1208,7 +1229,7 @@ REVOKE ALL ON FUNCTION public.gen_hospital_public_code() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.hospital_service_date(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.claim_hospital_token(uuid, uuid, uuid, uuid, text, text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.call_next_hospital_token(uuid, int, int) TO service_role;
-GRANT EXECUTE ON FUNCTION public.transfer_hospital_token(uuid, uuid, text, text, boolean) TO service_role;
+GRANT EXECUTE ON FUNCTION public.transfer_hospital_token(uuid, uuid, text, text, boolean, uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_hospital_board(text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_hospital_ticket_status(text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.gen_hospital_public_code() TO service_role;

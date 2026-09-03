@@ -43,6 +43,9 @@ export interface HospitalRoomView {
   noShows?: HospitalTokenDTO[]
   // Where the doctor console's SEND TO can route: active non-OPD departments.
   sendTargets?: { id: string; name: string; type: HospitalDepartmentType }[]
+  // Triage rooms only: the OPD queues a registered/triaged patient can be sent
+  // into, each with the doctors on duty today.
+  consultTargets?: { departmentId: string; departmentName: string; doctors: { id: string; name: string }[] }[]
   servedToday?: number
 }
 
@@ -137,6 +140,39 @@ export async function fetchHospitalRoomViewAction(roomToken: string): Promise<Ho
     currentVitals = v ? toHospitalVitalsDTO(v as DbHospitalVitals) : null
   }
 
+  // Triage room: build the OPD routing menu with today's on-duty doctors
+  // (schedule − leave, resolved here so the console doesn't derive a weekday).
+  let consultTargets: HospitalRoomView['consultTargets']
+  if (departmentType === 'triage') {
+    const weekday = new Date(`${date}T00:00:00`).getDay()
+    const [{ data: opdDepts }, { data: opdDoctors }, { data: leaves }] = await Promise.all([
+      supabase
+        .from('hospital_departments')
+        .select('id, name')
+        .eq('branch_id', r.branch_id).eq('is_active', true).eq('type', 'opd')
+        .order('display_order', { ascending: true }),
+      supabase
+        .from('hospital_doctors')
+        .select('id, name, department_id, hospital_doctor_schedules!inner(weekday)')
+        .eq('branch_id', r.branch_id).eq('is_active', true)
+        .eq('hospital_doctor_schedules.weekday', weekday),
+      supabase
+        .from('hospital_doctor_leaves')
+        .select('doctor_id')
+        .eq('leave_date', date),
+    ])
+    const onLeave = new Set(((leaves ?? []) as { doctor_id: string }[]).map((l) => l.doctor_id))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const docs = ((opdDoctors ?? []) as any[]).filter((d) => !onLeave.has(d.id))
+    consultTargets = ((opdDepts ?? []) as { id: string; name: Record<string, string> }[])
+      .map((dep) => ({
+        departmentId: dep.id,
+        departmentName: dep.name?.en ?? '',
+        doctors: docs.filter((d) => d.department_id === dep.id).map((d) => ({ id: d.id, name: d.name })),
+      }))
+      .filter((t) => t.doctors.length > 0)
+  }
+
   return {
     status: 'ok',
     roomId: r.id,
@@ -154,6 +190,7 @@ export async function fetchHospitalRoomViewAction(roomToken: string): Promise<Ho
     noShows: ((noShows ?? []) as DbHospitalToken[]).map(toHospitalTokenDTO),
     sendTargets: ((targets ?? []) as { id: string; name: Record<string, string>; type: HospitalDepartmentType }[])
       .map((t) => ({ id: t.id, name: t.name?.en ?? '', type: t.type })),
+    consultTargets,
     servedToday: servedToday ?? 0,
   }
 }

@@ -308,7 +308,8 @@ const STAGE_FOR_TYPE: Record<string, HospitalStage> = {
 
 export async function hospitalSendToAction(
   roomToken: string,
-  toDepartmentId: string
+  toDepartmentId: string,
+  toDoctorId?: string | null
 ): Promise<HospitalTokenResult> {
   const room = await verifyRoom(roomToken)
   if (!room) return { error: 'Room not found' }
@@ -326,7 +327,10 @@ export async function hospitalSendToAction(
   if (!d || d.branch_id !== room.branch_id || !d.is_active) {
     return { error: 'That department is not available' }
   }
-  const stage = STAGE_FOR_TYPE[d.type] ?? 'consult'
+  // OPD target (the triage → consult hop) needs a doctor named; the service
+  // points (lab/pharmacy/…) queue by department and take no doctor.
+  if (d.type === 'opd' && !toDoctorId) return { error: 'Choose a doctor to send the patient to' }
+  const stage = d.type === 'opd' ? 'consult' : STAGE_FOR_TYPE[d.type] ?? 'consult'
 
   const { data, error } = await supabase.rpc('transfer_hospital_token', {
     p_token_id: row.id,
@@ -334,8 +338,9 @@ export async function hospitalSendToAction(
     p_to_stage: stage,
     p_actor: 'room',
     p_restore_doctor: false,
+    p_assign_doctor_id: d.type === 'opd' ? toDoctorId : null,
   })
-  if (error || !data) return { error: `Could not send ${row.token_code} on` }
+  if (error || !data) return { error: error?.message?.replace(/^.*:\s*/, '') || `Could not send ${row.token_code} on` }
 
   return { token: toHospitalTokenDTO(data as DbHospitalToken) }
 }
