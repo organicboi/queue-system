@@ -33,6 +33,12 @@ export const VERTICALS: VerticalMeta[] = [
     short: 'School',
     description: 'Department tokens, calling windows and a campus board',
   },
+  {
+    value: 'hospital',
+    label: 'Hospital Queue System',
+    short: 'Hospital',
+    description: 'Per-doctor OPD queues, triage, lab/pharmacy flow and a vernacular voice board',
+  },
 ]
 
 export const DEFAULT_VERTICAL: CustomerVertical = 'business'
@@ -60,5 +66,6 @@ export function verticalHome(
   role?: string | null
 ): string {
   if (vertical === 'school') return '/school/dashboard'
+  if (vertical === 'hospital') return '/hospital/dashboard'
   return role === 'branch_user' ? '/branch' : '/dashboard'
 }

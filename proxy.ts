@@ -46,6 +46,15 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/school/display') ||
     pathname.startsWith('/school/counter')
 
+  // Hospital device surfaces authenticate the same way — a long-lived token in
+  // their own URL (branch_token / screen_token / room_token). A lobby kiosk, a
+  // ceiling-mounted TV board and a consult-room console never log in.
+  const isHospitalDevice =
+    pathname.startsWith('/hospital/kiosk') ||
+    pathname.startsWith('/hospital/display') ||
+    pathname.startsWith('/hospital/room') ||
+    pathname.startsWith('/hospital/book')
+
   // Protected customer-admin routes (require Supabase user)
   const isAdminRoute =
     pathname.startsWith('/dashboard') ||
@@ -54,7 +63,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/users') ||
     pathname.startsWith('/analytics') ||
     pathname.startsWith('/branch') ||
-    (pathname.startsWith('/school') && !isSchoolDevice)
+    (pathname.startsWith('/school') && !isSchoolDevice) ||
+    (pathname.startsWith('/hospital') && !isHospitalDevice)
 
   if (isAdminRoute && !user) {
     return NextResponse.redirect(new URL('/login', request.url))

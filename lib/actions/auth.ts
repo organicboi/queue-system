@@ -180,21 +180,33 @@ export async function onboardAction(_prev: AuthResult, formData: FormData): Prom
       .insert({ customer_id: customerId, name: 'Main Branch', location_note: 'Default branch' })
       .select().single()
 
-    // queue_state is the hotel product's per-branch serving pointer. A school
-    // branch serves from N windows at once and never reads it, so it is only
-    // created for the product that uses it.
-    if (branch && (licenseRow.vertical ?? 'business') !== 'school') {
+    // queue_state is the hotel product's per-branch serving pointer. School and
+    // hospital branches serve from many windows/rooms at once and never read it,
+    // so it is only created for the product that uses it.
+    const keyVertical = licenseRow.vertical ?? 'business'
+    if (branch && keyVertical === 'business') {
       await service.from('queue_state').insert({ customer_id: customerId, branch_id: branch.id })
     }
 
     // A school's name is provider-owned — /school/settings shows it read-only —
     // so seed it from the name given here. Without this the TV board and every
     // ticket print blank until the distributor fills it in.
-    if (branch && (licenseRow.vertical ?? 'business') === 'school') {
+    if (branch && keyVertical === 'school') {
       await service.from('school_settings').insert({
         customer_id: customerId,
         branch_id: branch.id,
         school_name_en: parsed.data.businessName ?? '',
+      })
+    }
+
+    // Same reasoning for hospital: the kiosk ticket and the TV board need a
+    // hospital name before anything renders. hospital_settings.hospital_name is
+    // a jsonb locale map with a required `en` key.
+    if (branch && keyVertical === 'hospital') {
+      await service.from('hospital_settings').insert({
+        customer_id: customerId,
+        branch_id: branch.id,
+        hospital_name: { en: parsed.data.businessName ?? 'Hospital' },
       })
     }
   }

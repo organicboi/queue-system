@@ -12,9 +12,11 @@ export default async function BranchOperatorLayout({ children }: { children: Rea
 
   const profile = await getProfile()
   if (!profile) redirect('/onboard')
-  // Checked before the role branch below: a school branch_user belongs in the
-  // school product, not on the hotel operator console.
-  if (profile.vertical === 'school') redirect(verticalHome(profile.vertical, profile.role))
+  // Checked before the role branch below: a school or hospital branch_user
+  // belongs in their own product, not on the hotel operator console.
+  if (profile.vertical === 'school' || profile.vertical === 'hospital') {
+    redirect(verticalHome(profile.vertical, profile.role))
+  }
   if (profile.role === 'admin') redirect('/dashboard')
 
   const branch = await getAssignedBranch(profile)

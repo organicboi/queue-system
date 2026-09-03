@@ -1,0 +1,105 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { cn } from '@/lib/utils'
+import { Separator } from '@/components/ui/separator'
+import { logoutAction } from '@/lib/actions/auth'
+import {
+  LayoutDashboard, Building2, Stethoscope, DoorOpen, Tv, ListOrdered,
+  BarChart2, Settings, Users, LogOut, Cross, Megaphone, UserRound,
+} from 'lucide-react'
+
+const navItems = [
+  { href: '/hospital/dashboard',   label: 'Dashboard',     icon: LayoutDashboard },
+  { href: '/hospital/departments', label: 'Departments',   icon: Building2 },
+  { href: '/hospital/doctors',     label: 'Doctors',       icon: Stethoscope },
+  { href: '/hospital/rooms',       label: 'Rooms',         icon: DoorOpen },
+  { href: '/hospital/patients',    label: 'Reception',     icon: UserRound },
+  { href: '/hospital/screens',     label: 'Devices',       icon: Tv },
+  { href: '/hospital/ads',         label: 'Ads & Media',   icon: Megaphone },
+  { href: '/hospital/tokens',      label: 'Token History', icon: ListOrdered },
+  { href: '/hospital/reports',     label: 'Reports',       icon: BarChart2 },
+  { href: '/hospital/users',       label: 'Users',         icon: Users },
+  { href: '/hospital/settings',    label: 'Settings',      icon: Settings },
+]
+
+// Which nav destinations exist yet — the operating loop shipped first, the rest
+// land in later phases. A pending item still renders (so the shape of the
+// product is visible) but is not a link.
+const LIVE = new Set([
+  '/hospital/dashboard', '/hospital/departments', '/hospital/doctors',
+  '/hospital/rooms', '/hospital/screens', '/hospital/settings', '/hospital/users',
+])
+
+export function HospitalSidebar({ onNavigate, hospitalName }: {
+  onNavigate?: () => void
+  hospitalName?: string
+}) {
+  const pathname = usePathname()
+
+  return (
+    <div className="flex h-full flex-col bg-white">
+      <div className="flex h-16 items-center border-b border-slate-200 px-5 gap-3">
+        <div className="size-8 rounded-lg bg-accent-600 flex items-center justify-center shrink-0">
+          <Cross className="size-4 text-white" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-slate-800 truncate">{hospitalName ?? 'Hospital Queue'}</p>
+          <p className="text-[11px] text-slate-400">Manager</p>
+        </div>
+      </div>
+
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+          Menu
+        </p>
+        {navItems.map(({ href, label, icon: Icon }) => {
+          const live = LIVE.has(href)
+          const isActive = pathname === href || pathname.startsWith(`${href}/`)
+          if (!live) {
+            return (
+              <span
+                key={href}
+                className="flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg text-slate-300 cursor-not-allowed"
+                title="Coming in a later phase"
+              >
+                <Icon className="size-4 shrink-0" />
+                {label}
+              </span>
+            )
+          }
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={onNavigate}
+              className={cn(
+                'flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                isActive
+                  ? 'bg-accent-600 text-white'
+                  : 'text-slate-600 active:bg-slate-100 active:text-slate-800'
+              )}
+            >
+              <Icon className="size-4 shrink-0" />
+              {label}
+            </Link>
+          )
+        })}
+        <Separator className="my-4 bg-slate-200" />
+      </nav>
+
+      <div className="border-t border-slate-200 p-3">
+        <form action={logoutAction}>
+          <button
+            type="submit"
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg text-slate-500 active:text-red-600 active:bg-red-50 transition-colors"
+          >
+            <LogOut className="size-4 shrink-0" />
+            Sign out
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}

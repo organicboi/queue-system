@@ -11,9 +11,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const profile = await getProfile()
   if (!profile) redirect('/onboard')
-  // School tenants have their own product under /school; the hotel queue pages
-  // would show them an empty, irrelevant dashboard.
-  if (profile.vertical === 'school') redirect(verticalHome(profile.vertical, profile.role))
+  // School and hospital tenants have their own products under /school and
+  // /hospital; the hotel queue pages would show them an empty, irrelevant
+  // dashboard.
+  if (profile.vertical === 'school' || profile.vertical === 'hospital') {
+    redirect(verticalHome(profile.vertical, profile.role))
+  }
   if (profile.role !== 'admin') redirect('/branch')
 
   const [branches, activeBranchId] = await Promise.all([

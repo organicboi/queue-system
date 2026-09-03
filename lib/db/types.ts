@@ -16,7 +16,7 @@ export type ScreenTheme = 'standard' | 'dark' | 'vibrant' | 'minimal'
 export type AnnouncementLang = Locale | 'both'
 // Which queue product a tenant runs. Set at onboarding; drives every
 // post-login redirect and the admin nav.
-export type CustomerVertical = 'business' | 'school'
+export type CustomerVertical = 'business' | 'school' | 'hospital'
 
 // What a school tenant gets before the distributor grants more. Both are
 // per-branch ceilings on ACTIVE rows; deactivating frees a slot.
@@ -24,6 +24,12 @@ export const DEFAULT_SCHOOL_DEPARTMENT_LIMIT = 1
 export const DEFAULT_SCHOOL_COUNTER_LIMIT = 1
 // Guard rail matching customers_max_school_*_check in the migration.
 export const MAX_SCHOOL_ENTITLEMENT = 200
+
+// Hospital capacity ceilings — same per-branch rule as school. A hospital
+// needs several departments (OPD specialities + lab/pharmacy/billing) to be
+// useful, so the defaults are wider than the school's single slot.
+export const DEFAULT_HOSPITAL_DEPARTMENT_LIMIT = 12
+export const DEFAULT_HOSPITAL_ROOM_LIMIT = 8
 
 // ── DB Row Types (snake_case — exact DB columns) ──────────────
 export interface DbPlan {
@@ -71,6 +77,11 @@ export interface DbCustomer {
   // together with school_settings.public_tracking_enabled, which the tenant
   // controls.
   school_public_tracking_enabled: boolean
+  // Hospital capacity + add-ons. See supabase/migrations/20260908_hospital_queue_system.sql.
+  max_hospital_departments: number
+  max_hospital_rooms: number
+  hospital_public_tracking_enabled: boolean
+  hospital_notifications_enabled: boolean
   branch_ad_mode: AdMergeMode
   onboarded_at: string | null
   created_at: string
@@ -283,6 +294,10 @@ export interface CustomerDTO {
   maxSchoolDepartments: number
   maxSchoolCounters: number
   schoolPublicTrackingEnabled: boolean
+  maxHospitalDepartments: number
+  maxHospitalRooms: number
+  hospitalPublicTrackingEnabled: boolean
+  hospitalNotificationsEnabled: boolean
   branchAdMode: AdMergeMode
   onboardedAt: string | null
   createdAt: string
@@ -710,6 +725,10 @@ export function toCustomerDTO(row: DbCustomer): CustomerDTO {
     maxSchoolDepartments: row.max_school_departments ?? DEFAULT_SCHOOL_DEPARTMENT_LIMIT,
     maxSchoolCounters: row.max_school_counters ?? DEFAULT_SCHOOL_COUNTER_LIMIT,
     schoolPublicTrackingEnabled: row.school_public_tracking_enabled ?? false,
+    maxHospitalDepartments: row.max_hospital_departments ?? DEFAULT_HOSPITAL_DEPARTMENT_LIMIT,
+    maxHospitalRooms: row.max_hospital_rooms ?? DEFAULT_HOSPITAL_ROOM_LIMIT,
+    hospitalPublicTrackingEnabled: row.hospital_public_tracking_enabled ?? true,
+    hospitalNotificationsEnabled: row.hospital_notifications_enabled ?? false,
     branchAdMode: row.branch_ad_mode,
     onboardedAt: row.onboarded_at,
     createdAt: row.created_at,

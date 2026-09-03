@@ -8,9 +8,11 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
 
   const profile = await getProfile()
   if (!profile) redirect('/onboard')
-  // The owner roll-up reads queue_entries and activity_logs — a school tenant
-  // has rows in neither, so it would render an empty dashboard.
-  if (profile.vertical === 'school') redirect(verticalHome(profile.vertical, profile.role))
+  // The owner roll-up reads queue_entries and activity_logs — school and
+  // hospital tenants have rows in neither, so it would render an empty dashboard.
+  if (profile.vertical === 'school' || profile.vertical === 'hospital') {
+    redirect(verticalHome(profile.vertical, profile.role))
+  }
 
   return (
     <div className="h-screen overflow-y-auto bg-slate-50">

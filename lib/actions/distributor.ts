@@ -67,9 +67,9 @@ export async function createCustomerAction(
     .insert({ customer_id: customer.id, name: 'Main Branch' })
     .select().single()
 
-  // queue_state is the hotel product's per-branch serving pointer; a school
-  // branch serves from N windows at once and never reads it.
-  if (branch && parsed.data.vertical !== 'school') {
+  // queue_state is the hotel product's per-branch serving pointer; school and
+  // hospital branches serve from many windows/rooms at once and never read it.
+  if (branch && parsed.data.vertical === 'business') {
     await service.from('queue_state').insert({ customer_id: customer.id, branch_id: branch.id })
   }
 
@@ -82,6 +82,16 @@ export async function createCustomerAction(
       customer_id: customer.id,
       branch_id: branch.id,
       school_name_en: parsed.data.businessName,
+    })
+  }
+
+  // Same for hospital: the kiosk ticket and TV board need a name to render.
+  // hospital_settings.hospital_name is a jsonb locale map with a required `en`.
+  if (branch && parsed.data.vertical === 'hospital') {
+    await service.from('hospital_settings').insert({
+      customer_id: customer.id,
+      branch_id: branch.id,
+      hospital_name: { en: parsed.data.businessName },
     })
   }
 

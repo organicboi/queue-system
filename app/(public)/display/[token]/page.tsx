@@ -22,8 +22,12 @@ export default async function DisplayPage({ params }: Props) {
     .select('kind')
     .eq('screen_token', token)
     .maybeSingle()
-  if ((screen as { kind?: string } | null)?.kind === 'school') {
+  const screenKind = (screen as { kind?: string } | null)?.kind
+  if (screenKind === 'school') {
     redirect(`/school/display/${token}`)
+  }
+  if (screenKind === 'hospital') {
+    redirect(`/hospital/display/${token}`)
   }
 
   const packet = await getScreenByToken(token)

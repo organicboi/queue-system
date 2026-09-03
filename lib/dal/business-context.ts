@@ -20,7 +20,7 @@ import type { ProfileDTO } from '@/lib/db/types'
  */
 export async function requireBusinessProfile(): Promise<ProfileDTO> {
   const profile = await requireProfile()
-  if (profile.vertical === 'school') {
+  if (profile.vertical === 'school' || profile.vertical === 'hospital') {
     redirect(verticalHome(profile.vertical, profile.role))
   }
   return profile
