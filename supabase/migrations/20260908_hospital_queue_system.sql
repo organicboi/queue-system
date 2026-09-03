@@ -833,12 +833,18 @@ BEGIN
     RAISE EXCEPTION 'Target department % not available', p_to_department_id;
   END IF;
 
-  -- A review returns to the same doctor; a forward transfer to a service
-  -- point clears the doctor (service queues are per-department, not per-doctor).
+  -- The visit's home doctor rides along through every service-point hop, so the
+  -- review re-entry (to_stage='review') can route back to them. Service-point
+  -- queues order by department, not doctor (see call_next_hospital_token), so a
+  -- non-null doctor_id on a lab/pharmacy token is harmless. Only an explicit
+  -- move to a *different* OPD speciality drops it, for reception to reassign.
   v_doctor := CASE
-    WHEN p_restore_doctor OR p_to_stage = 'review' THEN v_token.doctor_id
-    WHEN v_dept.type = 'opd' THEN v_token.doctor_id
-    ELSE NULL
+    WHEN v_dept.type = 'opd'
+         AND p_to_department_id <> v_token.department_id
+         AND NOT p_restore_doctor
+         AND p_to_stage <> 'review'
+      THEN NULL
+    ELSE v_token.doctor_id
   END;
 
   UPDATE public.hospital_tokens
