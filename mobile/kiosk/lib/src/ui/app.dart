@@ -3,10 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/device_role.dart';
+import '../config/device_vertical.dart';
 import '../printing/ticket_capture_host.dart';
 import '../state/providers.dart';
 import 'admin/admin_gate.dart';
 import 'display/board_screen.dart';
+import 'hospital/hospital_board_screen.dart';
+import 'hospital/hospital_kiosk_screen.dart';
 import 'kiosk_screen.dart';
 import 'setup/setup_wizard.dart';
 import 'theme.dart';
@@ -86,16 +89,20 @@ class _Root extends ConsumerWidget {
         // console the moment `_Root` decides what to show. Cheap to leave in;
         // strip once the report above is resolved.
         debugPrint(
-          '[VibeQueue] _Root routing: role=${cfg.role} setupComplete=${cfg.setupComplete} '
-          'isComplete=${cfg.isComplete} branchToken=${cfg.branchToken.isEmpty ? "(empty)" : "(set)"} '
+          '[VibeQueue] _Root routing: role=${cfg.role} vertical=${cfg.vertical} '
+          'setupComplete=${cfg.setupComplete} isComplete=${cfg.isComplete} '
+          'branchToken=${cfg.branchToken.isEmpty ? "(empty)" : "(set)"} '
           'screenToken=${cfg.screenToken.isEmpty ? "(empty)" : "(set)"} webUrl=${cfg.webUrl}',
         );
         if (!cfg.setupComplete || !cfg.isComplete || cfg.role == null) {
           return const SetupWizard();
         }
+        final hospital = cfg.vertical == DeviceVertical.hospital;
         final roleScreen = switch (cfg.role!) {
-          DeviceRole.kiosk => const KioskScreen(),
-          DeviceRole.display => const BoardScreen(),
+          DeviceRole.kiosk =>
+            hospital ? const HospitalKioskScreen() : const KioskScreen(),
+          DeviceRole.display =>
+            hospital ? const HospitalBoardScreen() : const BoardScreen(),
           DeviceRole.web => WebScreen(url: cfg.webUrl),
         };
         return PopScope(

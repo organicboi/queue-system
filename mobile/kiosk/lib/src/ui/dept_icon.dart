@@ -42,6 +42,34 @@ IconData departmentIcon(String lucideName) {
     case 'Stethoscope':
     case 'Cross':
       return Icons.medical_services_rounded;
+    // Hospital department glyphs (HOSPITAL_DEPARTMENT_ICONS in
+    // lib/hospital/constants.ts + the set HospitalKiosk.tsx renders).
+    case 'HeartPulse':
+    case 'Activity':
+      return Icons.monitor_heart_rounded;
+    case 'Bone':
+      return Icons.accessibility_new_rounded;
+    case 'Baby':
+      return Icons.child_friendly_rounded;
+    case 'Eye':
+      return Icons.visibility_rounded;
+    case 'Brain':
+      return Icons.psychology_rounded;
+    case 'Ear':
+      return Icons.hearing_rounded;
+    case 'Smile':
+      return Icons.sentiment_satisfied_rounded;
+    case 'Syringe':
+      return Icons.vaccines_rounded;
+    case 'Microscope':
+    case 'TestTube':
+      return Icons.biotech_rounded;
+    case 'ScanLine':
+      return Icons.document_scanner_rounded;
+    case 'Pill':
+      return Icons.medication_rounded;
+    case 'Thermometer':
+      return Icons.thermostat_rounded;
     case 'Phone':
       return Icons.call_rounded;
     case 'Mail':

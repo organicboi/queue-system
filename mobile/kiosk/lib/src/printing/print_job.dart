@@ -1,22 +1,14 @@
-import '../models/school_department.dart';
-import '../models/school_token.dart';
+import 'ticket_widget.dart';
 
-/// One ticket to print. Carries its own department because a reprint from the
-/// recent-tickets rail can be for a service other than the one last tapped
-/// (see the `PrintJob` interface in components/school/SchoolKiosk.tsx).
+/// One ticket to print. Carries the fully-resolved [TicketData] — the caller
+/// (a vertical's kiosk controller) has already merged the token, the
+/// department/doctor, the branch branding and the public-tracking gate into it,
+/// so the printer itself is vertical-neutral: it rasters [data] and sends it.
 class PrintJob {
-  PrintJob({required this.token, required this.department, this.waitingAhead})
-      : key = DateTime.now().microsecondsSinceEpoch;
+  PrintJob({required this.data}) : key = DateTime.now().microsecondsSinceEpoch;
 
   final int key;
-  final SchoolToken token;
-  final SchoolDepartment department;
-
-  /// How many visitors were ahead of this token when the job was queued, for
-  /// the line the ticket prints. Null when the server couldn't be asked (a
-  /// reprint with the network down) — the ticket then leaves the line off
-  /// rather than printing a number that isn't true.
-  final int? waitingAhead;
+  final TicketData data;
 }
 
 enum PrintResult { printed, failed }

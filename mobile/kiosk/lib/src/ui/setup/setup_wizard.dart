@@ -4,11 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../api/api_exception.dart';
 import '../../api/display_api.dart';
+import '../../api/hospital_display_api.dart';
+import '../../api/hospital_kiosk_api.dart';
 import '../../api/kiosk_api.dart';
 import '../../api/pair_api.dart';
 import '../../config/app_config.dart';
 import '../../config/device_config.dart';
 import '../../config/device_role.dart';
+import '../../config/device_vertical.dart';
 import '../../config/provisioning_qr.dart';
 import '../../printing/printer_settings.dart';
 import '../../state/providers.dart';
@@ -42,6 +45,7 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
   final _codeController = TextEditingController();
 
   DeviceRole? _role;
+  DeviceVertical _vertical = DeviceVertical.business;
   PrinterSettings _printer = const PrinterSettings();
   String? _pinHash;
   String? _pinSalt;
@@ -57,6 +61,7 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
     final existing = widget.startAtSettingsFor;
     _baseUrlController = TextEditingController(text: existing?.baseUrl ?? AppConfig.defaultBaseUrl);
     _role = existing?.role;
+    _vertical = existing?.vertical ?? DeviceVertical.business;
     _tokenController = TextEditingController(
       text: existing?.role == DeviceRole.display ? existing?.screenToken : existing?.branchToken,
     );
@@ -113,15 +118,29 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
     });
     final baseUrl = _baseUrlController.text.trim();
     final token = _tokenController.text.trim();
+    final hospital = _vertical == DeviceVertical.hospital;
     try {
       if (_role == DeviceRole.kiosk) {
-        final api = KioskApi(baseUrl: baseUrl, branchToken: token);
-        final bootstrap = await api.bootstrap();
-        setState(() => _resolvedName = bootstrap.branchName);
+        if (hospital) {
+          final b = await HospitalKioskApi(baseUrl: baseUrl, branchToken: token)
+              .bootstrap();
+          setState(() => _resolvedName = b.branchName);
+        } else {
+          final b =
+              await KioskApi(baseUrl: baseUrl, branchToken: token).bootstrap();
+          setState(() => _resolvedName = b.branchName);
+        }
       } else if (_role == DeviceRole.display) {
-        final api = DisplayApi(baseUrl: baseUrl, screenToken: token);
-        final board = await api.fetchBoard();
-        setState(() => _resolvedName = board.schoolNameEn);
+        if (hospital) {
+          final board =
+              await HospitalDisplayApi(baseUrl: baseUrl, screenToken: token)
+                  .fetchBoard();
+          setState(() => _resolvedName = board.hospitalName);
+        } else {
+          final board =
+              await DisplayApi(baseUrl: baseUrl, screenToken: token).fetchBoard();
+          setState(() => _resolvedName = board.schoolNameEn);
+        }
       }
     } on ApiException catch (e) {
       setState(() => _pairError = e.message);
@@ -155,6 +174,7 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
       _baseUrlController.text = payload.baseUrl;
       if (_role != payload.role) _tokenController.clear();
       _role = payload.role;
+      _vertical = payload.vertical;
       _tokenController.text = payload.token;
       _pairError = null;
     });
@@ -212,6 +232,7 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
       }
       setState(() {
         _role = result.role;
+        _vertical = result.vertical;
         _tokenController.text = result.token;
         _resolvedName = result.name.isEmpty ? result.role.label : result.name;
         _validating = false;
@@ -262,6 +283,7 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
     final config = DeviceConfig(
       baseUrl: _baseUrlController.text.trim(),
       role: _role,
+      vertical: _vertical,
       setupComplete: true,
       branchToken: _role == DeviceRole.kiosk ? _tokenController.text.trim() : '',
       screenToken: _role == DeviceRole.display ? _tokenController.text.trim() : '',
@@ -323,6 +345,11 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
                   }))),
                   _pad(_PairStep(
                     role: _role,
+                    vertical: _vertical,
+                    onVertical: (v) => setState(() {
+                      _vertical = v;
+                      _resolvedName = null;
+                    }),
                     codeController: _codeController,
                     tokenController: _tokenController,
                     webUrlController: _webUrlController,
@@ -351,6 +378,7 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
                   _pad(_ReviewStep(
                     baseUrl: _baseUrlController.text,
                     role: _role,
+                    vertical: _vertical,
                     token: _tokenController.text,
                     webUrl: _webUrlController.text,
                     printer: _printer,
@@ -519,6 +547,8 @@ class _RoleCard extends StatelessWidget {
 class _PairStep extends StatelessWidget {
   const _PairStep({
     required this.role,
+    required this.vertical,
+    required this.onVertical,
     required this.codeController,
     required this.tokenController,
     required this.webUrlController,
@@ -532,6 +562,8 @@ class _PairStep extends StatelessWidget {
   });
 
   final DeviceRole? role;
+  final DeviceVertical vertical;
+  final ValueChanged<DeviceVertical> onVertical;
   final TextEditingController codeController;
   final TextEditingController tokenController;
   final TextEditingController webUrlController;
@@ -625,6 +657,20 @@ class _PairStep extends StatelessWidget {
             title: const Text('Use the full token or a QR code instead',
                 style: TextStyle(color: KioskPalette.inkSoft, fontSize: 14)),
             children: [
+              // A pairing code and a provisioning QR both carry the product;
+              // only the raw-token path needs this set by hand.
+              DropdownButtonFormField<DeviceVertical>(
+                initialValue: vertical,
+                decoration: const InputDecoration(labelText: 'Product'),
+                items: [
+                  for (final v in DeviceVertical.values)
+                    DropdownMenuItem(value: v, child: Text(v.label)),
+                ],
+                onChanged: (v) {
+                  if (v != null) onVertical(v);
+                },
+              ),
+              const SizedBox(height: 12),
               TextField(
                 controller: tokenController,
                 decoration: InputDecoration(labelText: tokenLabel),
@@ -659,6 +705,7 @@ class _ReviewStep extends StatelessWidget {
   const _ReviewStep({
     required this.baseUrl,
     required this.role,
+    required this.vertical,
     required this.token,
     required this.webUrl,
     required this.printer,
@@ -666,6 +713,7 @@ class _ReviewStep extends StatelessWidget {
 
   final String baseUrl;
   final DeviceRole? role;
+  final DeviceVertical vertical;
   final String token;
   final String webUrl;
   final PrinterSettings printer;
@@ -678,6 +726,7 @@ class _ReviewStep extends StatelessWidget {
         Text('Review', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 20),
         _row('Server', baseUrl),
+        _row('Product', vertical.label),
         _row('Role', role?.label ?? '—'),
         if (role == DeviceRole.web) _row('Page', webUrl) else _row('Token', token),
         if (role == DeviceRole.kiosk)

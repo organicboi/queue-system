@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../printing/printer_settings.dart';
 import 'app_config.dart';
 import 'device_role.dart';
+import 'device_vertical.dart';
 
 /// Per-device provisioning, persisted in SharedPreferences so it survives
 /// restarts. Replaces the old two-field `KioskConfig` with a role-based
@@ -21,10 +22,16 @@ class DeviceConfig {
     required this.adminPinSalt,
     required this.adminPinLength,
     required this.printer,
+    this.vertical = DeviceVertical.business,
   });
 
   final String baseUrl;
   final DeviceRole? role;
+
+  /// Which product the paired branch/screen belongs to — decides which screen
+  /// [_Root] shows and which API base path the clients use. Defaults to
+  /// `business` so a pre-vertical pairing payload keeps working.
+  final DeviceVertical vertical;
   final bool setupComplete;
 
   /// Kiosk role.
@@ -59,6 +66,7 @@ class DeviceConfig {
   static const _kBaseUrl = 'kiosk.baseUrl';
   static const _kBranchToken = 'kiosk.branchToken';
   static const _kRole = 'device.role';
+  static const _kVertical = 'device.vertical';
   static const _kScreenToken = 'device.screenToken';
   static const _kWebUrl = 'device.webUrl';
   static const _kPinHash = 'device.pinHash';
@@ -83,6 +91,7 @@ class DeviceConfig {
     return DeviceConfig(
       baseUrl: prefs.getString(_kBaseUrl) ?? AppConfig.defaultBaseUrl,
       role: role,
+      vertical: DeviceVertical.fromStorage(prefs.getString(_kVertical)),
       setupComplete: setupComplete,
       branchToken: legacyBranchToken,
       screenToken: prefs.getString(_kScreenToken) ?? '',
@@ -98,6 +107,7 @@ class DeviceConfig {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kBaseUrl, baseUrl.trim());
     if (role != null) await prefs.setString(_kRole, role!.storageValue);
+    await prefs.setString(_kVertical, vertical.storageValue);
     await prefs.setBool(_kSetupComplete, setupComplete);
     await prefs.setString(_kBranchToken, branchToken.trim());
     await prefs.setString(_kScreenToken, screenToken.trim());
@@ -114,6 +124,7 @@ class DeviceConfig {
   static Future<void> clearProvisioning() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kRole);
+    await prefs.remove(_kVertical);
     await prefs.remove(_kBranchToken);
     await prefs.remove(_kScreenToken);
     await prefs.remove(_kWebUrl);
@@ -123,6 +134,7 @@ class DeviceConfig {
   DeviceConfig copyWith({
     String? baseUrl,
     DeviceRole? role,
+    DeviceVertical? vertical,
     bool? setupComplete,
     String? branchToken,
     String? screenToken,
@@ -135,6 +147,7 @@ class DeviceConfig {
     return DeviceConfig(
       baseUrl: baseUrl ?? this.baseUrl,
       role: role ?? this.role,
+      vertical: vertical ?? this.vertical,
       setupComplete: setupComplete ?? this.setupComplete,
       branchToken: branchToken ?? this.branchToken,
       screenToken: screenToken ?? this.screenToken,

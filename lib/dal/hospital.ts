@@ -198,6 +198,82 @@ export const getHospitalKioskPacket = cache(async (branchToken: string): Promise
   }
 })
 
+// ── Kiosk app bootstrap (native Flutter client) ───────────────
+// The native kiosk has no window.location and no server component to compute
+// "today"'s on-duty doctors, so this packet does for the app what
+// app/(hospital)/hospital/(device)/kiosk/[branchToken]/page.tsx does inline:
+// kiosk departments (opd + triage), doctors whose schedule covers today minus
+// leave, and the branding/print/tracking flags. Names only — no patient join.
+export interface HospitalKioskAppDoctor {
+  id: string
+  name: string
+  departmentId: string
+  specialization: string
+  feePaise: number
+}
+
+export interface HospitalKioskAppPacket {
+  status: 'ok' | 'not-found' | 'inactive'
+  branchId?: string
+  branchName?: string
+  customerId?: string
+  serviceDate?: string
+  departments?: HospitalDepartmentDTO[]
+  doctors?: HospitalKioskAppDoctor[]
+  settings?: HospitalSettingsDTO | null
+  silentPrint?: boolean
+  printerName?: string
+  publicTrackingEnabled?: boolean
+}
+
+export const getHospitalKioskAppPacket = cache(
+  async (branchToken: string): Promise<HospitalKioskAppPacket> => {
+    const base = await getHospitalKioskPacket(branchToken)
+    if (base.status !== 'ok' || !base.branchId) return { status: base.status }
+
+    const [serviceDate, doctorsWithSchedules] = await Promise.all([
+      getHospitalServiceDate(base.branchId),
+      getHospitalDoctors(base.branchId, { activeOnly: true, withSchedules: true }),
+    ])
+
+    // "Today" is a SQL fact; the weekday it falls on is safe to derive from it.
+    const weekday = new Date(`${serviceDate}T00:00:00`).getDay()
+    const onDuty = doctorsWithSchedules
+      .filter((d) => {
+        const scheduledToday = (d.schedules ?? []).some((s) => s.weekday === weekday)
+        const onLeave = (d.leaves ?? []).some((l) => l.leaveDate === serviceDate)
+        return scheduledToday && !onLeave
+      })
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        departmentId: d.departmentId,
+        specialization: d.specialization,
+        feePaise: d.feePaise,
+      }))
+
+    // The kiosk shows OPD specialities and the registration/triage desk; the
+    // transfer UI (staff-side) targets the rest.
+    const kioskDepartments = (base.departments ?? []).filter(
+      (d) => d.type === 'opd' || d.type === 'triage'
+    )
+
+    return {
+      status: 'ok',
+      branchId: base.branchId,
+      branchName: base.branchName,
+      customerId: base.customerId,
+      serviceDate,
+      departments: kioskDepartments,
+      doctors: onDuty,
+      settings: base.settings,
+      silentPrint: base.silentPrint,
+      printerName: base.printerName,
+      publicTrackingEnabled: base.publicTrackingEnabled,
+    }
+  }
+)
+
 // ── TV board ──────────────────────────────────────────────────
 export const getHospitalBoard = cache(async (screenToken: string): Promise<HospitalBoardPacket> => {
   const supabase = createSupabaseServiceClient()

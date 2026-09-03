@@ -30,8 +30,8 @@ class DebugPrinter implements Printer {
   Future<PrintAttempt> print(PrintJob job) async {
     await Future<void>.delayed(const Duration(milliseconds: 400));
     debugPrint(
-      '[DebugPrinter] would print ${job.token.tokenCode} '
-      '(${job.department.nameEn}) priority=${job.token.isPriority}',
+      '[DebugPrinter] would print ${job.data.tokenCode} '
+      '(${job.data.departmentNameEn}) priority=${job.data.isPriority}',
     );
     return PrintAttempt.ok;
   }

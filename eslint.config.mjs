@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The Flutter kiosk app is a separate project with its own `flutter
+    // analyze`; its build output vendors JS assets (wakelock_plus) that trip
+    // the Next rules.
+    "mobile/**",
   ]),
 ]);
 

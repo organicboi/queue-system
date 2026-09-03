@@ -23,13 +23,38 @@ class TicketData {
     this.waitingAhead,
     this.logo,
     this.publicUrl,
+    this.doctorLine,
+    this.secondaryDir = TextDirection.rtl,
+    this.builtinArabicStrings = true,
   });
 
+  /// Primary-language lines (rendered LTR). For school these are English; for
+  /// hospital they are whichever language the visitor picked at the kiosk —
+  /// English, Hindi or Marathi all read LTR.
   final String schoolNameEn;
+
+  /// Secondary-language lines, rendered in [secondaryDir]. School only ever
+  /// pairs English with Arabic (RTL, the default); hospital pairs its primary
+  /// with English or another Indic language (LTR).
   final String schoolNameAr;
   final String tokenCode;
   final String departmentNameEn;
   final String departmentNameAr;
+
+  /// Optional line under the department — the doctor's name on a hospital OPD
+  /// ticket. Null on every school ticket.
+  final String? doctorLine;
+
+  /// Text direction for the [schoolNameAr] / [departmentNameAr] / [footerAr]
+  /// lines. Defaults to RTL so existing school (English+Arabic) tickets are
+  /// byte-identical.
+  final TextDirection secondaryDir;
+
+  /// Whether to print the built-in Arabic translations of the ticket's own
+  /// strings (the "waiting before you" line and the QR caption). True for the
+  /// Gulf school build; false for hospital, whose secondary language comes
+  /// through the `*Ar` slots and is rarely Arabic.
+  final bool builtinArabicStrings;
   final bool isPriority;
   final String footerEn;
   final String footerAr;
@@ -163,7 +188,7 @@ Widget buildTicketWidget({required TicketData data, required int widthDots}) {
           Padding(
             padding: EdgeInsets.only(top: s(4)),
             child: Directionality(
-              textDirection: TextDirection.rtl,
+              textDirection: data.secondaryDir,
               child: Text(
                 data.schoolNameAr,
                 textAlign: TextAlign.center,
@@ -219,12 +244,25 @@ Widget buildTicketWidget({required TicketData data, required int widthDots}) {
         ),
         if (data.departmentNameAr.trim().isNotEmpty)
           Directionality(
-            textDirection: TextDirection.rtl,
+            textDirection: data.secondaryDir,
             child: Text(
               data.departmentNameAr,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: s(_departmentFontSize),
+                fontWeight: FontWeight.w600,
+                color: Colors.black,
+              ),
+            ),
+          ),
+        if (data.doctorLine != null && data.doctorLine!.trim().isNotEmpty)
+          Padding(
+            padding: EdgeInsets.only(top: s(4)),
+            child: Text(
+              data.doctorLine!,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: s(_departmentFontSize * 0.82),
                 fontWeight: FontWeight.w600,
                 color: Colors.black,
               ),
@@ -255,19 +293,20 @@ Widget buildTicketWidget({required TicketData data, required int widthDots}) {
                     height: 1.2,
                   ),
                 ),
-                Directionality(
-                  textDirection: TextDirection.rtl,
-                  child: Text(
-                    aheadLine.ar,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: s(_aheadFontSize),
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
-                      height: 1.4,
+                if (data.builtinArabicStrings)
+                  Directionality(
+                    textDirection: TextDirection.rtl,
+                    child: Text(
+                      aheadLine.ar,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: s(_aheadFontSize),
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
+                        height: 1.4,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -292,7 +331,7 @@ Widget buildTicketWidget({required TicketData data, required int widthDots}) {
           Padding(
             padding: EdgeInsets.only(top: s(4)),
             child: Directionality(
-              textDirection: TextDirection.rtl,
+              textDirection: data.secondaryDir,
               child: Text(
                 data.footerAr,
                 textAlign: TextAlign.center,
@@ -322,21 +361,22 @@ Widget buildTicketWidget({required TicketData data, required int widthDots}) {
               color: Colors.black,
             ),
           ),
-          Padding(
-            padding: EdgeInsets.only(top: s(2)),
-            child: Directionality(
-              textDirection: TextDirection.rtl,
-              child: Text(
-                qrCaptionLine().ar,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: s(_qrCaptionFontSize),
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
+          if (data.builtinArabicStrings)
+            Padding(
+              padding: EdgeInsets.only(top: s(2)),
+              child: Directionality(
+                textDirection: TextDirection.rtl,
+                child: Text(
+                  qrCaptionLine().ar,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: s(_qrCaptionFontSize),
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
                 ),
               ),
             ),
-          ),
           // Scan-failure fallback: costs a few mm of paper, saves a support
           // call from someone whose camera can't get a lock on it.
           Padding(

@@ -1,14 +1,22 @@
 import 'package:dio/dio.dart';
 
 import '../config/device_role.dart';
+import '../config/device_vertical.dart';
 import 'api_exception.dart';
 
-/// Result of redeeming a pairing code: the role the code was minted for and
-/// the real long token the device stores and uses from now on.
+/// Result of redeeming a pairing code: the role the code was minted for, the
+/// product ([vertical]) the paired branch/screen belongs to, and the real long
+/// token the device stores and uses from now on.
 class PairingResult {
-  const PairingResult({required this.role, required this.token, required this.name});
+  const PairingResult({
+    required this.role,
+    required this.token,
+    required this.name,
+    this.vertical = DeviceVertical.business,
+  });
 
   final DeviceRole role;
+  final DeviceVertical vertical;
   final String token;
   final String name;
 }
@@ -54,6 +62,7 @@ class PairApi {
       }
       return PairingResult(
         role: role,
+        vertical: DeviceVertical.fromStorage(map['vertical'] as String?),
         token: token.trim(),
         name: (map['name'] as String?)?.trim() ?? '',
       );

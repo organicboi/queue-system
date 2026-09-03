@@ -152,19 +152,12 @@ final ticketLogoProvider = FutureProvider<ui.Image?>((ref) async {
 /// printing must never block on that, so this provider never itself awaits).
 final printerProvider = Provider<Printer>((ref) {
   final cfg = ref.watch(deviceConfigProvider).value;
-  final bootstrap = ref.watch(bootstrapProvider).value;
-  final logo = ref.watch(ticketLogoProvider).value;
-
-  Printer printer;
-  if (cfg != null && cfg.printer.isConfigured) {
-    printer = EscPosPrinter(
-      settings: cfg.printer,
-      branchInfo: BranchTicketInfo.fromBootstrap(bootstrap),
-      logo: logo,
-    );
-  } else {
-    printer = DebugPrinter();
-  }
+  // The printer is now vertical-neutral — it rasters a fully-resolved
+  // TicketData built by the controller, so it only rebuilds when the printer
+  // *settings* change, not on every bootstrap/logo refresh.
+  final Printer printer = (cfg != null && cfg.printer.isConfigured)
+      ? EscPosPrinter(settings: cfg.printer)
+      : DebugPrinter();
   ref.onDispose(printer.dispose);
   return printer;
 });
@@ -251,11 +244,29 @@ class KioskController {
   }
 
   void _print(SchoolToken token, SchoolDepartment department, int? waitingAhead) {
+    final info = BranchTicketInfo.fromBootstrap(ref.read(bootstrapProvider).value);
+    final logo = ref.read(ticketLogoProvider).value;
     ref.read(printQueueProvider).enqueue(
           PrintJob(
-            token: token,
-            department: department,
-            waitingAhead: waitingAhead,
+            data: TicketData(
+              schoolNameEn: info.schoolNameEn,
+              schoolNameAr: info.schoolNameAr,
+              tokenCode: token.tokenCode,
+              departmentNameEn: department.nameEn,
+              departmentNameAr: department.nameAr,
+              isPriority: token.isPriority,
+              footerEn: info.ticketFooterEn,
+              footerAr: info.ticketFooterAr,
+              issuedAt: DateTime.now(),
+              waitingAhead: waitingAhead,
+              logo: logo,
+              // Re-derived from the token's own public code — a reprint always
+              // wants the current gate.
+              publicUrl:
+                  info.publicTrackingEnabled && token.publicCode.isNotEmpty
+                      ? '${info.publicBaseUrl}/t/${token.publicCode}'
+                      : null,
+            ),
           ),
         );
   }

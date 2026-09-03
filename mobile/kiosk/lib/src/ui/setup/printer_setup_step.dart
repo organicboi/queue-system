@@ -87,13 +87,7 @@ class _PrinterSetupStepState extends State<PrinterSetupStep> {
       _testing = true;
       _calibrationResult = null;
     });
-    final printer = EscPosPrinter(
-      settings: widget.value,
-      branchInfo: const BranchTicketInfo(
-        schoolNameEn: '', schoolNameAr: '', ticketFooterEn: '', ticketFooterAr: '',
-        publicTrackingEnabled: false, publicBaseUrl: '',
-      ),
-    );
+    final printer = EscPosPrinter(settings: widget.value);
     final attempt = await printer.printCalibration();
     final error = printer.lastCalibrationError;
     await printer.dispose();

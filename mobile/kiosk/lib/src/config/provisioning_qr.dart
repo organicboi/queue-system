@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'device_role.dart';
+import 'device_vertical.dart';
 
 /// Payload encoded in the provisioning QR shown on the web admin's Screens
 /// page (`components/school/SchoolScreensManager.tsx`) — scanning it fills
@@ -12,10 +13,12 @@ class ProvisioningPayload {
     required this.baseUrl,
     required this.role,
     required this.token,
+    this.vertical = DeviceVertical.business,
   });
 
   final String baseUrl;
   final DeviceRole role;
+  final DeviceVertical vertical;
   final String token;
 
   static ProvisioningPayload? tryParse(String raw) {
@@ -27,7 +30,12 @@ class ProvisioningPayload {
       final token = map['token'] as String?;
       if (role == null || baseUrl == null || token == null) return null;
       if (baseUrl.trim().isEmpty || token.trim().isEmpty) return null;
-      return ProvisioningPayload(baseUrl: baseUrl, role: role, token: token);
+      return ProvisioningPayload(
+        baseUrl: baseUrl,
+        role: role,
+        vertical: DeviceVertical.fromStorage(map['vertical'] as String?),
+        token: token,
+      );
     } catch (_) {
       return null;
     }

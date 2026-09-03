@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 
 import '../models/kiosk_bootstrap.dart';
-import '../models/school_settings.dart';
 import 'escpos.dart';
 import 'print_job.dart';
 import 'printer.dart';
@@ -21,15 +19,9 @@ import 'transport/usb_transport.dart';
 /// reconnects on demand — a kiosk left running for weeks will see its socket
 /// drop or the printer sleep, and there's nobody there to power-cycle it.
 class EscPosPrinter implements Printer {
-  EscPosPrinter({
-    required this.settings,
-    required this.branchInfo,
-    ui.Image? logo,
-  }) : _logo = logo;
+  EscPosPrinter({required this.settings});
 
   final PrinterSettings settings;
-  final BranchTicketInfo branchInfo;
-  final ui.Image? _logo;
 
   PrinterTransport? _transport;
   bool _lastReady = true;
@@ -87,28 +79,8 @@ class EscPosPrinter implements Printer {
         return PrintAttempt.failure(paperCheck);
       }
 
-      final data = TicketData(
-        schoolNameEn: branchInfo.schoolNameEn,
-        schoolNameAr: branchInfo.schoolNameAr,
-        tokenCode: job.token.tokenCode,
-        departmentNameEn: job.department.nameEn,
-        departmentNameAr: job.department.nameAr,
-        isPriority: job.token.isPriority,
-        footerEn: branchInfo.ticketFooterEn,
-        footerAr: branchInfo.ticketFooterAr,
-        issuedAt: DateTime.now(),
-        waitingAhead: job.waitingAhead,
-        logo: _logo,
-        // Re-derived from the token's own public code rather than carried on
-        // PrintJob — a reprint always wants the current gate, and this is the
-        // same branch-level info schoolNameEn etc. already come from.
-        publicUrl: branchInfo.publicTrackingEnabled && job.token.publicCode.isNotEmpty
-            ? '${branchInfo.publicBaseUrl}/t/${job.token.publicCode}'
-            : null,
-      );
-
       final bytes = await buildTicketPrintStream(
-        data: data,
+        data: job.data,
         paper: settings.paper,
         hasCutter: settings.hasCutter,
       );
