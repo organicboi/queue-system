@@ -1,8 +1,42 @@
 # Hospital Queue Management System — India
 
-> **Plan status: not yet built.** Written 2026-09-03. Modelled on
-> `docs/school-queue-plan.md` (which shipped as `/school`); follow its "Status as
-> built" section format when this vertical is implemented.
+> **Plan status: Phase 1 shipped (2026-09-04).** Written 2026-09-03, modelled on
+> `docs/school-queue-plan.md`. Phase 1 (the OPD operating loop + reception +
+> public tracking + reports) is built and committed on branch
+> `queue-system-india` — see **"Status as built"** below. **Phase 2 and Phase 3
+> are deferred — planned for much later, not being worked on now.**
+
+## Status as built (Phase 1 — 2026-09-04)
+
+Shipped on branch `queue-system-india` across four commits:
+
+| Commit | Scope |
+|---|---|
+| `a155110` | Migration (`supabase/migrations/20260908_hospital_queue_system.sql`), `lib/db/hospital-types.ts`, `lib/db/types.ts` widenings, `lib/dal/hospital.ts` + `hospital-context.ts` + `hospital-limits.ts`, `proxy.ts` gating, vertical routing (`lib/verticals.ts`, admin/branch/owner isolation guards, onboarding seed in `lib/actions/auth.ts` + `distributor.ts`), `lib/actions/hospital-admin.ts`, and the `(manage)` shell — dashboard, departments, doctors (schedules + leaves), rooms, screens, ads, settings, users |
+| `e8f202e` | The operating loop: `lib/actions/hospital-tokens.ts` + `hospital-read.ts` + broadcast helpers, `lib/hooks/useHospitalBoard.ts` + `useHospitalRoom.ts`, `components/hospital/HospitalKiosk.tsx` + thermal ticket, `HospitalBoard.tsx` + announcer, `HospitalRoomConsole.tsx` (doctor + service-point modes), and the three `(device)` pages (kiosk / display / room) |
+| `37e9987` | Reception (`/hospital/patients` — search, DPDP-consent registration, issue-token-on-behalf, cancel / no-show rejoin, access logging), `/t/[code]` hospital fallback in the shared tracker + API route, token history + CSV (`/hospital/tokens`), reports (`/hospital/reports` — volume, by-department, journey funnel, busiest hours, doctor productivity) |
+| `495b787` | Triage → consultation routing: `transfer_hospital_token` gains `p_assign_doctor_id`, `HospitalRoomView.consultTargets`, and the triage-room "send to consultation" panel — a triage token keeps its number into a doctor's queue |
+
+**What works end-to-end:** onboard a `vertical='hospital'` customer → seed
+departments → add doctors + weekly schedules → add rooms + assign session
+doctors → register a TV screen → kiosk issues a per-department token → doctor
+console calls it (board flips, flashes, announces in the branch language) →
+SEND TO Lab → lab calls it → REPORT READY returns it to the same doctor at
+`stage='review'` → DONE → Pharmacy → Billing. One token, one number, the whole
+journey; `/hospital/tokens` and the printed-ticket QR follow it.
+
+**Deviations / caveats accepted for Phase 1:**
+
+- `claim_hospital_token` verifies a doctor has a schedule row for today's
+  weekday but does **not** enforce `max_tokens` or the am/pm session.
+- Room access is shared-URL only (no per-room user binding) — as flagged in
+  "Open items".
+- `plans.max_daily_entries` remains unenforced (inherited from base + school).
+- `hospital_appointments` exists in the migration (columns are free) but no
+  surface reads or writes it yet — that is Phase 2.
+- `check_in_appointment` is **not** in the shipped migration — it lands with
+  Phase 2 appointments.
+- Realtime is broadcast + short poll, no `alter publication`, as planned.
 
 ## Context
 
@@ -431,7 +465,10 @@ ready, feedback), never from the client. Rules:
 
 ## Build order
 
-**Phase 1 — the OPD operating loop (walk-in only)**
+**Phase 1 — the OPD operating loop (walk-in only) — ✅ DONE (2026-09-04).**
+All twelve items below shipped; the migration landed as
+`20260908_hospital_queue_system.sql` (without `check_in_appointment`, which
+moved to Phase 2). See "Status as built" above for the commit map.
 
 1. `supabase/migrations/2026XXXX_hospital_queue.sql` — 12 tables (all except
    `hospital_appointments` … no — include it now, columns are free; only the
@@ -466,7 +503,7 @@ ready, feedback), never from the client. Rules:
 12. `/t/[publicCode]` hospital tracking — port the school public-tracking
     migration pattern + page.
 
-**Phase 2 — reach**
+**Phase 2 — reach — ⏸ DEFERRED (planned for much later, not being built now).**
 
 13. Appointments end-to-end: booking PWA, reception calendar, `check_in_appointment`
     wiring at the kiosk, appointment/walk-in interleave verification.
@@ -475,7 +512,7 @@ ready, feedback), never from the client. Rules:
 15. UPI payments at booking/kiosk; fee reports.
 16. Estimated wait on ticket and tracking PWA (rolling per-doctor average).
 
-**Phase 3 — moat**
+**Phase 3 — moat — ⏸ DEFERRED (planned for much later, not being built now).**
 
 17. ABHA number verify/link; ABDM FHIR push exploration.
 18. EMR-lite (doctor notes + e-Rx PDF on the visit) — only if pulled by
@@ -556,9 +593,9 @@ ready, feedback), never from the client. Rules:
 
 ## Compliance checklist (DPDP Act 2023)
 
-- [ ] Consent captured at registration (`consent_at`), with language-appropriate copy
-- [ ] PII isolated to `hospital_patients`; boards/tickets/announcements carry codes only
-- [ ] Patient-record access audited (`hospital_patient_access_logs`)
-- [ ] Retention policy configurable and enforced (`patient_data_retention_days` + purge)
-- [ ] Token/visit history exportable (patient data-access request) and purgable (erasure request) — purge nulls `hospital_patients` columns, keeps anonymized token rows for stats
-- [ ] Notification templates contain no clinical content (appointment/queue facts only)
+- [x] Consent captured at registration (`consent_at`), enforced by `registerHospitalPatientAction` (DPDP checkbox, refuses without it)
+- [x] PII isolated to `hospital_patients`; boards/tickets/announcements carry codes only (`get_hospital_board` never joins patients; kiosk/board/room UIs show token + room + doctor only)
+- [x] Patient-record access audited — `hospital_patient_access_logs` written from `getHospitalPatientDetail` / reception read paths
+- [~] Retention policy configurable (`patient_data_retention_days` on `hospital_settings`, editable in settings form) — **purge job not built** (Phase 3, mechanism still open)
+- [x] Token/visit history exportable — `/hospital/tokens` CSV export. Erasure/purge is Phase 3.
+- [x] Notification templates contain no clinical content — templates are queue facts only (notifications themselves are Phase 2)
