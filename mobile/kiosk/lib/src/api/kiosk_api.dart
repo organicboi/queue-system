@@ -65,10 +65,15 @@ class KioskApi {
   Future<IssuedToken> issueToken({
     required String departmentId,
     bool isPriority = false,
+    // The language shown on the kiosk when the visitor tapped. Persisted on
+    // the token so the public tracking page (the ticket's QR target) opens in
+    // it. The server drops anything this deployment doesn't offer.
+    String? locale,
   }) async {
     final data = await _post('$_prefix/tokens', {
       'departmentId': departmentId,
       'isPriority': isPriority,
+      if (locale != null && locale.isNotEmpty) 'locale': locale,
     });
     return (
       token: SchoolToken.fromJson(data['token'] as Map<String, dynamic>),

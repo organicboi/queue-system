@@ -200,7 +200,12 @@ class _LangToggle extends StatelessWidget {
   final String lang;
   final ValueChanged<String> onChange;
 
-  static const _names = {'en': 'English', 'ar': 'العربية'};
+  static const _names = {
+    'en': 'English',
+    'ar': 'العربية',
+    'mr': 'मराठी',
+    'hi': 'हिंदी',
+  };
 
   @override
   Widget build(BuildContext context) {

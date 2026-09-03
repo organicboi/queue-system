@@ -206,10 +206,12 @@ class KioskController {
   Future<SchoolToken> issue({
     required SchoolDepartment department,
     required bool priority,
+    String? locale,
   }) async {
     final issued = await ref.read(kioskApiProvider).issueToken(
           departmentId: department.id,
           isPriority: priority,
+          locale: locale,
         );
     final token = issued.token;
     ref.read(feedProvider.notifier).patch(

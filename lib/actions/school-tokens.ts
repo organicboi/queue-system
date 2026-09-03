@@ -5,7 +5,7 @@ import {
   toSchoolTokenDTO, toLocaleMap,
   type SchoolTokenDTO, type SchoolActivityType, type DbSchoolToken,
 } from '@/lib/db/school-types'
-import type { LocaleMap } from '@/lib/region'
+import { isRegionLocale, type LocaleMap } from '@/lib/region'
 
 export interface SchoolTokenResult {
   token?: SchoolTokenDTO
@@ -170,7 +170,12 @@ async function countWaitingAhead(
 export async function schoolIssueTokenAction(
   branchToken: string,
   departmentId: string,
-  isPriority = false
+  isPriority = false,
+  // The language the visitor was reading at the kiosk. Persisted on the token
+  // so the public tracking page opens in it. Sanitised against the current
+  // market here — a value this deployment doesn't offer is stored as NULL and
+  // the tracker falls back to the base locale.
+  locale?: string | null
 ): Promise<SchoolTokenResult> {
   const supabase = createSupabaseServiceClient()
 
@@ -188,6 +193,7 @@ export async function schoolIssueTokenAction(
     p_department_id: departmentId,
     p_source: 'kiosk',
     p_is_priority: isPriority,
+    p_locale: isRegionLocale(locale) ? locale : null,
   })
 
   if (error || !data) return { error: 'Could not issue a token. Please ask for assistance.' }

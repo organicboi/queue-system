@@ -133,6 +133,7 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
       final token = await ref.read(kioskControllerProvider).issue(
             department: department,
             priority: _priorityArmed,
+            locale: _lang,
           );
       if (!mounted) return;
       setState(() => _priorityArmed = false);

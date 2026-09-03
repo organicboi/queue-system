@@ -355,7 +355,10 @@ export function SchoolKiosk({
     const result = await schoolIssueTokenAction(
       branchToken,
       department.id,
-      priority || department.isPriority
+      priority || department.isPriority,
+      // The language on screen right now — the tracker page the ticket's QR
+      // points at opens in it.
+      lang
     )
     setIssuingId(null)
 

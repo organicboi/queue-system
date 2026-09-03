@@ -510,6 +510,10 @@ export interface PublicTicketStatus {
   schoolName?: LocaleMap
   logoUrl?: string
   languages?: SchoolLanguage[]
+  // The language the visitor picked at the kiosk when the token was issued.
+  // Absent for staff walk-ins and tokens from kiosk builds older than this
+  // field — the tracker then leads with the branch's base locale.
+  locale?: SchoolLanguage | null
   tokenCode?: string
   tokenStatus?: SchoolTokenStatus
   isPriority?: boolean

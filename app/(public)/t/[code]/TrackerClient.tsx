@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { RefreshCw, PartyPopper, CheckCircle2, XCircle, Clock3, MapPin } from 'lucide-react'
 import type { PublicTicketStatus } from '@/lib/db/school-types'
 import type { Locale } from '@/lib/region'
-import { coerceLocales, dirFor, pickLocale } from '@/lib/region'
+import { coerceLocales, dirFor, isRegionLocale, pickLocale } from '@/lib/region'
 
 interface Props {
   code: string
@@ -334,17 +334,28 @@ export function TrackerClient({ code, initial }: Props) {
     }
   }, [lastUpdatedAt])
 
-  // The base locale is always primary (it cannot be turned off — see
-  // SchoolSettingsForm); anything else the school enabled renders as a
-  // secondary line beneath, exactly as Arabic does today.
-  const locales = coerceLocales(status.languages)
+  // The page leads with the language the visitor picked at the kiosk (carried
+  // on the ticket), then lists the school's other enabled languages as
+  // secondary lines beneath — the same stack Arabic has always rendered as,
+  // just re-ordered so the reader's own script is on top. With no stored
+  // locale (staff walk-in, older kiosk) the branch's base locale leads, which
+  // is the previous behaviour exactly.
+  const enabled = coerceLocales(status.languages)
+  const chosen = isRegionLocale(status.locale) ? (status.locale as Locale) : null
+  const locales = chosen
+    ? [chosen, ...enabled.filter((l) => l !== chosen)]
+    : enabled
+  const primary = locales[0]
   const secondaries = locales.slice(1)
-  const schoolName = status.schoolNameEn || 'Queue'
+  const schoolName = pickLocale(status.schoolName, primary) || status.schoolNameEn || 'Queue'
 
   return (
-    <div className="min-h-dvh bg-[#f3f6f1] bg-[radial-gradient(ellipse_120%_60%_at_50%_-10%,rgba(20,83,45,0.07),transparent_60%)] flex flex-col items-center px-4 py-10">
+    <div
+      dir={dirFor(primary)}
+      className="min-h-dvh bg-[#f3f6f1] bg-[radial-gradient(ellipse_120%_60%_at_50%_-10%,rgba(20,83,45,0.07),transparent_60%)] flex flex-col items-center px-4 py-10"
+    >
       <div className="w-full max-w-sm">
-        <Header logoUrl={status.logoUrl} schoolName={schoolName} schoolNameMap={status.schoolName} schoolNameAr={status.schoolNameAr} secondaries={secondaries} />
+        <Header logoUrl={status.logoUrl} schoolName={schoolName} schoolNameMap={status.schoolName} schoolNameAr={status.schoolNameAr} primary={primary} secondaries={secondaries} />
 
         <div className="mt-6">
           <AnimatePresence mode="wait">
@@ -357,6 +368,7 @@ export function TrackerClient({ code, initial }: Props) {
             >
               <Body
                 status={status}
+                primary={primary}
                 secondaries={secondaries}
                 justCalled={justCalled}
                 connected={connected}
@@ -373,11 +385,12 @@ export function TrackerClient({ code, initial }: Props) {
   )
 }
 
-function Header({ logoUrl, schoolName, schoolNameMap, schoolNameAr, secondaries }: {
+function Header({ logoUrl, schoolName, schoolNameMap, schoolNameAr, primary, secondaries }: {
   logoUrl?: string
   schoolName: string
   schoolNameMap?: Record<string, string>
   schoolNameAr?: string
+  primary: Locale
   secondaries: Locale[]
 }) {
   return (
@@ -395,7 +408,7 @@ function Header({ logoUrl, schoolName, schoolNameMap, schoolNameAr, secondaries 
         </div>
       )}
       <div>
-        <p className="text-[15px] font-semibold tracking-tight text-[#14532d]">{schoolName}</p>
+        <p lang={primary} className="text-[15px] font-semibold tracking-tight text-[#14532d]">{schoolName}</p>
         {secondaries.map((l) => {
           const name = pickLocale(schoolNameMap, l) || (l === 'ar' ? schoolNameAr : '')
           return name ? (
@@ -481,8 +494,9 @@ function InfoCard({ children }: { children: React.ReactNode }) {
   )
 }
 
-function Body({ status, secondaries, justCalled, connected, isFetching, agoLabel, canManualRefresh, onRefresh }: {
+function Body({ status, primary, secondaries, justCalled, connected, isFetching, agoLabel, canManualRefresh, onRefresh }: {
   status: PublicTicketStatus
+  primary: Locale
   secondaries: Locale[]
   justCalled: boolean
   connected: boolean
@@ -491,6 +505,7 @@ function Body({ status, secondaries, justCalled, connected, isFetching, agoLabel
   canManualRefresh: boolean
   onRefresh: () => void
 }) {
+  const t = COPY[primary]
   // One secondary <p> per extra language the school enabled. `className` is the
   // muted-text style each call site would have used for its Arabic line.
   const sub = (pick: (c: TrackerCopy) => string, className = 'text-sm text-[#78716c]') =>
@@ -504,8 +519,8 @@ function Body({ status, secondaries, justCalled, connected, isFetching, agoLabel
     return (
       <InfoCard>
         <XCircle className="mx-auto size-8 text-[#c7c2b8]" strokeWidth={1.5} />
-        <p className="text-base font-semibold text-[#292524]">{COPY.en.notFoundTitle}</p>
-        <p className="text-sm text-[#78716c]">{COPY.en.notFoundBody}</p>
+        <p lang={primary} className="text-base font-semibold text-[#292524]">{t.notFoundTitle}</p>
+        <p lang={primary} className="text-sm text-[#78716c]">{t.notFoundBody}</p>
         {sub((c) => c.notFoundBody)}
       </InfoCard>
     )
@@ -515,29 +530,27 @@ function Body({ status, secondaries, justCalled, connected, isFetching, agoLabel
     return (
       <InfoCard>
         <Clock3 className="mx-auto size-8 text-[#c7c2b8]" strokeWidth={1.5} />
-        <p className="text-base font-semibold text-[#292524]">{COPY.en.disabledTitle}</p>
-        <p className="text-sm text-[#78716c]">{COPY.en.disabledBody}</p>
+        <p lang={primary} className="text-base font-semibold text-[#292524]">{t.disabledTitle}</p>
+        <p lang={primary} className="text-sm text-[#78716c]">{t.disabledBody}</p>
         {sub((c) => c.disabledBody)}
       </InfoCard>
     )
   }
 
   // status === 'ok' from here on
-  const dept = status.departmentNameEn ?? ''
   const deptFor = (l: Locale) =>
     pickLocale(status.departmentName, l) || (l === 'ar' ? (status.departmentNameAr ?? '') : '')
   const counterFor = (l: Locale) =>
     pickLocale(status.counterName, l) || (l === 'ar' ? (status.counterNameAr ?? '') : '') || status.counterNameEn || ''
+  const dept = deptFor(primary)
   const dateLabel = formatStubDate(status.serviceDate)
 
   if (status.isToday === false && (status.tokenStatus === 'waiting' || status.tokenStatus === 'held')) {
     return (
       <InfoCard>
         <Clock3 className="mx-auto size-8 text-[#c7c2b8]" strokeWidth={1.5} />
-        <p className="text-base font-semibold text-[#292524]">{COPY.en.prevDayTitle}</p>
-        <p className="text-sm text-[#78716c]">
-          Token {status.tokenCode} is no longer being tracked. Please take a new ticket if you still need one.
-        </p>
+        <p lang={primary} className="text-base font-semibold text-[#292524]">{t.prevDayTitle}</p>
+        <p lang={primary} className="text-sm text-[#78716c]">{t.prevDayBody}</p>
         {sub((c) => c.prevDayBody)}
       </InfoCard>
     )
@@ -550,7 +563,7 @@ function Body({ status, secondaries, justCalled, connected, isFetching, agoLabel
         <p className="font-mono text-3xl font-black tracking-tight tabular-nums text-[#14532d]" dir="ltr">
           {status.tokenCode}
         </p>
-        <p className="text-base font-semibold text-[#166534]">{COPY.en.served}</p>
+        <p lang={primary} className="text-base font-semibold text-[#166534]">{t.served}</p>
         {sub((c) => c.served)}
       </InfoCard>
     )
@@ -564,8 +577,8 @@ function Body({ status, secondaries, justCalled, connected, isFetching, agoLabel
         <p className="font-mono text-3xl font-black tracking-tight tabular-nums text-[#292524]" dir="ltr">
           {status.tokenCode}
         </p>
-        <p className="text-base font-semibold text-[#57534e]">
-          {missed ? COPY.en.missed : COPY.en.cancelledMsg}
+        <p lang={primary} className="text-base font-semibold text-[#57534e]">
+          {missed ? t.missed : t.cancelledMsg}
         </p>
         {sub((c) => (missed ? c.missed : c.cancelledMsg))}
       </InfoCard>
@@ -578,10 +591,10 @@ function Body({ status, secondaries, justCalled, connected, isFetching, agoLabel
         stub={
           <div className="rounded-t-[22px] bg-[#14532d] px-6 pt-[22px] pb-[26px]">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#bfe0cb]">{COPY.en.yourTurn}</p>
-              <p className="text-[11px] font-medium text-[#5f8a6d]">{dateLabel}</p>
+              <p lang={primary} className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#bfe0cb]">{t.yourTurn}</p>
+              <p className="text-[11px] font-medium text-[#5f8a6d]" dir="ltr">{dateLabel}</p>
             </div>
-            <p className="mt-3.5 text-xs text-[#9fc2ab]">{dept}</p>
+            <p lang={primary} className="mt-3.5 text-xs text-[#9fc2ab]">{dept}</p>
             {secondaries.map((l) => deptFor(l) ? (
               <p key={l} lang={l} dir={dirFor(l)} className="mt-0.5 text-[11px] text-[#5f8a6d]">{deptFor(l)}</p>
             ) : null)}
@@ -607,9 +620,9 @@ function Body({ status, secondaries, justCalled, connected, isFetching, agoLabel
           <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#e6f4ea]">
             <PartyPopper className="size-6 text-[#14532d]" strokeWidth={1.75} />
           </div>
-          <p className="mt-3 flex items-center justify-center gap-1.5 text-lg font-bold text-[#14532d]">
+          <p lang={primary} className="mt-3 flex items-center justify-center gap-1.5 text-lg font-bold text-[#14532d]">
             <MapPin className="size-5" />
-            {COPY.en.goTo} {status.counterNameEn || 'the counter'}
+            {t.goTo} {counterFor(primary) || status.counterNameEn || ''}
           </p>
           {secondaries.map((l) => (
             <p key={l} lang={l} dir={dirFor(l)} className="mt-1 text-sm font-semibold text-[#3f6b4a]">
@@ -631,10 +644,10 @@ function Body({ status, secondaries, justCalled, connected, isFetching, agoLabel
       stub={
         <div className="rounded-t-[22px] border-b border-[#e7e0cd] bg-[#fdfaf3] px-6 pt-[22px] pb-[26px]">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#166534]">{COPY.en.queuePass}</p>
-            <p className="text-[11px] font-medium text-[#a8a29e]">{dateLabel}</p>
+            <p lang={primary} className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#166534]">{t.queuePass}</p>
+            <p className="text-[11px] font-medium text-[#a8a29e]" dir="ltr">{dateLabel}</p>
           </div>
-          <p className="mt-3.5 text-xs text-[#57534e]">{dept}</p>
+          <p lang={primary} className="mt-3.5 text-xs text-[#57534e]">{dept}</p>
           {secondaries.map((l) => deptFor(l) ? (
             <p key={l} lang={l} dir={dirFor(l)} className="mt-0.5 text-[11px] text-[#a8a29e]">{deptFor(l)}</p>
           ) : null)}
@@ -667,8 +680,8 @@ function Body({ status, secondaries, justCalled, connected, isFetching, agoLabel
         >
           {String(ahead).padStart(2, '0')}
         </motion.p>
-        <p className="text-sm font-medium leading-tight text-[#57534e]">
-          {ahead > 0 ? <>people waiting<br />before you</> : <>you&apos;re<br />next</>}
+        <p lang={primary} className="text-sm font-medium leading-tight text-[#57534e]">
+          {ahead > 0 ? t.peopleWaiting : t.youreNext}
         </p>
       </div>
 
@@ -679,7 +692,7 @@ function Body({ status, secondaries, justCalled, connected, isFetching, agoLabel
       ))}
 
       <div className="mt-5 border-t border-dashed border-[#d9e2d3] pt-4 text-center">
-        <p className="text-sm font-medium text-[#3f6b4a]">{COPY.en.thankYou}</p>
+        <p lang={primary} className="text-sm font-medium text-[#3f6b4a]">{t.thankYou}</p>
         {secondaries.map((l) => (
           <p key={l} lang={l} dir={dirFor(l)} className="mt-1 text-sm text-[#78877d]">
             {COPY[l].thankYou}
