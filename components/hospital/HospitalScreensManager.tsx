@@ -2,15 +2,19 @@
 
 import { useState, useActionState } from 'react'
 import { toast } from 'sonner'
-import { Plus, Copy, ExternalLink, Tv, TabletSmartphone, DoorOpen } from 'lucide-react'
+import { Plus, Copy, ExternalLink, Tv, TabletSmartphone, DoorOpen, Smartphone } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createHospitalScreenAction } from '@/lib/actions/hospital-admin'
+import {
+  createHospitalScreenAction, createHospitalDevicePairingCodeAction,
+} from '@/lib/actions/hospital-admin'
 import { formatRelativeTime } from '@/lib/queueUtils'
+import { DevicePairingDialog } from '@/components/devices/DevicePairingDialog'
+import { ProvisioningQrDialog } from '@/components/devices/ProvisioningQrDialog'
 import type { HospitalRoomDTO } from '@/lib/db/hospital-types'
 
 interface Screen {
@@ -63,6 +67,50 @@ export function HospitalScreensManager({ branchId, branchToken, initialScreens, 
               Open
             </a>
           </Button>
+        </div>
+
+        {/* The native Android kiosk app is provisioned with the raw token, not
+            a URL — pair it with a 6-digit code or the provisioning QR. */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Smartphone className="size-3.5 text-slate-500" />
+            <p className="text-xs font-semibold text-slate-700">Kiosk app</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Installing the VibeQueue Kiosk Android app on the tablet? Open its setup wizard and
+            type a pairing code, or scan the provisioning QR — no need to enter the long token by
+            hand.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <DevicePairingDialog
+              role="kiosk"
+              branchId={branchId}
+              label="Pair the kiosk app"
+              createCode={createHospitalDevicePairingCodeAction}
+            />
+            <ProvisioningQrDialog
+              role="kiosk"
+              token={branchToken}
+              label="Pair the kiosk app"
+              vertical="hospital"
+            />
+          </div>
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer select-none">Show the raw token</summary>
+            <div className="mt-2 flex items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs text-slate-800">
+                {branchToken}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => copy(branchToken, 'Kiosk app token')}
+              >
+                <Copy className="size-3.5" />
+                Copy
+              </Button>
+            </div>
+          </details>
         </div>
       </section>
 
@@ -183,6 +231,19 @@ export function HospitalScreensManager({ branchId, branchToken, initialScreens, 
                     Open
                   </a>
                 </Button>
+                <DevicePairingDialog
+                  role="display"
+                  branchId={branchId}
+                  screenId={screen.id}
+                  label={`Pair "${screen.name}"`}
+                  createCode={createHospitalDevicePairingCodeAction}
+                />
+                <ProvisioningQrDialog
+                  role="display"
+                  token={screen.screen_token}
+                  label={`Pair "${screen.name}"`}
+                  vertical="hospital"
+                />
               </li>
             ))}
           </ul>

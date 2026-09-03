@@ -6,7 +6,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { createDevicePairingCodeAction } from '@/lib/actions/school-admin'
 
 /**
  * Mints a short-lived 6-digit code the installer types into the Flutter app's
@@ -14,17 +13,32 @@ import { createDevicePairingCodeAction } from '@/lib/actions/school-admin'
  * branch/screen token. Built for the kiosk tablet and the waiting-area TV,
  * which have no keyboard and no camera — see
  * `mobile/kiosk/lib/src/api/pair_api.dart`.
+ *
+ * Vertical-agnostic: the parent passes its own `createCode` server action
+ * (`createDevicePairingCodeAction` for school, `createHospitalDevicePairingCodeAction`
+ * for hospital) so this file never imports either vertical's action module.
  */
+export interface CreatePairingCodeInput {
+  branchId: string
+  role: 'kiosk' | 'display'
+  screenId?: string
+}
+export type CreatePairingCodeAction = (
+  input: CreatePairingCodeInput,
+) => Promise<{ code?: string; expiresAt?: string; error?: string }>
+
 export function DevicePairingDialog({
   branchId,
   role,
   screenId,
   label,
+  createCode,
 }: {
   branchId: string
   role: 'kiosk' | 'display'
   screenId?: string
   label: string
+  createCode: CreatePairingCodeAction
 }) {
   const [open, setOpen] = useState(false)
   const [code, setCode] = useState<string | null>(null)
@@ -36,7 +50,7 @@ export function DevicePairingDialog({
   const generate = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const res = await createDevicePairingCodeAction({ branchId, role, screenId })
+    const res = await createCode({ branchId, role, screenId })
     setLoading(false)
     if (res.error || !res.code) {
       setError(res.error ?? 'Could not create a code')
@@ -45,7 +59,7 @@ export function DevicePairingDialog({
     }
     setCode(res.code)
     setExpiresAt(res.expiresAt ? new Date(res.expiresAt).getTime() : null)
-  }, [branchId, role, screenId])
+  }, [branchId, role, screenId, createCode])
 
   // Fresh code each time the dialog opens; clear it on close so a stale number
   // is never left on screen.

@@ -20,6 +20,10 @@ export interface CreatePairingCodeInput {
   createdBy?: string | null
 }
 
+function normalizeVertical(v: string | null | undefined): 'business' | 'school' | 'hospital' {
+  return v === 'school' || v === 'hospital' ? v : 'business'
+}
+
 function sixDigits(): string {
   // 100000–999999, never a leading zero so it always reads as 6 digits.
   return String(100000 + Math.floor(Math.random() * 900000))
@@ -72,6 +76,10 @@ export interface RedeemResult {
   role?: 'kiosk' | 'display'
   token?: string
   name?: string
+  // Which product's route set the device should open. Derived here, not stored
+  // on the code row: a kiosk code from the customer's `vertical`, a display
+  // code from the screen's `kind`. Older app builds ignore this field.
+  vertical?: 'business' | 'school' | 'hospital'
 }
 
 /**
@@ -116,21 +124,44 @@ export async function redeemPairingCode(rawCode: string, ip?: string): Promise<R
   if (row.role === 'kiosk') {
     const { data: branch } = await supabase
       .from('branches')
-      .select('branch_token, name, is_active')
+      .select('branch_token, name, is_active, customers(vertical)')
       .eq('id', row.branch_id)
       .maybeSingle()
-    const b = branch as { branch_token: string; name: string; is_active: boolean } | null
+    const b = branch as {
+      branch_token: string
+      name: string
+      is_active: boolean
+      customers: { vertical: string | null } | { vertical: string | null }[] | null
+    } | null
     if (!b || !b.is_active) return { status: 'not-found' }
-    return { status: 'ok', role: 'kiosk', token: b.branch_token, name: b.name }
+    const customer = Array.isArray(b.customers) ? b.customers[0] : b.customers
+    return {
+      status: 'ok',
+      role: 'kiosk',
+      token: b.branch_token,
+      name: b.name,
+      vertical: normalizeVertical(customer?.vertical),
+    }
   }
 
   if (!row.screen_id) return { status: 'not-found' }
   const { data: screen } = await supabase
     .from('screens')
-    .select('screen_token, name, is_active')
+    .select('screen_token, name, is_active, kind')
     .eq('id', row.screen_id)
     .maybeSingle()
-  const s = screen as { screen_token: string; name: string; is_active: boolean } | null
+  const s = screen as {
+    screen_token: string
+    name: string
+    is_active: boolean
+    kind: string | null
+  } | null
   if (!s || !s.is_active) return { status: 'not-found' }
-  return { status: 'ok', role: 'display', token: s.screen_token, name: s.name }
+  return {
+    status: 'ok',
+    role: 'display',
+    token: s.screen_token,
+    name: s.name,
+    vertical: s.kind === 'school' || s.kind === 'hospital' ? s.kind : 'business',
+  }
 }

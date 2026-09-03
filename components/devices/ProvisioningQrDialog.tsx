@@ -16,19 +16,30 @@ import { Button } from '@/components/ui/button'
  *
  * Version-tagged (`v: 1`) so a future field addition can't silently misparse
  * an old QR still printed on a sticker on the back of a tablet somewhere.
+ * `vertical` is optional and additive — a school QR omits it (unchanged wire
+ * format); a hospital QR carries `"hospital"` so the app opens the hospital
+ * route set. Older app builds ignore the extra key.
  */
 export function ProvisioningQrDialog({
   role,
   token,
   label,
+  vertical,
 }: {
   role: 'kiosk' | 'display'
   token: string
   label: string
+  vertical?: 'school' | 'hospital'
 }) {
   const [open, setOpen] = useState(false)
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-  const payload = JSON.stringify({ v: 1, baseUrl, role, token })
+  const payload = JSON.stringify({
+    v: 1,
+    baseUrl,
+    role,
+    token,
+    ...(vertical ? { vertical } : {}),
+  })
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

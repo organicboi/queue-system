@@ -9,10 +9,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createSchoolScreenAction } from '@/lib/actions/school-admin'
+import { createSchoolScreenAction, createDevicePairingCodeAction } from '@/lib/actions/school-admin'
 import { formatRelativeTime } from '@/lib/queueUtils'
-import { ProvisioningQrDialog } from './ProvisioningQrDialog'
-import { DevicePairingDialog } from './DevicePairingDialog'
+import { ProvisioningQrDialog } from '@/components/devices/ProvisioningQrDialog'
+import { DevicePairingDialog } from '@/components/devices/DevicePairingDialog'
 
 interface Screen {
   id: string
@@ -83,8 +83,18 @@ export function SchoolScreensManager({ branchId, branchToken, initialScreens }: 
             type a pairing code — no need to enter this long token by hand.
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <DevicePairingDialog role="kiosk" branchId={branchId} label="Pair the kiosk app" />
-            <ProvisioningQrDialog role="kiosk" token={branchToken} label="Pair the kiosk app" />
+            <DevicePairingDialog
+              role="kiosk"
+              branchId={branchId}
+              label="Pair the kiosk app"
+              createCode={createDevicePairingCodeAction}
+            />
+            <ProvisioningQrDialog
+              role="kiosk"
+              token={branchToken}
+              label="Pair the kiosk app"
+              vertical="school"
+            />
           </div>
           <details className="text-xs text-muted-foreground">
             <summary className="cursor-pointer select-none">Show the raw token</summary>
@@ -183,11 +193,13 @@ export function SchoolScreensManager({ branchId, branchToken, initialScreens }: 
                   branchId={branchId}
                   screenId={screen.id}
                   label={`Pair "${screen.name}"`}
+                  createCode={createDevicePairingCodeAction}
                 />
                 <ProvisioningQrDialog
                   role="display"
                   token={screen.screen_token}
                   label={`Pair "${screen.name}"`}
+                  vertical="school"
                 />
               </li>
             ))}

@@ -15,6 +15,7 @@ import {
   type DbHospitalDepartment, type DbHospitalDoctor, type DbHospitalDoctorSchedule,
   type DbHospitalDoctorLeave, type DbHospitalRoom, type DbHospitalSettings,
 } from '@/lib/db/hospital-types'
+import { createPairingCode } from '@/lib/dal/device-pairing'
 import { coerceLocales, regionLocales, type LocaleMap } from '@/lib/region'
 import { HOSPITAL_DEPARTMENT_COLORS } from '@/lib/hospital/constants'
 import type { ProfileDTO } from '@/lib/db/types'
@@ -942,4 +943,50 @@ export async function createHospitalScreenAction(
 
   revalidatePath('/hospital/screens')
   return { screenToken: (data as { screen_token: string }).screen_token }
+}
+
+// ── Device pairing codes ──────────────────────────────────────
+// Same short-lived 6-digit → real-token swap the school vertical uses (see
+// lib/dal/device-pairing.ts + app/api/pair/route.ts). The kiosk tablet and the
+// waiting-area TV have no keyboard and no camera; the installer types this
+// number into the app's setup wizard once. `redeemPairingCode` derives the
+// vertical from the branch's customer / the screen's `kind`, so the app knows
+// to open the /hospital/* route set.
+export async function createHospitalDevicePairingCodeAction(input: {
+  branchId: string
+  role: 'kiosk' | 'display'
+  screenId?: string
+}): Promise<{ code?: string; expiresAt?: string; error?: string }> {
+  const { branchId, role, screenId } = input
+  if (role !== 'kiosk' && role !== 'display') return { error: 'Invalid device role' }
+  if (role === 'display' && !screenId) return { error: 'A screen is required' }
+
+  const g = await guard(branchId)
+  if (!g.ok) return { error: g.error }
+
+  const supabase = createSupabaseServiceClient()
+  if (role === 'display') {
+    // The screen must be a hospital board on this same branch.
+    const { data: screen } = await supabase
+      .from('screens')
+      .select('id')
+      .eq('id', screenId!)
+      .eq('branch_id', branchId)
+      .eq('kind', 'hospital')
+      .maybeSingle()
+    if (!screen) return { error: 'Unknown screen' }
+  }
+
+  try {
+    const { code, expiresAt } = await createPairingCode({
+      customerId: g.profile.customerId,
+      branchId,
+      role,
+      screenId: screenId ?? null,
+      createdBy: g.profile.id,
+    })
+    return { code, expiresAt }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Could not create a pairing code' }
+  }
 }

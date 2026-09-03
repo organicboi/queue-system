@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
         role: result.role,
         token: result.token,
         name: result.name ?? '',
+        vertical: result.vertical ?? 'business',
       })
     case 'expired':
       return json({ error: 'That code has expired. Generate a new one on the dashboard.' }, 410)
