@@ -35,3 +35,18 @@ export function createSupabaseServiceClient() {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 }
+
+// Cookie-free auth client for the native app (`/api/app/*`). Unlike the SSR
+// client above it never reads or writes cookies, so `signInWithPassword` /
+// `refreshSession` hand the access + refresh tokens back in the response body
+// for the device to store itself, and `auth.getUser(token)` verifies a Bearer
+// token straight against the Auth server. Publishable key only — every data
+// read/write in those routes still goes through the service client, scoped to
+// the customer the verified token belongs to.
+export function createSupabaseAppClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}

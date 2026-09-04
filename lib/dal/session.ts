@@ -21,7 +21,13 @@ export const requireUser = cache(async () => {
 export const getProfile = cache(async (): Promise<ProfileDTO | null> => {
   const user = await getUser()
   if (!user) return null
+  return getProfileById(user.id)
+})
 
+// The profile lookup on its own, keyed by an already-resolved user id. `getProfile`
+// resolves the id from the request cookie; the native-app routes (`/api/app/*`)
+// have no cookie — they verify a Bearer token, then call this directly.
+export const getProfileById = cache(async (userId: string): Promise<ProfileDTO | null> => {
   // Use service client to bypass recursive RLS on profiles → customers join
   const service = createSupabaseServiceClient()
   const { data, error } = await service
@@ -39,11 +45,11 @@ export const getProfile = cache(async (): Promise<ProfileDTO | null> => {
         vertical
       )
     `)
-    .eq('id', user.id)
+    .eq('id', userId)
     .single()
 
   if (error) {
-    console.error('[getProfile] query error:', error.message, '| user:', user.id)
+    console.error('[getProfileById] query error:', error.message, '| user:', userId)
     return null
   }
   if (!data) return null

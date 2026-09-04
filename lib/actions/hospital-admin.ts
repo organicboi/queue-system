@@ -834,12 +834,18 @@ function trimMap(map: Record<string, string> | undefined): LocaleMap | undefined
 // Upsert: a hospital branch has no settings row until someone opens this page
 // (unless onboarding seeded one), and the kiosk/board both need one.
 export async function saveHospitalSettingsAction(
-  input: z.input<typeof SettingsSchema>
+  input: z.input<typeof SettingsSchema>,
+  // Passed by the native-app settings route once it has verified a Bearer token
+  // and branch ownership — skips the cookie-based guard, which has no cookie in
+  // that context. Web callers omit it.
+  authedProfile?: ProfileDTO
 ): Promise<HospitalSettingsResult> {
   const parsed = SettingsSchema.safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
-  const g = await guard(parsed.data.branchId)
+  const g = authedProfile
+    ? ({ ok: true, profile: authedProfile } as const)
+    : await guard(parsed.data.branchId)
   if (!g.ok) return { error: g.error }
   const d = parsed.data
 

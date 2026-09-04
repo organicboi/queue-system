@@ -14,6 +14,7 @@ import {
   type DbSchoolDepartment, type DbSchoolCounter, type DbSchoolSettings,
 } from '@/lib/db/school-types'
 import { coerceLocales, regionLocales, type LocaleMap } from '@/lib/region'
+import type { ProfileDTO } from '@/lib/db/types'
 
 // Read one translatable field out of a native <form> as a locale map: the
 // form renders `<input name="${field}_${locale}">` for each regionLocales()
@@ -604,14 +605,19 @@ const SettingsSchema = z.object({
 // Upsert: a school branch has no settings row until someone opens the page,
 // and the kiosk/board both need one, so creating on first save is correct.
 export async function saveSchoolSettingsAction(
-  input: z.input<typeof SettingsSchema>
+  input: z.input<typeof SettingsSchema>,
+  // The native-app settings route (`app/api/app/settings`) has already verified
+  // a Bearer token and that the caller manages this branch — it passes the
+  // resolved profile so this doesn't re-run the cookie-based guard (which has no
+  // cookie to read). Web callers omit it and get the normal check.
+  authedProfile?: ProfileDTO
 ): Promise<SchoolSettingsResult> {
   const parsed = SettingsSchema.safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
   let profile
   try {
-    profile = await requireBranchManager(parsed.data.branchId)
+    profile = authedProfile ?? await requireBranchManager(parsed.data.branchId)
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Access denied' }
   }

@@ -82,6 +82,11 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  // `api` is excluded, so every route under app/api/* runs without this auth
+  // gate. The native-app routes (app/api/app/*) depend on that: they carry a
+  // Bearer token, never a Supabase cookie, and must not be redirected to
+  // /login. If this matcher ever starts matching `api`, add an explicit carve-
+  // out for `/api/app` (see the app-auth regression test).
   matcher: [
     '/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|icons|.*\\.png$|.*\\.svg$|.*\\.ico$).*)',
   ],
