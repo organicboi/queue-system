@@ -6,12 +6,14 @@ import { createSupabaseServiceClient } from '@/lib/db/server'
 import { requireBranchManager } from '@/lib/dal/session'
 import {
   searchHospitalPatients, getHospitalPatientDetail, getHospitalServiceDate,
+  getHospitalAppointmentsForDate,
   type HospitalPatientDetail,
 } from '@/lib/dal/hospital'
 import {
-  toHospitalPatientDTO, toHospitalTokenDTO,
+  toHospitalPatientDTO, toHospitalTokenDTO, toHospitalAppointmentDTO,
   type HospitalPatientDTO, type HospitalTokenDTO,
-  type DbHospitalPatient, type DbHospitalToken,
+  type HospitalAppointmentDTO, type HospitalAppointmentListItemDTO,
+  type DbHospitalPatient, type DbHospitalToken, type DbHospitalAppointment,
 } from '@/lib/db/hospital-types'
 import type { ProfileDTO } from '@/lib/db/types'
 
@@ -132,11 +134,14 @@ export async function receptionIssueTokenAction(input: {
 
   const { data: patient } = await supabase
     .from('hospital_patients')
-    .select('id')
+    .select('id, is_active')
     .eq('id', input.patientId)
     .eq('customer_id', g.profile.customerId)
     .maybeSingle()
   if (!patient) return { error: 'Unknown patient' }
+  if (!(patient as { is_active: boolean }).is_active) {
+    return { error: 'This patient record is inactive — reactivate it before issuing a token' }
+  }
 
   const serviceDate = await getHospitalServiceDate(input.branchId)
 
@@ -264,4 +269,211 @@ export async function receptionRejoinTokenAction(
 
   revalidatePath('/hospital/patients')
   return { token: toHospitalTokenDTO(data as DbHospitalToken) }
+}
+
+// ── Patient edit / deactivate ─────────────────────────────────
+const UpdatePatientSchema = z.object({
+  branchId: z.string().uuid(),
+  patientId: z.string().uuid(),
+  name: z.string().min(1, 'Patient name is required').max(120),
+  phone: z.string().max(20).default(''),
+  uhid: z.string().min(1, 'UHID is required').max(40),
+  dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')),
+  gender: z.enum(['male', 'female', 'other']).optional(),
+  abhaNumber: z.string().max(40).optional().default(''),
+})
+
+export async function updateHospitalPatientAction(
+  _prev: { patient?: HospitalPatientDTO; error?: string },
+  formData: FormData
+): Promise<{ patient?: HospitalPatientDTO; error?: string }> {
+  const parsed = UpdatePatientSchema.safeParse({
+    branchId: formData.get('branchId'),
+    patientId: formData.get('patientId'),
+    name: formData.get('name'),
+    phone: formData.get('phone') ?? '',
+    uhid: formData.get('uhid') ?? '',
+    dob: formData.get('dob') ?? '',
+    gender: formData.get('gender') || undefined,
+    abhaNumber: formData.get('abhaNumber') ?? '',
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  const g = await guard(parsed.data.branchId)
+  if (!g.ok) return { error: g.error }
+  const d = parsed.data
+
+  const supabase = createSupabaseServiceClient()
+  const { data, error } = await supabase
+    .from('hospital_patients')
+    .update({
+      uhid: d.uhid.trim(),
+      name: d.name.trim(),
+      phone: d.phone.trim(),
+      dob: d.dob || null,
+      gender: d.gender ?? null,
+      abha_number: (d.abhaNumber || '').trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', d.patientId)
+    .eq('customer_id', g.profile.customerId)
+    .select()
+    .single()
+
+  if (error?.code === '23505') return { error: 'That UHID is already in use by another patient' }
+  if (error || !data) return { error: 'Could not update the patient' }
+
+  await supabase.from('hospital_patient_access_logs').insert({
+    customer_id: g.profile.customerId, patient_id: d.patientId, accessed_by: g.profile.id, reason: 'reception-edit',
+  })
+
+  revalidatePath('/hospital/patients')
+  return { patient: toHospitalPatientDTO(data as DbHospitalPatient) }
+}
+
+// Soft-delete: the record and its visit/token history stay put (tokens and
+// visits FK to it, several ON DELETE CASCADE — hard-deleting a patient would
+// wipe real queue history along with a mistaken entry). Deactivating just
+// hides them from new bookings; reactivate undoes it.
+async function setHospitalPatientActive(
+  branchId: string,
+  patientId: string,
+  isActive: boolean
+): Promise<{ patient?: HospitalPatientDTO; error?: string }> {
+  const g = await guard(branchId)
+  if (!g.ok) return { error: g.error }
+
+  const supabase = createSupabaseServiceClient()
+  const { data, error } = await supabase
+    .from('hospital_patients')
+    .update({ is_active: isActive, updated_at: new Date().toISOString() })
+    .eq('id', patientId)
+    .eq('customer_id', g.profile.customerId)
+    .select()
+    .single()
+
+  if (error || !data) return { error: `Could not ${isActive ? 'reactivate' : 'deactivate'} the patient` }
+
+  revalidatePath('/hospital/patients')
+  return { patient: toHospitalPatientDTO(data as DbHospitalPatient) }
+}
+
+export async function deactivateHospitalPatientAction(branchId: string, patientId: string) {
+  return setHospitalPatientActive(branchId, patientId, false)
+}
+export async function reactivateHospitalPatientAction(branchId: string, patientId: string) {
+  return setHospitalPatientActive(branchId, patientId, true)
+}
+
+// ── Appointments (advance booking — token issued at booking time) ───
+// See supabase/migrations/20260909_hospital_appointments_crud.sql: the token
+// is created now, dated to the appointment's own service_date, off the same
+// gapless per-department cursor the kiosk uses — so a walk-in issued once
+// that date becomes "today" continues straight on from these.
+export async function bookHospitalAppointmentAction(input: {
+  branchId: string
+  patientId: string
+  departmentId: string
+  doctorId: string
+  slotLocal: string // "YYYY-MM-DDTHH:mm:00", branch wall-clock — never an offset/instant
+  priorityCategory?: string | null
+  feePaise?: number | null
+}): Promise<{ appointment?: HospitalAppointmentDTO; token?: HospitalTokenDTO; error?: string }> {
+  const g = await guard(input.branchId)
+  if (!g.ok) return { error: g.error }
+
+  const supabase = createSupabaseServiceClient()
+  const { data, error } = await supabase.rpc('book_hospital_appointment', {
+    p_branch_id: input.branchId,
+    p_patient_id: input.patientId,
+    p_department_id: input.departmentId,
+    p_doctor_id: input.doctorId,
+    p_slot_local: input.slotLocal,
+    p_priority_category:
+      input.priorityCategory && PRIORITY.includes(input.priorityCategory) ? input.priorityCategory : null,
+    p_booked_via: 'reception',
+    p_fee_paise: input.feePaise ?? null,
+  })
+
+  if (error || !data) {
+    return { error: error?.message?.replace(/^.*:\s*/, '') || 'Could not book the appointment' }
+  }
+
+  const result = data as { appointment: DbHospitalAppointment; token: DbHospitalToken }
+  revalidatePath('/hospital/patients')
+  return {
+    appointment: toHospitalAppointmentDTO(result.appointment),
+    token: toHospitalTokenDTO(result.token),
+  }
+}
+
+export async function rescheduleHospitalAppointmentAction(input: {
+  branchId: string
+  appointmentId: string
+  departmentId: string
+  doctorId: string
+  slotLocal: string
+  priorityCategory?: string | null
+  feePaise?: number | null
+}): Promise<{ appointment?: HospitalAppointmentDTO; token?: HospitalTokenDTO; error?: string }> {
+  const g = await guard(input.branchId)
+  if (!g.ok) return { error: g.error }
+
+  const supabase = createSupabaseServiceClient()
+  const { data, error } = await supabase.rpc('reschedule_hospital_appointment', {
+    p_branch_id: input.branchId,
+    p_appointment_id: input.appointmentId,
+    p_department_id: input.departmentId,
+    p_doctor_id: input.doctorId,
+    p_slot_local: input.slotLocal,
+    p_priority_category:
+      input.priorityCategory && PRIORITY.includes(input.priorityCategory) ? input.priorityCategory : null,
+    p_fee_paise: input.feePaise ?? null,
+  })
+
+  if (error || !data) {
+    return { error: error?.message?.replace(/^.*:\s*/, '') || 'Could not reschedule the appointment' }
+  }
+
+  const result = data as { appointment: DbHospitalAppointment; token: DbHospitalToken }
+  revalidatePath('/hospital/patients')
+  return {
+    appointment: toHospitalAppointmentDTO(result.appointment),
+    token: toHospitalTokenDTO(result.token),
+  }
+}
+
+export async function cancelHospitalAppointmentAction(
+  branchId: string,
+  appointmentId: string
+): Promise<{ appointment?: HospitalAppointmentDTO; token?: HospitalTokenDTO; error?: string }> {
+  const g = await guard(branchId)
+  if (!g.ok) return { error: g.error }
+
+  const supabase = createSupabaseServiceClient()
+  const { data, error } = await supabase.rpc('cancel_hospital_appointment', {
+    p_branch_id: branchId,
+    p_appointment_id: appointmentId,
+  })
+
+  if (error || !data) {
+    return { error: error?.message?.replace(/^.*:\s*/, '') || 'Could not cancel the appointment' }
+  }
+
+  const result = data as { appointment: DbHospitalAppointment; token: DbHospitalToken | null }
+  revalidatePath('/hospital/patients')
+  return {
+    appointment: toHospitalAppointmentDTO(result.appointment),
+    token: result.token ? toHospitalTokenDTO(result.token) : undefined,
+  }
+}
+
+export async function getHospitalAppointmentsForDateAction(
+  branchId: string,
+  serviceDate: string
+): Promise<{ items?: HospitalAppointmentListItemDTO[]; error?: string }> {
+  const g = await guard(branchId)
+  if (!g.ok) return { error: g.error }
+  const items = await getHospitalAppointmentsForDate(branchId, serviceDate)
+  return { items }
 }

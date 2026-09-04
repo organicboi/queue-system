@@ -28,6 +28,9 @@ export type HospitalPriorityCategory = 'senior' | 'emergency' | 'pregnant' | 'di
 export type HospitalVisitType = 'new' | 'followup'
 export type HospitalGender = 'male' | 'female' | 'other'
 
+export type HospitalAppointmentStatus = 'booked' | 'checked_in' | 'cancelled' | 'noshow'
+export type HospitalAppointmentBookedVia = 'pwa' | 'reception' | 'whatsapp'
+
 export type HospitalActor = 'kiosk' | 'reception' | 'room' | 'system'
 
 export type HospitalLanguage = Locale
@@ -145,6 +148,7 @@ export interface DbHospitalPatient {
   gender: HospitalGender | null
   abha_number: string | null
   consent_at: string
+  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -157,6 +161,21 @@ export interface DbHospitalVisit {
   visit_date: string
   type: HospitalVisitType
   status: 'active' | 'completed'
+  created_at: string
+  updated_at: string
+}
+
+export interface DbHospitalAppointment {
+  id: string
+  customer_id: string
+  branch_id: string
+  doctor_id: string
+  patient_id: string
+  slot_time: string
+  booked_via: HospitalAppointmentBookedVia
+  fee_paise: number
+  payment_status: 'unpaid' | 'paid' | 'refunded'
+  status: HospitalAppointmentStatus
   created_at: string
   updated_at: string
 }
@@ -319,6 +338,7 @@ export interface HospitalPatientDTO {
   gender: HospitalGender | null
   abhaNumber: string | null
   consentAt: string
+  isActive: boolean
   createdAt: string
 }
 
@@ -331,6 +351,32 @@ export interface HospitalVisitDTO {
   type: HospitalVisitType
   status: 'active' | 'completed'
   createdAt: string
+}
+
+export interface HospitalAppointmentDTO {
+  id: string
+  customerId: string
+  branchId: string
+  doctorId: string
+  patientId: string
+  slotTime: string
+  bookedVia: HospitalAppointmentBookedVia
+  feePaise: number
+  paymentStatus: 'unpaid' | 'paid' | 'refunded'
+  status: HospitalAppointmentStatus
+  createdAt: string
+}
+
+// A day-view row for the reception "Appointments" list: the token *is* the
+// appointment's queue position, so this is the token joined out to the
+// appointment, patient and doctor it belongs to, not the appointment alone.
+export interface HospitalAppointmentListItemDTO {
+  token: HospitalTokenDTO
+  appointment: HospitalAppointmentDTO
+  patientName: string
+  patientUhid: string
+  patientPhone: string
+  doctorName: string
 }
 
 export interface HospitalTokenDTO {
@@ -650,6 +696,7 @@ export function toHospitalPatientDTO(row: DbHospitalPatient): HospitalPatientDTO
     gender: row.gender,
     abhaNumber: row.abha_number,
     consentAt: row.consent_at,
+    isActive: row.is_active,
     createdAt: row.created_at,
   }
 }
@@ -662,6 +709,22 @@ export function toHospitalVisitDTO(row: DbHospitalVisit): HospitalVisitDTO {
     patientId: row.patient_id,
     visitDate: row.visit_date,
     type: row.type,
+    status: row.status,
+    createdAt: row.created_at,
+  }
+}
+
+export function toHospitalAppointmentDTO(row: DbHospitalAppointment): HospitalAppointmentDTO {
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    branchId: row.branch_id,
+    doctorId: row.doctor_id,
+    patientId: row.patient_id,
+    slotTime: row.slot_time,
+    bookedVia: row.booked_via,
+    feePaise: row.fee_paise,
+    paymentStatus: row.payment_status,
     status: row.status,
     createdAt: row.created_at,
   }

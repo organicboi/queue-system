@@ -39,6 +39,11 @@ export default async function HospitalPatientsPage() {
         doctors={doctors.map((d) => ({
           id: d.id, name: d.name, departmentId: d.departmentId,
           feePaise: d.feePaise, onDuty: onDuty.has(d.id),
+          // Carried through so the appointment scheduler can tell whether a
+          // doctor is on duty for whatever future date gets picked, not just
+          // today — the same check book_hospital_appointment runs server-side.
+          weekdays: Array.from(new Set((d.schedules ?? []).map((s) => s.weekday))),
+          leaveDates: (d.leaves ?? []).map((l) => l.leaveDate),
         }))}
       />
     </div>

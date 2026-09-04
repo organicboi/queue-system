@@ -5,15 +5,15 @@ import {
   toHospitalSettingsDTO, toHospitalDepartmentDTO, toHospitalDoctorDTO,
   toHospitalDoctorScheduleDTO, toHospitalDoctorLeaveDTO, toHospitalRoomDTO,
   toHospitalPatientDTO, toHospitalVisitDTO, toHospitalTokenDTO,
-  toHospitalTokenEventDTO,
+  toHospitalTokenEventDTO, toHospitalAppointmentDTO,
   type HospitalSettingsDTO, type HospitalDepartmentDTO, type HospitalDoctorDTO,
   type HospitalRoomDTO, type HospitalPatientDTO, type HospitalVisitDTO,
   type HospitalTokenDTO, type HospitalTokenEventDTO, type HospitalBoardPacket,
   type HospitalDashboardStats, type HospitalDepartmentStats, type HospitalKioskFeed,
-  type HospitalTicketStatus,
+  type HospitalTicketStatus, type HospitalAppointmentDTO, type HospitalAppointmentListItemDTO,
   type DbHospitalSettings, type DbHospitalDepartment, type DbHospitalDoctor,
   type DbHospitalDoctorSchedule, type DbHospitalDoctorLeave, type DbHospitalRoom,
-  type DbHospitalPatient, type DbHospitalVisit,
+  type DbHospitalPatient, type DbHospitalVisit, type DbHospitalAppointment,
   type DbHospitalToken, type DbHospitalTokenEvent,
 } from '@/lib/db/hospital-types'
 import { HOSPITAL_TOKEN_PAGE_SIZE } from '@/lib/hospital/constants'
@@ -455,6 +455,7 @@ export async function searchHospitalPatients(
 export interface HospitalPatientDetail {
   patient: HospitalPatientDTO
   visits: HospitalVisitDTO[]
+  appointments: HospitalAppointmentDTO[]
   tokens: HospitalTokenDTO[]
 }
 
@@ -473,7 +474,7 @@ export async function getHospitalPatientDetail(
 
   if (!patient) return null
 
-  const [{ data: visits }, { data: tokens }] = await Promise.all([
+  const [{ data: visits }, { data: appointments }] = await Promise.all([
     supabase
       .from('hospital_visits')
       .select('*')
@@ -481,12 +482,43 @@ export async function getHospitalPatientDetail(
       .order('visit_date', { ascending: false })
       .limit(30),
     supabase
+      .from('hospital_appointments')
+      .select('*')
+      .eq('patient_id', patientId)
+      .order('slot_time', { ascending: false })
+      .limit(30),
+  ])
+
+  const apptIds = ((appointments ?? []) as DbHospitalAppointment[]).map((a) => a.id)
+
+  // A walk-in/reception token hangs off a visit; an appointment token is
+  // booked (and often served) before any visit for that encounter exists, so
+  // it only carries appointment_id. Neither join alone sees every token this
+  // patient has ever held — merge both.
+  const [{ data: visitTokens }, { data: apptTokens }] = await Promise.all([
+    supabase
       .from('hospital_tokens')
       .select('*, hospital_visits!inner(patient_id)')
       .eq('hospital_visits.patient_id', patientId)
       .order('joined_at', { ascending: false })
       .limit(60),
+    apptIds.length > 0
+      ? supabase
+          .from('hospital_tokens')
+          .select('*')
+          .in('appointment_id', apptIds)
+          .order('joined_at', { ascending: false })
+          .limit(60)
+      : Promise.resolve({ data: [] as DbHospitalToken[] }),
   ])
+
+  const tokenById = new Map<string, DbHospitalToken>()
+  for (const t of [...(visitTokens ?? []), ...(apptTokens ?? [])] as DbHospitalToken[]) {
+    tokenById.set(t.id, t)
+  }
+  const tokens = Array.from(tokenById.values())
+    .sort((a, b) => b.joined_at.localeCompare(a.joined_at))
+    .slice(0, 60)
 
   await supabase.from('hospital_patient_access_logs').insert({
     customer_id: customerId,
@@ -498,8 +530,73 @@ export async function getHospitalPatientDetail(
   return {
     patient: toHospitalPatientDTO(patient as DbHospitalPatient),
     visits: ((visits ?? []) as DbHospitalVisit[]).map(toHospitalVisitDTO),
-    tokens: ((tokens ?? []) as DbHospitalToken[]).map(toHospitalTokenDTO),
+    appointments: ((appointments ?? []) as DbHospitalAppointment[]).map(toHospitalAppointmentDTO),
+    tokens: tokens.map(toHospitalTokenDTO),
   }
+}
+
+// ── Appointments ──────────────────────────────────────────────
+// The reception "Appointments" day view: every appointment-sourced token for
+// one service_date, joined out to the appointment, patient and doctor it
+// belongs to. Reads off hospital_tokens (not hospital_appointments) because
+// service_date — stamped once at booking from the slot's own timezone — is
+// the unambiguous "which day's series is this on" answer; a slot_time range
+// filter would have to re-derive that and could disagree at a day boundary.
+export async function getHospitalAppointmentsForDate(
+  branchId: string,
+  serviceDate: string
+): Promise<HospitalAppointmentListItemDTO[]> {
+  const supabase = createSupabaseServiceClient()
+  const { data: tokens } = await supabase
+    .from('hospital_tokens')
+    .select('*')
+    .eq('branch_id', branchId)
+    .eq('service_date', serviceDate)
+    .eq('source', 'appointment')
+    .order('number', { ascending: true })
+
+  const rows = (tokens ?? []) as DbHospitalToken[]
+  if (rows.length === 0) return []
+
+  const apptIds = Array.from(new Set(rows.map((t) => t.appointment_id).filter((id): id is string => !!id)))
+  const { data: appointments } = await supabase
+    .from('hospital_appointments')
+    .select('*')
+    .in('id', apptIds)
+  const apptById = new Map(
+    ((appointments ?? []) as DbHospitalAppointment[]).map((a) => [a.id, a])
+  )
+
+  const patientIds = Array.from(new Set(Array.from(apptById.values()).map((a) => a.patient_id)))
+  const doctorIds = Array.from(new Set(rows.map((t) => t.doctor_id).filter((id): id is string => !!id)))
+  const [{ data: patients }, { data: doctors }] = await Promise.all([
+    patientIds.length > 0
+      ? supabase.from('hospital_patients').select('id, name, uhid, phone').in('id', patientIds)
+      : Promise.resolve({ data: [] as { id: string; name: string; uhid: string; phone: string }[] }),
+    doctorIds.length > 0
+      ? supabase.from('hospital_doctors').select('id, name').in('id', doctorIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+  ])
+  const patientById = new Map(
+    ((patients ?? []) as { id: string; name: string; uhid: string; phone: string }[]).map((p) => [p.id, p])
+  )
+  const doctorById = new Map(((doctors ?? []) as { id: string; name: string }[]).map((d) => [d.id, d]))
+
+  const out: HospitalAppointmentListItemDTO[] = []
+  for (const t of rows) {
+    const appt = t.appointment_id ? apptById.get(t.appointment_id) : undefined
+    if (!appt) continue
+    const patient = patientById.get(appt.patient_id)
+    out.push({
+      token: toHospitalTokenDTO(t),
+      appointment: toHospitalAppointmentDTO(appt),
+      patientName: patient?.name ?? '',
+      patientUhid: patient?.uhid ?? '',
+      patientPhone: patient?.phone ?? '',
+      doctorName: (t.doctor_id && doctorById.get(t.doctor_id)?.name) || '',
+    })
+  }
+  return out
 }
 
 // ── Visits ────────────────────────────────────────────────────
