@@ -23,10 +23,17 @@ class DeviceConfig {
     required this.adminPinLength,
     required this.printer,
     this.vertical = DeviceVertical.business,
+    this.defaultLocale = '',
+    this.branchId = '',
   });
 
   final String baseUrl;
   final DeviceRole? role;
+
+  /// Device-local default kiosk language (a `regionLocales()` code). Empty ⇒
+  /// fall back to the server's first configured language. Set from the Settings
+  /// screen; not part of provisioning, so [clearProvisioning] leaves it alone.
+  final String defaultLocale;
 
   /// Which product the paired branch/screen belongs to — decides which screen
   /// [_Root] shows and which API base path the clients use. Defaults to
@@ -42,6 +49,11 @@ class DeviceConfig {
 
   /// Web role.
   final String webUrl;
+
+  /// The facility this device serves. Captured at sign-in provisioning so the
+  /// Settings screen can read/write the tenant's branch-scoped settings without
+  /// a lookup. Empty for a pre-login (migrated) device or the web role.
+  final String branchId;
 
   final String? adminPinHash;
   final String? adminPinSalt;
@@ -65,6 +77,7 @@ class DeviceConfig {
 
   static const _kBaseUrl = 'kiosk.baseUrl';
   static const _kBranchToken = 'kiosk.branchToken';
+  static const _kBranchId = 'device.branchId';
   static const _kRole = 'device.role';
   static const _kVertical = 'device.vertical';
   static const _kScreenToken = 'device.screenToken';
@@ -74,6 +87,7 @@ class DeviceConfig {
   static const _kPinLength = 'device.pinLength';
   static const _kPrinter = 'device.printer';
   static const _kSetupComplete = 'device.setupComplete';
+  static const _kDefaultLocale = 'device.defaultLocale';
 
   static Future<DeviceConfig> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -100,6 +114,8 @@ class DeviceConfig {
       adminPinSalt: prefs.getString(_kPinSalt),
       adminPinLength: prefs.getInt(_kPinLength) ?? 4,
       printer: PrinterSettings.decode(prefs.getString(_kPrinter)),
+      defaultLocale: prefs.getString(_kDefaultLocale) ?? '',
+      branchId: prefs.getString(_kBranchId) ?? '',
     );
   }
 
@@ -110,12 +126,14 @@ class DeviceConfig {
     await prefs.setString(_kVertical, vertical.storageValue);
     await prefs.setBool(_kSetupComplete, setupComplete);
     await prefs.setString(_kBranchToken, branchToken.trim());
+    await prefs.setString(_kBranchId, branchId.trim());
     await prefs.setString(_kScreenToken, screenToken.trim());
     await prefs.setString(_kWebUrl, webUrl.trim());
     if (adminPinHash != null) await prefs.setString(_kPinHash, adminPinHash!);
     if (adminPinSalt != null) await prefs.setString(_kPinSalt, adminPinSalt!);
     await prefs.setInt(_kPinLength, adminPinLength);
     await prefs.setString(_kPrinter, printer.encode());
+    await prefs.setString(_kDefaultLocale, defaultLocale.trim());
   }
 
   /// Wipe provisioning (role + tokens) but keep the server URL and the admin
@@ -126,6 +144,7 @@ class DeviceConfig {
     await prefs.remove(_kRole);
     await prefs.remove(_kVertical);
     await prefs.remove(_kBranchToken);
+    await prefs.remove(_kBranchId);
     await prefs.remove(_kScreenToken);
     await prefs.remove(_kWebUrl);
     await prefs.remove(_kSetupComplete);
@@ -137,12 +156,14 @@ class DeviceConfig {
     DeviceVertical? vertical,
     bool? setupComplete,
     String? branchToken,
+    String? branchId,
     String? screenToken,
     String? webUrl,
     String? adminPinHash,
     String? adminPinSalt,
     int? adminPinLength,
     PrinterSettings? printer,
+    String? defaultLocale,
   }) {
     return DeviceConfig(
       baseUrl: baseUrl ?? this.baseUrl,
@@ -150,12 +171,14 @@ class DeviceConfig {
       vertical: vertical ?? this.vertical,
       setupComplete: setupComplete ?? this.setupComplete,
       branchToken: branchToken ?? this.branchToken,
+      branchId: branchId ?? this.branchId,
       screenToken: screenToken ?? this.screenToken,
       webUrl: webUrl ?? this.webUrl,
       adminPinHash: adminPinHash ?? this.adminPinHash,
       adminPinSalt: adminPinSalt ?? this.adminPinSalt,
       adminPinLength: adminPinLength ?? this.adminPinLength,
       printer: printer ?? this.printer,
+      defaultLocale: defaultLocale ?? this.defaultLocale,
     );
   }
 }

@@ -459,6 +459,9 @@ export interface HospitalBoardPacket {
     duration_seconds: number
     is_active: boolean
     audio_enabled?: boolean
+    // Missing on rows written before the placement column existed —
+    // HospitalBoard treats that the same as 'side'.
+    placement?: 'side' | 'fullscreen'
   }[]
   tickers?: { id: string; message: string }[]
 }

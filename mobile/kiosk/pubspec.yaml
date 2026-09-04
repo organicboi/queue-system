@@ -41,10 +41,14 @@ dependencies:
   flutter_tts: ^4.2.3
   webview_flutter: ^4.13.0
   webview_flutter_android: ^4.4.0
-  mobile_scanner: ^7.0.1
   video_player: ^2.9.5
-  wakelock_plus: ^1.2.10
+  # wakelock_plus >=1.7 is required for the Flutter 3.44 built-in Kotlin
+  # migration — earlier versions fail :wakelock_plus:compileDebugKotlin with
+  # unresolved Pigeon message references. That pulls win32 ^6, which in turn
+  # needs flutter_secure_storage >=10 (9.x pins its Windows plugin to win32 ^5).
+  wakelock_plus: ^1.8.0
   qr_flutter: ^4.1.0
+  flutter_secure_storage: ^10.3.1
 
 dev_dependencies:
   flutter_test:

@@ -8,6 +8,7 @@ import type { CustomerVertical, DistributorStats } from '@/lib/db/types'
 import { MAX_SCHOOL_ENTITLEMENT } from '@/lib/db/types'
 import { DEFAULT_VERTICAL, VERTICALS, isVertical } from '@/lib/verticals'
 import { regionLocales } from '@/lib/region'
+import { seedDefaultHospitalDepartments } from '@/lib/hospital/defaultDepartments'
 
 const LICENSE_KEY_VALIDITY_DAYS = 30
 
@@ -87,12 +88,24 @@ export async function createCustomerAction(
 
   // Same for hospital: the kiosk ticket and TV board need a name to render.
   // hospital_settings.hospital_name is a jsonb locale map with a required `en`.
+  // languages defaults to every locale this market offers (regionLocales()) —
+  // the column's own DB default is `{en}`, which otherwise leaves the kiosk
+  // picker, the board strip and the announcer silently English-only until an
+  // admin visits Settings and ticks the other boxes. A branch that only wants
+  // a subset (a Pune clinic that wants Marathi but not Hindi, say) trims it
+  // there — this is just a starting point, not a fixed policy.
+  // The standard department set is seeded right alongside it — fully
+  // translated from the start — so the branch never goes live with an empty
+  // department list or English-only cards waiting on someone to click
+  // "Seed defaults" by hand.
   if (branch && parsed.data.vertical === 'hospital') {
     await service.from('hospital_settings').insert({
       customer_id: customer.id,
       branch_id: branch.id,
       hospital_name: { en: parsed.data.businessName },
+      languages: regionLocales(),
     })
+    await seedDefaultHospitalDepartments(service, { customerId: customer.id, branchId: branch.id })
   }
 
   // 3. Generate a unique license key linked to this customer

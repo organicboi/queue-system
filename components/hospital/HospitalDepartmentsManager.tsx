@@ -84,9 +84,14 @@ export function HospitalDepartmentsManager({ branchId, initialDepartments, quota
     startTransition(async () => {
       const result = await seedHospitalDepartmentsAction(branchId)
       if (result.error) toast.error(result.error)
-      else if (result.created === 0) toast.info('All the default departments already exist')
-      else {
-        toast.success(`Added ${result.created} departments`)
+      else if (!result.created && !result.updated) {
+        toast.info('All the default departments already exist, fully translated')
+      } else {
+        const parts = [
+          result.created ? `Added ${result.created} departments` : null,
+          result.updated ? `filled in translations for ${result.updated}` : null,
+        ].filter(Boolean)
+        toast.success(parts.join(' · '))
         window.location.reload()
       }
     })

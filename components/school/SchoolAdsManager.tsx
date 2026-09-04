@@ -4,7 +4,7 @@ import { useState, useActionState, useTransition } from 'react'
 import { toast } from 'sonner'
 import {
   Plus, Trash2, Image as ImageIcon, Video, MessageSquare, Eye, EyeOff,
-  Volume2, VolumeX, ArrowUp, ArrowDown,
+  Volume2, VolumeX, ArrowUp, ArrowDown, Maximize2, PanelRight,
 } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  createAdAction, deleteAdAction, toggleAdActiveAction, toggleAdAudioAction, reorderAdsAction,
+  createAdAction, deleteAdAction, toggleAdActiveAction, toggleAdAudioAction,
+  toggleAdPlacementAction, reorderAdsAction,
   createTickerAction, deleteTickerAction, toggleTickerActiveAction,
 } from '@/lib/actions/ads'
 import type { AdDTO, TickerMessageDTO } from '@/lib/db/types'
@@ -22,13 +23,17 @@ interface Props {
   branchId: string
   ads: AdDTO[]
   tickers: TickerMessageDTO[]
+  // The hospital board is the only display that currently acts on
+  // `placement` (fullscreen-on-call ads) — hide the control elsewhere so it
+  // doesn't promise behaviour the board doesn't have yet.
+  placementEditable?: boolean
 }
 
 const INIT: { error?: string } = {}
 
 const card = 'rounded-2xl border border-slate-200 bg-white shadow-sm'
 
-export function SchoolAdsManager({ branchId, ads, tickers }: Props) {
+export function SchoolAdsManager({ branchId, ads, tickers, placementEditable = false }: Props) {
   const [adOpen, setAdOpen] = useState(false)
   const [tickerOpen, setTickerOpen] = useState(false)
   const [reordering, startReorder] = useTransition()
@@ -99,6 +104,27 @@ export function SchoolAdsManager({ branchId, ads, tickers }: Props) {
                     </span>
                   </span>
                 </label>
+                {placementEditable && (
+                  <div className="space-y-1.5">
+                    <Label>Where it plays</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 p-3 has-[:checked]:border-accent-600 has-[:checked]:bg-accent-50">
+                        <input type="radio" name="placement" value="side" defaultChecked className="mt-0.5 size-4 accent-[var(--color-accent-600)]" />
+                        <span className="text-sm">
+                          <span className="font-medium text-slate-800">Side panel</span>
+                          <span className="block text-xs text-muted-foreground">Plays continuously alongside the room list.</span>
+                        </span>
+                      </label>
+                      <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 p-3 has-[:checked]:border-accent-600 has-[:checked]:bg-accent-50">
+                        <input type="radio" name="placement" value="fullscreen" className="mt-0.5 size-4 accent-[var(--color-accent-600)]" />
+                        <span className="text-sm">
+                          <span className="font-medium text-slate-800">Fullscreen on call</span>
+                          <span className="block text-xs text-muted-foreground">Takes over the whole screen for 1 min after a token is called.</span>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                )}
                 {adState.error && <p className="text-sm text-red-600">{adState.error}</p>}
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={() => setAdOpen(false)}>Cancel</Button>
@@ -150,6 +176,7 @@ export function SchoolAdsManager({ branchId, ads, tickers }: Props) {
                     <p className="text-xs text-muted-foreground">
                       {ad.fileType} · {ad.durationSeconds}s
                       {ad.fileType === 'video' && ad.audioEnabled ? ' · sound on' : ''}
+                      {placementEditable && ad.placement === 'fullscreen' ? ' · fullscreen on call' : ''}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
@@ -158,6 +185,19 @@ export function SchoolAdsManager({ branchId, ads, tickers }: Props) {
                     }`}>
                       {ad.isActive ? 'ON' : 'OFF'}
                     </span>
+                    {placementEditable && (
+                      <Button
+                        variant="ghost" size="sm"
+                        className="size-7 p-0 text-muted-foreground"
+                        title={ad.placement === 'fullscreen' ? 'Switch to side panel' : 'Switch to fullscreen on call'}
+                        onClick={async () => {
+                          const r = await toggleAdPlacementAction(ad.id, branchId)
+                          if (r.error) toast.error(r.error)
+                        }}
+                      >
+                        {ad.placement === 'fullscreen' ? <Maximize2 className="size-3.5" /> : <PanelRight className="size-3.5" />}
+                      </Button>
+                    )}
                     {ad.fileType === 'video' && (
                       <Button
                         variant="ghost" size="sm"

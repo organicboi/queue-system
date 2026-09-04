@@ -27,6 +27,9 @@ const AdSchema = z.object({
   // Opt-in sound for video ads on a display that shows one ad at a time.
   // Ignored for images.
   audioEnabled: z.coerce.boolean().default(false),
+  // 'side' plays in the rail; 'fullscreen' is held out of it and shown
+  // edge-to-edge instead — currently interpreted by the hospital board only.
+  placement: z.enum(['side', 'fullscreen']).default('side'),
 })
 
 export async function createAdAction(
@@ -39,6 +42,7 @@ export async function createAdAction(
     file: formData.get('file'),
     durationSeconds: formData.get('durationSeconds') || undefined,
     audioEnabled: formData.get('audioEnabled') === 'on',
+    placement: formData.get('placement') || undefined,
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
@@ -87,6 +91,7 @@ export async function createAdAction(
     duration_seconds: parsed.data.durationSeconds ?? 8,
     display_order: displayOrder,
     audio_enabled: parsed.data.audioEnabled,
+    placement: parsed.data.placement,
   })
 
   if (error) return { error: 'Failed to create ad' }
@@ -156,6 +161,40 @@ export async function toggleAdAudioAction(adId: string, branchId: string): Promi
   const { error } = await supabase
     .from('ads')
     .update({ audio_enabled: !ad.audio_enabled, updated_at: new Date().toISOString() })
+    .eq('id', adId)
+    .eq('customer_id', profile.customerId)
+
+  if (error) return { error: 'Failed to update ad' }
+
+  revalidateAdPaths(branchId)
+  return {}
+}
+
+// ── Toggle ad placement (side rail vs. fullscreen-on-call) ────
+export async function toggleAdPlacementAction(adId: string, branchId: string): Promise<{ error?: string }> {
+  let profile
+  try {
+    profile = await requireBranchManager(branchId)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Access denied' }
+  }
+  const supabase = createSupabaseServiceClient()
+
+  const { data: ad } = await supabase
+    .from('ads')
+    .select('placement')
+    .eq('id', adId)
+    .eq('customer_id', profile.customerId)
+    .single()
+
+  if (!ad) return { error: 'Ad not found' }
+
+  const { error } = await supabase
+    .from('ads')
+    .update({
+      placement: ad.placement === 'fullscreen' ? 'side' : 'fullscreen',
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', adId)
     .eq('customer_id', profile.customerId)
 

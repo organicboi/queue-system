@@ -11,6 +11,7 @@ import 'display/board_screen.dart';
 import 'hospital/hospital_board_screen.dart';
 import 'hospital/hospital_kiosk_screen.dart';
 import 'kiosk_screen.dart';
+import 'settings/settings_screen.dart';
 import 'setup/setup_wizard.dart';
 import 'theme.dart';
 import 'web/web_screen.dart';
@@ -110,7 +111,7 @@ class _Root extends ConsumerWidget {
           // role screen the device is locked into.
           canPop: false,
           child: AdminGate(
-            settingsBuilder: (_) => SetupWizard(startAtSettingsFor: cfg),
+            settingsBuilder: (_) => const SettingsScreen(),
             child: roleScreen,
           ),
         );

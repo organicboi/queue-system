@@ -131,3 +131,39 @@ body {
   from { transform: translateX(-100%); }
   to   { transform: translateX(100%); }
 }
+
+/* Hospital kiosk. Two animations the token screen needs and Tailwind's
+   arbitrary-animation syntax can name but not declare.
+
+   The countdown bar runs for exactly the branch's kiosk idle window, so the
+   bar emptying and the screen resetting for the next patient are the same
+   event rather than two clocks that can drift apart. */
+@keyframes kiosk-countdown {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* One step of the kiosk flow arriving. Cheap on a kiosk panel: opacity and a
+   few pixels of transform, no blur and no animated shadow. */
+@keyframes kiosk-step-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.kiosk-surface {
+  --kiosk-paper: oklch(96.5% 0.008 85);
+  --kiosk-ink: oklch(24% 0.01 70);
+  font-family: 'IBM Plex Sans', var(--font-sans, sans-serif);
+  background: var(--kiosk-paper);
+  color: var(--kiosk-ink);
+}
+
+.kiosk-display-font { font-family: 'Space Grotesk', var(--font-sans, sans-serif); }
+.kiosk-mono { font-family: 'IBM Plex Mono', var(--font-geist-mono), monospace; }
+
+/* Honour the OS setting on the tablet builds of this page. The countdown bar
+   is deliberately left running: it is information about when the screen
+   closes, not decoration. */
+@media (prefers-reduced-motion: reduce) {
+  [class*="kiosk-step-in"] { animation: none !important; }
+}

@@ -6,11 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:school_kiosk/src/api/hospital_kiosk_api.dart';
-import 'package:school_kiosk/src/api/pair_api.dart';
 import 'package:school_kiosk/src/config/device_config.dart';
 import 'package:school_kiosk/src/config/device_role.dart';
 import 'package:school_kiosk/src/config/device_vertical.dart';
-import 'package:school_kiosk/src/config/provisioning_qr.dart';
 import 'package:school_kiosk/src/models/hospital/hospital_board_packet.dart';
 import 'package:school_kiosk/src/models/hospital/hospital_kiosk_bootstrap.dart';
 import 'package:school_kiosk/src/models/hospital/hospital_kiosk_feed.dart';
@@ -181,48 +179,6 @@ void main() {
       expect((await DeviceConfig.load()).vertical, DeviceVertical.business);
     });
 
-    test('ProvisioningPayload parses vertical, defaults to business', () {
-      final withV = ProvisioningPayload.tryParse(jsonEncode({
-        'v': 1,
-        'baseUrl': 'https://x',
-        'role': 'kiosk',
-        'token': 'abc',
-        'vertical': 'hospital',
-      }));
-      expect(withV?.vertical, DeviceVertical.hospital);
-
-      final legacy = ProvisioningPayload.tryParse(jsonEncode({
-        'v': 1,
-        'baseUrl': 'https://x',
-        'role': 'display',
-        'token': 'abc',
-      }));
-      expect(legacy?.vertical, DeviceVertical.business);
-    });
-
-    test('PairApi.redeem reads vertical from the response', () async {
-      final api = PairApi(
-        baseUrl: 'https://x',
-        dio: Dio(BaseOptions(baseUrl: 'https://x'))
-          ..httpClientAdapter = _FakeAdapter((options) async {
-            return ResponseBody.fromString(
-              jsonEncode({
-                'role': 'kiosk',
-                'token': 'realtoken',
-                'name': 'Ruby Hall',
-                'vertical': 'hospital',
-              }),
-              200,
-              headers: {
-                Headers.contentTypeHeader: [Headers.jsonContentType],
-              },
-            );
-          }),
-      );
-      final result = await api.redeem('123456');
-      expect(result.vertical, DeviceVertical.hospital);
-      expect(result.token, 'realtoken');
-    });
   });
 
   group('hospital kiosk API', () {

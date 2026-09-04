@@ -5,8 +5,16 @@ import 'package:flutter/material.dart';
 import '../../i18n/copy.dart';
 import '../theme.dart';
 
+String _kioskLabel(String lang) => switch (lang) {
+  'hi' => 'किऑस्क टोकन',
+  'mr' => 'टोकन किऑस्क',
+  _ => 'OUTPATIENT TOKEN KIOSK',
+};
+
 /// The kiosk header: a white rail, one hairline, and nothing that competes
-/// with the service blocks underneath it.
+/// with the service blocks underneath it. Shared by the school and hospital
+/// kiosks — two terminals in the same lobby should not disagree about what a
+/// header is.
 ///
 /// Deliberately spare — identity on one side, the two things a visitor may
 /// actually want on the other (what time it is, what language they read).
@@ -17,7 +25,7 @@ import '../theme.dart';
 /// was chrome pretending to be content:
 ///
 /// * **A blue monogram tile.** A branch with no uploaded logo got a coloured
-///   square that belonged to none of the department colours below it. A school
+///   square that belonged to none of the department colours below it. A branch
 ///   with a logo still shows the logo; one without simply starts with its name.
 /// * **A two-line clock.** A 19px bold time stacked over the date was a
 ///   headline for information nobody walked up to read. One line now, with
@@ -30,18 +38,22 @@ class KioskHeader extends StatelessWidget {
     super.key,
     required this.title,
     required this.logoUrl,
-    required this.copy,
     required this.languages,
     required this.lang,
     required this.onLangChange,
+    this.activeStep,
   });
 
   final String title;
   final String logoUrl;
-  final KioskCopy copy;
+
+  /// The languages to offer. Pass an empty (or single-entry) list to hide the
+  /// switch — the hospital kiosk does that on its token screen, where changing
+  /// language would only reprint a decision already made.
   final List<String> languages;
   final String lang;
   final ValueChanged<String> onLangChange;
+  final int? activeStep;
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +67,7 @@ class KioskHeader extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, c) {
-          // Below this the clock competes with the school name for room, and
+          // Below this the clock competes with the branch name for room, and
           // the name wins.
           final showClock = c.maxWidth >= 720;
           return Row(
@@ -65,22 +77,38 @@ class KioskHeader extends StatelessWidget {
                 const SizedBox(width: 13),
               ],
               Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: KioskPalette.ink,
-                    letterSpacing: -0.2,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w600,
+                        color: KioskPalette.ink,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    if (activeStep != null)
+                      Text(
+                        _kioskLabel(lang),
+                        style: TextStyle(
+                          fontSize: 9,
+                          letterSpacing: 1.4,
+                          color: KioskPalette.inkFaint,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              if (showClock) ...[
-                const SizedBox(width: 16),
-                _Clock(lang: lang),
+              if (activeStep != null && c.maxWidth >= 680) ...[
+                _ProgressRail(activeStep: activeStep!, lang: lang),
+                const SizedBox(width: 18),
               ],
+              if (showClock) ...[const SizedBox(width: 16), _Clock(lang: lang)],
               if (languages.length > 1) ...[
                 const SizedBox(width: 22),
                 _LangToggle(
@@ -97,8 +125,75 @@ class KioskHeader extends StatelessWidget {
   }
 }
 
-/// Shown only when the school has actually uploaded one. A generated initial
-/// in a tinted square is a logo the school never chose.
+class _ProgressRail extends StatelessWidget {
+  const _ProgressRail({required this.activeStep, required this.lang});
+  final int activeStep;
+  final String lang;
+
+  List<String> get labels => switch (lang) {
+    'hi' => const ['विभाग', 'डॉक्टर', 'टोकन'],
+    'mr' => const ['विभाग', 'डॉक्टर', 'टोकन'],
+    _ => const ['Department', 'Doctor', 'Token'],
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < labels.length; i++) ...[
+          if (i > 0)
+            Container(width: 28, height: 1, color: KioskPalette.border),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 27,
+                height: 27,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: i == activeStep
+                      ? KioskPalette.primary
+                      : Colors.transparent,
+                  border: i == activeStep
+                      ? null
+                      : Border.all(color: KioskPalette.borderStrong),
+                ),
+                child: Text(
+                  '${i + 1}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: i == activeStep
+                        ? Colors.white
+                        : KioskPalette.inkSoft,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                labels[i],
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: i == activeStep
+                      ? FontWeight.w700
+                      : FontWeight.w500,
+                  color: i == activeStep
+                      ? KioskPalette.ink
+                      : KioskPalette.inkFaint,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Shown only when the branch has actually uploaded one. A generated initial
+/// in a tinted square is a logo they never chose.
 class _Logo extends StatelessWidget {
   const _Logo({required this.url});
   final String url;
@@ -116,7 +211,8 @@ class _Logo extends StatelessWidget {
         height: size,
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => blank,
-        loadingBuilder: (_, child, progress) => progress == null ? child : blank,
+        loadingBuilder: (_, child, progress) =>
+            progress == null ? child : blank,
       ),
     );
   }
@@ -144,8 +240,13 @@ class _ClockState extends State<_Clock> {
 
   void _scheduleNextMinute() {
     final now = DateTime.now();
-    final next = DateTime(now.year, now.month, now.day, now.hour, now.minute)
-        .add(const Duration(minutes: 1));
+    final next = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      now.hour,
+      now.minute,
+    ).add(const Duration(minutes: 1));
     _timer?.cancel();
     _timer = Timer(next.difference(now), () {
       if (!mounted) return;
@@ -200,12 +301,7 @@ class _LangToggle extends StatelessWidget {
   final String lang;
   final ValueChanged<String> onChange;
 
-  static const _names = {
-    'en': 'English',
-    'ar': 'العربية',
-    'mr': 'मराठी',
-    'hi': 'हिंदी',
-  };
+  static const _names = {'en': 'EN', 'ar': 'ع', 'mr': 'मर', 'hi': 'हि'};
 
   @override
   Widget build(BuildContext context) {

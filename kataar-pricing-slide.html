@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kataar — Pricing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+Devanagari:wght@500;700&display=swap">
+<style>
+  :root {
+    --box:      #0A0B0D;
+    --bg:       #F1F2F3;
+    --panel:    #FBFBFA;
+    --ink:      #16181C;
+    --soft:     #545861;
+    --faint:    #8A8E97;
+    --line:     #D8D9D6;
+    --accent:   #B4611B;
+    --accent-bg:#F2E7DA;
+  }
+  * , *::before, *::after { box-sizing: border-box; margin: 0; }
+
+  body {
+    background: var(--box);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .stage {
+    position: relative;
+    width: min(100vw, calc(100vh * 16 / 9));
+    height: min(100vh, calc(100vw * 9 / 16));
+    background: var(--bg);
+    color: var(--ink);
+    overflow: hidden;
+    container-type: size;
+  }
+
+  .slide {
+    position: absolute; inset: 0;
+    padding: 3.8cqw 6cqw;
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .kicker {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 1.2cqw; font-weight: 500;
+    letter-spacing: 0.24em; text-transform: uppercase;
+    color: var(--accent);
+  }
+  h2 {
+    font-family: "Archivo", "Arial Narrow", sans-serif;
+    font-weight: 700; font-size: 3.3cqw; line-height: 1.04;
+    letter-spacing: -0.018em; margin-top: 0.7cqw;
+  }
+  .mono { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+  .dev  { font-family: "IBM Plex Sans Devanagari", sans-serif; }
+
+  /* ---- plan cards ---- */
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.3cqw; margin-top: 1.7cqw; }
+  .plan {
+    background: var(--panel); border: 1px solid var(--line);
+    padding: 1.5cqw 1.5cqw; display: flex; flex-direction: column; position: relative;
+  }
+  .plan.pick { border-color: var(--accent); }
+  .plan.pick::before { content: ""; position: absolute; inset: -1px -1px auto -1px; height: 3px; background: var(--accent); }
+  .plan .tag { font-family: "IBM Plex Mono", monospace; font-size: 0.9cqw; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint); }
+  .plan.pick .tag { color: var(--accent); }
+  .plan h3 { font-family: "Archivo", sans-serif; font-weight: 700; font-size: 1.7cqw; margin-top: 0.4cqw; letter-spacing: -0.01em; }
+  .plan .amt { font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 2.4cqw; margin-top: 0.9cqw; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .plan .per { font-size: 1cqw; color: var(--faint); }
+  .plan .sub { font-size: 1cqw; color: var(--soft); margin-top: 0.6cqw; line-height: 1.38; }
+  .plan ul { list-style: none; margin-top: 0.95cqw; display: grid; gap: 0.45cqw; }
+  .plan li { font-size: 0.98cqw; color: var(--soft); line-height: 1.32; padding-left: 1.2cqw; position: relative; }
+  .plan li::before { content: ""; position: absolute; left: 0; top: 0.52em; width: 0.42cqw; height: 0.42cqw; background: var(--accent); }
+  .plan .best { margin-top: auto; padding-top: 1cqw; font-size: 0.96cqw; color: var(--ink); line-height: 1.35; }
+
+  /* ---- launch offer band ---- */
+  .offer {
+    margin-top: 1.6cqw;
+    border: 1.5px solid var(--accent);
+    background: var(--accent-bg);
+    display: grid; grid-template-columns: 1.35fr 1fr;
+    align-items: stretch;
+  }
+  .offer .l { padding: 1.5cqw 1.8cqw; }
+  .offer .r {
+    padding: 1.5cqw 1.8cqw; border-left: 1px dashed var(--accent);
+    display: flex; flex-direction: column; justify-content: center; gap: 0.7cqw;
+  }
+  .offer .eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: 1cqw;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 500;
+  }
+  .offer .price {
+    font-family: "Archivo", sans-serif; font-weight: 800;
+    font-size: 2.9cqw; line-height: 1; margin-top: 0.7cqw; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .offer .price .plus { font-size: 1.35cqw; font-weight: 600; color: var(--soft); }
+  .offer .terms { font-size: 1.08cqw; color: var(--soft); margin-top: 0.7cqw; line-height: 1.4; max-width: 40ch; }
+  .offer .terms b { color: var(--ink); font-weight: 600; }
+
+  .coupon-label { font-size: 0.92cqw; letter-spacing: 0.14em; text-transform: uppercase; color: var(--soft); }
+  .coupon {
+    font-family: "IBM Plex Mono", monospace; font-weight: 600;
+    font-size: 1.85cqw; letter-spacing: 0.14em; color: var(--ink);
+    border: 1.5px dashed var(--accent); background: var(--panel);
+    padding: 0.7cqw 1.2cqw; display: inline-block; align-self: flex-start;
+  }
+  .coupon-note { font-size: 0.95cqw; color: var(--soft); line-height: 1.38; }
+
+  .foot {
+    margin-top: 1.3cqw; padding-top: 1.1cqw; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; gap: 1rem;
+    font-size: 1cqw; color: var(--faint);
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  /* ---- mobile ---- */
+  @media (max-width: 820px) {
+    body { display: block; background: var(--bg); }
+    .stage { width: 100%; height: auto; container-type: normal; }
+    .slide { position: static; padding: 2.2rem 1.4rem; overflow: visible; }
+    .kicker { font-size: 0.72rem; }
+    h2 { font-size: 1.6rem; }
+    .plans { grid-template-columns: 1fr; gap: 1rem; }
+    .plan { padding: 1.1rem 1.1rem; }
+    .plan h3 { font-size: 1.2rem; } .plan .amt { font-size: 1.5rem; }
+    .plan .tag, .plan .per, .plan .sub, .plan li, .plan .best { font-size: 0.85rem; }
+    .plan li::before { width: 4px; height: 4px; }
+    .offer { grid-template-columns: 1fr; }
+    .offer .l, .offer .r { padding: 1.2rem 1.2rem; }
+    .offer .r { border-left: 0; border-top: 1px dashed var(--accent); }
+    .offer .eyebrow, .coupon-label, .coupon-note, .offer .terms, .foot { font-size: 0.8rem; }
+    .offer .price { font-size: 2rem; } .offer .price .plus { font-size: 1rem; }
+    .coupon { font-size: 1.15rem; }
+    .foot { flex-direction: column; gap: 0.3rem; }
+  }
+
+  @media print {
+    body { display: block; }
+    .stage { width: 100%; height: auto; container-type: normal; }
+    .slide { position: static; overflow: visible; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <section class="slide">
+    <p class="kicker">Pricing &nbsp;&middot;&nbsp; per campus</p>
+    <h2>Three ways to buy.</h2>
+
+    <div class="plans">
+      <div class="plan">
+        <span class="tag">Option 1</span>
+        <h3>Annual subscription</h3>
+        <div class="amt">&#8377;50,000 <span class="per">/ year</span></div>
+        <p class="sub">+ &#8377;10,000 one-time setup. Monthly option &#8377;5,000.</p>
+        <ul>
+          <li>Full platform, one campus</li>
+          <li>Billed yearly, Apr&ndash;Mar session</li>
+          <li>Resize or stop at renewal</li>
+        </ul>
+        <p class="best">Best for single private schools wanting a low entry cost.</p>
+      </div>
+
+      <div class="plan pick">
+        <span class="tag">Option 2 &mdash; recommended</span>
+        <h3>Two-year partnership</h3>
+        <div class="amt">&#8377;82,000 <span class="per">/ 2 years</span></div>
+        <p class="sub">&asymp; &#8377;3,417 / month &mdash; about 18% less than two annual terms.</p>
+        <ul>
+          <li>Price locked for two full sessions</li>
+          <li>Setup fee waived &middot; priority support</li>
+          <li>Pay in full, or 60 / 40</li>
+        </ul>
+        <p class="best">Best for schools ready to commit for two academic years.</p>
+      </div>
+
+      <div class="plan">
+        <span class="tag">Option 3</span>
+        <h3>One-time licence</h3>
+        <div class="amt">&#8377;1,75,000 <span class="per">once</span></div>
+        <p class="sub">+ maintenance &#8377;35,000 / year from year two.</p>
+        <ul>
+          <li>Perpetual licence, one campus</li>
+          <li>On-premise or cloud for 5 years</li>
+          <li>One sanction, one invoice</li>
+        </ul>
+        <p class="best">Best for trust-run, aided and tender-driven schools.</p>
+      </div>
+    </div>
+
+    <div class="offer">
+      <div class="l">
+        <p class="eyebrow">Launch partner price &mdash; India 2026</p>
+        <div class="price">&#8377;30,000 <span class="plus">+ &#8377;5,000 deployment</span></div>
+        <p class="terms">
+          <b>&#8377;35,000 all-in for 24 months</b>, one campus &mdash; the full Two-year
+          partnership above, at our first-partner rate. Offered to one school.
+        </p>
+      </div>
+      <div class="r">
+        <span class="coupon-label">Apply at signup</span>
+        <span class="coupon">INDIA2026</span>
+        <p class="coupon-note">Enter the coupon on the plan page to unlock this price. One use.</p>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span>Standard list price is for a campus of 500&ndash;1,500 students.</span>
+      <span>All prices exclusive of 18% GST.</span>
+    </div>
+  </section>
+</div>
+
+</body>
+</html>

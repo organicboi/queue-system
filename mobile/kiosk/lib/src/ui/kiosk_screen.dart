@@ -12,6 +12,7 @@ import '../models/kiosk_feed.dart';
 import '../models/school_department.dart';
 import '../models/school_token.dart';
 import '../printing/print_job.dart';
+import '../state/app_auth_providers.dart';
 import '../state/providers.dart';
 import 'theme.dart';
 import 'widgets/confirmation_overlay.dart';
@@ -166,7 +167,7 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
     final api = error is ApiException ? error : null;
 
     if (api != null && api.isUnregistered) {
-      await ref.read(deviceConfigProvider.notifier).reset();
+      await deprovision(ref);
       return;
     }
 
@@ -206,7 +207,7 @@ class _KioskScreenState extends ConsumerState<KioskScreen> {
               return _BootError(
                 error: e,
                 onRetry: () => ref.invalidate(bootstrapProvider),
-                onReset: () => ref.read(deviceConfigProvider.notifier).reset(),
+                onReset: () => deprovision(ref),
               );
             },
             data: (data) {
@@ -285,7 +286,6 @@ class _Shell extends ConsumerWidget {
         KioskHeader(
           title: data.settings?.schoolName(lang) ?? data.branchName,
           logoUrl: data.settings?.logoUrl ?? '',
-          copy: copy,
           languages: data.languages,
           lang: lang,
           onLangChange: onLangChange,

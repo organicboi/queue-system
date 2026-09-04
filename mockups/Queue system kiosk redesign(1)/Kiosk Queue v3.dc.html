@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;font-family:'IBM Plex Sans',sans-serif;-webkit-font-smoothing:antialiased;background:oklch(96.5% 0.008 85);}
+  *{box-sizing:border-box;}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+  a{color:oklch(45% 0.09 165);} a:hover{color:oklch(38% 0.09 165);}
+</style>
+<script src="./image-slot.js"></script>
+</helmet>
+
+<div style="width:100vw;height:100vh;background:oklch(96.5% 0.008 85);color:oklch(24% 0.01 70);display:flex;flex-direction:column;overflow:hidden;position:relative;">
+
+  <div style="flex:0 0 auto;background:oklch(99.5% 0.004 85);border-bottom:1px solid oklch(88% 0.008 80);padding:clamp(12px,1.8vh,20px) clamp(24px,3vw,48px);display:flex;align-items:center;justify-content:space-between;gap:24px;">
+    <div style="display:flex;align-items:center;gap:clamp(14px,1.6vw,22px);min-width:0;">
+      <div style="width:clamp(38px,4.6vh,50px);height:clamp(38px,4.6vh,50px);border-radius:50%;background:oklch(45% 0.09 165);color:oklch(99% 0.004 85);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:clamp(18px,2.4vh,24px);flex:0 0 auto;">A</div>
+      <div style="min-width:0;">
+        <div style="font-size:clamp(17px,2.2vh,21px);font-weight:600;letter-spacing:-0.01em;white-space:nowrap;">Apollo Hospitals</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,11px);letter-spacing:0.14em;text-transform:uppercase;color:oklch(52% 0.012 75);margin-top:2px;">Outpatient token kiosk</div>
+      </div>
+    </div>
+
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:clamp(10px,1.4vw,18px);min-width:0;">
+    <sc-for list="{{ steps }}" as="st" hint-placeholder-count="3">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="{{ st.dotStyle }}">{{ st.num }}</div>
+        <div style="{{ st.labelStyle }}">{{ st.label }}</div>
+        <sc-if value="{{ st.showArrow }}" hint-placeholder-val="{{ true }}">
+          <div style="width:clamp(20px,3vw,44px);height:1px;background:oklch(85% 0.008 80);margin-left:6px;"></div>
+        </sc-if>
+      </div>
+    </sc-for>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:clamp(14px,2vw,28px);flex:0 0 auto;">
+      <div style="display:flex;gap:6px;">
+        <sc-for list="{{ langOptions }}" as="lo" hint-placeholder-count="3">
+          <div onClick="{{ lo.onClick }}" style="{{ lo.style }}">{{ lo.label }}</div>
+        </sc-for>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:clamp(17px,2.3vh,22px);font-weight:600;font-variant-numeric:tabular-nums;">{{ clockTime }}</div>
+        <div style="font-size:clamp(10px,1.3vh,12px);color:oklch(52% 0.012 75);">{{ clockDate }}</div>
+      </div>
+    </div>
+  </div>
+
+
+  <sc-if value="{{ isDeptScreen }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;min-height:0;display:flex;flex-direction:column;padding:clamp(16px,2.6vh,32px) clamp(24px,3vw,48px) 0;">
+      <div style="flex:0 0 auto;display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:clamp(12px,2vh,22px);">
+        <div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(30px,5vh,54px);line-height:1;letter-spacing:-0.015em;">{{ t.chooseDept }}</div>
+          <div style="font-size:clamp(14px,1.9vh,18px);color:oklch(48% 0.012 75);margin-top:6px;">{{ t.touchHint }}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px;flex:0 0 auto;">
+          <div style="width:8px;height:8px;border-radius:50%;background:oklch(58% 0.14 150);animation:pulse 2.4s ease-in-out infinite;"></div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,11px);letter-spacing:0.14em;text-transform:uppercase;color:oklch(50% 0.012 75);">{{ t.liveQueue }}</span>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:1fr;gap:clamp(10px,1.6vw,20px);">
+        <sc-for list="{{ departments }}" as="dept" hint-placeholder-count="6">
+          <div onClick="{{ dept.onClick }}" style="{{ dept.cardStyle }}" style-hover="border-color:oklch(45% 0.09 165);box-shadow:0 8px 24px oklch(24% 0.01 70 / 0.09);transform:translateY(-2px);" style-active="transform:translateY(1px);">
+            <div style="position:relative;flex:1;min-height:clamp(92px,13vh,150px);border-radius:14px;overflow:hidden;background:oklch(94.5% 0.008 80);margin-bottom:clamp(10px,1.6vh,16px);">
+              <image-slot id="{{ dept.slotId }}" shape="rect" placeholder="{{ dept.slotHint }}"></image-slot>
+            </div>
+
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px;">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,11px);letter-spacing:0.14em;color:oklch(58% 0.012 75);">{{ dept.index }}</span>
+                <span style="{{ dept.pillStyle }}">{{ dept.queueLabel }}</span>
+              </div>
+              <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(22px,3.3vh,38px);line-height:1.05;letter-spacing:-0.015em;">{{ dept.name }}</div>
+              <div style="font-size:clamp(12px,1.6vh,15px);color:oklch(48% 0.012 75);margin-top:4px;line-height:1.3;">{{ dept.sub }}</div>
+            </div>
+
+            <div style="margin-top:clamp(10px,1.8vh,18px);padding-top:clamp(10px,1.6vh,16px);border-top:1px solid oklch(91% 0.008 80);display:flex;align-items:center;justify-content:space-between;gap:10px;">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,11px);letter-spacing:0.12em;text-transform:uppercase;color:oklch(52% 0.012 75);">{{ dept.waitLabel }}</span>
+              <div style="width:clamp(30px,4vh,38px);height:clamp(30px,4vh,38px);border-radius:50%;background:oklch(45% 0.09 165);display:flex;align-items:center;justify-content:center;flex:0 0 auto;">
+                <svg width="18" height="18" viewBox="0 0 24 24"><path d="M5 12h13M13 7l5 5-5 5" stroke="oklch(99% 0.004 85)" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="flex:0 0 auto;padding:clamp(12px,2vh,22px) 0 clamp(14px,2.2vh,24px);display:flex;align-items:center;gap:clamp(14px,2vw,24px);flex-wrap:wrap;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,11px);letter-spacing:0.14em;text-transform:uppercase;color:oklch(50% 0.012 75);">{{ t.priorityQ }}</div>
+        <div style="display:flex;gap:clamp(8px,1vw,12px);flex-wrap:wrap;">
+          <sc-for list="{{ priorityChips }}" as="chip" hint-placeholder-count="4">
+            <div onClick="{{ chip.onClick }}" style="{{ chip.style }}">
+              <div style="{{ chip.boxStyle }}">
+                <sc-if value="{{ chip.active }}" hint-placeholder-val="{{ false }}">
+                  <svg width="13" height="13" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </sc-if>
+              </div>
+              <span>{{ chip.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isDoctorScreen }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-height:0;display:flex;flex-direction:column;padding:clamp(16px,2.6vh,32px) clamp(24px,3vw,48px) 0;animation:rise .28s ease;">
+      <div style="flex:0 0 auto;display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:clamp(12px,2vh,22px);">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,11px);letter-spacing:0.16em;text-transform:uppercase;color:oklch(45% 0.09 165);margin-bottom:6px;">{{ selectedDept.name }}</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(30px,5vh,54px);line-height:1;letter-spacing:-0.015em;">{{ t.chooseDoctor }}</div>
+        </div>
+        <sc-if value="{{ hasActivePriority }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:360px;">
+            <sc-for list="{{ activePriorityTags }}" as="tag" hint-placeholder-count="1">
+              <div style="background:oklch(94% 0.04 65);color:oklch(42% 0.13 60);font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.1vh,10px);letter-spacing:0.12em;text-transform:uppercase;padding:7px 11px;border-radius:4px;">{{ tag }}</div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="flex:1;min-height:0;display:grid;grid-template-columns:repeat(2,1fr);grid-auto-rows:min-content;gap:clamp(10px,1.6vw,18px);align-content:start;overflow:auto;">
+        <sc-for list="{{ doctors }}" as="doc" hint-placeholder-count="2">
+          <div onClick="{{ doc.onClick }}" style="background:oklch(99.5% 0.004 85);border:1.5px solid oklch(89% 0.008 80);border-radius:20px;padding:clamp(16px,2.4vh,26px) clamp(18px,2vw,28px);cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:clamp(14px,1.8vw,22px);" style-hover="border-color:oklch(45% 0.09 165);box-shadow:0 8px 24px oklch(24% 0.01 70 / 0.09);">
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(22px,3.2vh,34px);line-height:1.05;">{{ doc.name }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,11px);letter-spacing:0.1em;text-transform:uppercase;color:oklch(52% 0.012 75);margin-top:5px;">{{ doc.qual }}</div>
+              <div style="display:flex;gap:8px;margin-top:clamp(10px,1.6vh,16px);flex-wrap:wrap;">
+                <div style="{{ doc.pillStyle }}">{{ doc.queueText }}</div>
+                <div style="background:oklch(94% 0.008 80);color:oklch(38% 0.012 75);font-size:clamp(11px,1.4vh,13px);font-weight:500;padding:6px 12px;border-radius:8px;font-variant-numeric:tabular-nums;">{{ doc.waitText }}</div>
+                <div style="background:oklch(94% 0.008 80);color:oklch(38% 0.012 75);font-size:clamp(11px,1.4vh,13px);font-weight:500;padding:6px 12px;border-radius:8px;">{{ doc.feeText }}</div>
+              </div>
+            </div>
+            <div style="width:clamp(40px,5.2vh,52px);height:clamp(40px,5.2vh,52px);border-radius:50%;background:oklch(45% 0.09 165);display:flex;align-items:center;justify-content:center;flex:0 0 auto;">
+              <svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 12h13M13 7l5 5-5 5" stroke="oklch(99% 0.004 85)" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="flex:0 0 auto;padding:clamp(12px,2vh,22px) 0 clamp(14px,2.2vh,24px);">
+        <div onClick="{{ goBackToDept }}" style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;background:oklch(99.5% 0.004 85);border:1.5px solid oklch(89% 0.008 80);border-radius:14px;padding:clamp(12px,1.8vh,16px) clamp(20px,2.4vw,28px);font-size:clamp(13px,1.7vh,15px);font-weight:600;color:oklch(35% 0.012 75);" style-hover="background:oklch(94% 0.008 80);">
+          <svg width="18" height="18" viewBox="0 0 24 24"><path d="M19 12H6M11 7l-5 5 5 5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>{{ t.back }}</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isTokenScreen }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-height:0;display:flex;flex-direction:column;padding:clamp(16px,2.6vh,32px) clamp(24px,3vw,48px) 0;animation:rise .3s ease;">
+      <div style="flex:1;min-height:0;display:flex;gap:clamp(16px,2.4vw,28px);align-items:stretch;overflow:auto;">
+        <div style="flex:1;min-width:300px;background:oklch(99.5% 0.004 85);border:1.5px solid oklch(89% 0.008 80);border-radius:24px;padding:clamp(20px,3vh,36px) clamp(22px,2.6vw,40px);display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:clamp(26px,3.4vh,32px);height:clamp(26px,3.4vh,32px);border-radius:50%;background:oklch(92% 0.05 150);display:flex;align-items:center;justify-content:center;flex:0 0 auto;">
+              <svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="oklch(40% 0.1 155)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,11px);letter-spacing:0.18em;text-transform:uppercase;color:oklch(40% 0.1 155);">{{ t.yourToken }}</span>
+          </div>
+
+          <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(60px,10.5vw,152px);line-height:0.95;letter-spacing:-0.035em;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;margin:clamp(6px,1.4vh,14px) 0 clamp(10px,2vh,20px);">{{ tokenInfo.code }}</div>
+
+          <div style="max-width:560px;">
+            <sc-for list="{{ tokenMeta }}" as="row" hint-placeholder-count="3">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:20px;padding:clamp(8px,1.3vh,14px) 0;border-bottom:1px solid oklch(92% 0.008 80);">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,11px);letter-spacing:0.14em;text-transform:uppercase;color:oklch(52% 0.012 75);white-space:nowrap;">{{ row.label }}</span>
+                <span style="font-size:clamp(14px,1.9vh,18px);font-weight:500;text-align:right;white-space:nowrap;">{{ row.value }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ tokenInfo.isEmergency }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:clamp(12px,2vh,20px);background:oklch(95% 0.04 65);border-left:3px solid oklch(58% 0.13 60);padding:clamp(12px,1.8vh,16px) clamp(14px,1.8vw,20px);border-radius:0 10px 10px 0;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,10px);letter-spacing:0.16em;text-transform:uppercase;color:oklch(42% 0.13 60);margin-bottom:5px;">Staff notified</div>
+              <div style="font-size:clamp(13px,1.7vh,16px);line-height:1.45;color:oklch(30% 0.03 60);">Please proceed to the nearest nurse station now. You do not need to wait.</div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="width:clamp(180px,20vw,280px);flex:0 0 auto;background:oklch(99.5% 0.004 85);border:1.5px solid oklch(89% 0.008 80);border-radius:24px;padding:clamp(18px,2.6vh,30px);display:flex;flex-direction:column;align-items:center;text-align:center;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,11px);letter-spacing:0.16em;text-transform:uppercase;color:oklch(52% 0.012 75);margin-bottom:clamp(10px,1.6vh,16px);">Track your turn</div>
+          <div style="width:100%;aspect-ratio:1;max-width:200px;border:1px solid oklch(90% 0.008 80);border-radius:10px;background:repeating-linear-gradient(45deg, oklch(93% 0.008 80) 0px, oklch(93% 0.008 80) 7px, oklch(97% 0.006 82) 7px, oklch(97% 0.006 82) 14px);display:flex;align-items:center;justify-content:center;">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:oklch(45% 0.012 75);background:oklch(99.5% 0.004 85);padding:5px 9px;border-radius:4px;">QR CODE</span>
+          </div>
+          <div style="font-size:clamp(12px,1.6vh,14px);color:oklch(48% 0.012 75);margin-top:clamp(10px,1.6vh,16px);line-height:1.45;">{{ t.scanTrack }}</div>
+        </div>
+      </div>
+
+      <div style="flex:0 0 auto;padding:clamp(12px,2vh,22px) 0 clamp(14px,2.2vh,24px);display:flex;align-items:center;justify-content:space-between;gap:20px;">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,11px);letter-spacing:0.12em;text-transform:uppercase;color:oklch(52% 0.012 75);">{{ t.returning }} {{ countdown }}s</div>
+          <div style="width:clamp(140px,18vw,220px);height:3px;background:oklch(90% 0.008 80);margin-top:9px;border-radius:2px;">
+            <div style="height:3px;background:oklch(45% 0.09 165);width:{{ countdownPct }};border-radius:2px;transition:width 1s linear;"></div>
+          </div>
+        </div>
+        <div onClick="{{ goHome }}" style="background:oklch(45% 0.09 165);color:oklch(99% 0.004 85);font-size:clamp(14px,1.9vh,17px);font-weight:600;padding:clamp(15px,2.2vh,21px) clamp(26px,3.4vw,52px);border-radius:14px;cursor:pointer;white-space:nowrap;" style-hover="background:oklch(38% 0.09 165);">{{ t.nextPatient }}</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ emergencyModal }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:oklch(24% 0.01 70 / 0.45);display:flex;align-items:center;justify-content:center;padding:24px;">
+      <div style="background:oklch(99.5% 0.004 85);border-radius:24px;padding:clamp(26px,4vh,44px) clamp(28px,3.4vw,48px);width:min(540px,100%);box-shadow:0 24px 60px oklch(24% 0.01 70 / 0.2);animation:rise .22s ease;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:clamp(9px,1.2vh,10px);letter-spacing:0.18em;text-transform:uppercase;color:oklch(48% 0.13 60);">Emergency</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(28px,4.4vh,42px);line-height:1.08;margin:12px 0 12px;">Staff will be notified</div>
+        <div style="font-size:clamp(14px,1.9vh,17px);color:oklch(42% 0.012 75);line-height:1.5;">Your token moves to the front of the queue and the front desk is alerted. Misuse delays care for others.</div>
+        <div style="display:flex;gap:12px;margin-top:clamp(20px,3vh,32px);">
+          <div onClick="{{ confirmEmergency }}" style="flex:1;background:oklch(58% 0.13 60);color:oklch(99% 0.004 85);font-size:clamp(14px,1.9vh,16px);font-weight:600;padding:clamp(15px,2.2vh,19px) 0;text-align:center;border-radius:14px;cursor:pointer;">Continue</div>
+          <div onClick="{{ cancelEmergency }}" style="flex:0 0 auto;border:1.5px solid oklch(88% 0.008 80);color:oklch(38% 0.012 75);font-size:clamp(14px,1.9vh,16px);font-weight:600;padding:clamp(15px,2.2vh,19px) clamp(24px,3vw,34px);text-align:center;border-radius:14px;cursor:pointer;" style-hover="background:oklch(94% 0.008 80);">Cancel</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const DEPARTMENTS = [
+  { id: 'reg', name: 'Registration', sub: 'Registration & triage', mono: 'RG', queue: 0, wait: 0, hasDoctor: false },
+  { id: 'genmed', name: 'General Medicine', sub: 'Fever, cold & general checkups', mono: 'GM', queue: 6, wait: 35, hasDoctor: true },
+  { id: 'ortho', name: 'Orthopaedics', sub: 'Bones, joints & fractures', mono: 'OR', queue: 3, wait: 20, hasDoctor: true },
+  { id: 'ped', name: 'Paediatrics', sub: 'Child care, 0\u201312 yrs', mono: 'PD', queue: 9, wait: 50, hasDoctor: true },
+  { id: 'ent', name: 'ENT', sub: 'Ear, nose & throat', mono: 'EN', queue: 2, wait: 15, hasDoctor: true },
+  { id: 'eye', name: 'Ophthalmology', sub: 'Eye care & vision', mono: 'OP', queue: 4, wait: 25, hasDoctor: true },
+];
+
+const DOCTORS = {
+  genmed: [
+    { id: 'd1', name: 'Dr. Mehta', qual: 'MBBS, MD', fee: 400, queue: 6, wait: 35 },
+    { id: 'd2', name: 'Dr. Iyer', qual: 'MBBS', fee: 350, queue: 2, wait: 12 },
+  ],
+  ortho: [{ id: 'd3', name: 'Dr. Khan', qual: 'MS Orthopaedics', fee: 600, queue: 3, wait: 20 }],
+  ped: [
+    { id: 'd4', name: 'Dr. Nair', qual: 'MD Paediatrics', fee: 450, queue: 5, wait: 28 },
+    { id: 'd5', name: 'Dr. Sharma', qual: 'MBBS, DCH', fee: 400, queue: 4, wait: 22 },
+  ],
+  ent: [{ id: 'd6', name: 'Dr. Rao', qual: 'MS ENT', fee: 500, queue: 2, wait: 15 }],
+  eye: [
+    { id: 'd7', name: 'Dr. Jadhav', qual: 'MD, MBBS', fee: 500, queue: 3, wait: 18 },
+    { id: 'd8', name: 'Dr. Desai', qual: 'MS Ophthalmology', fee: 600, queue: 1, wait: 6 },
+  ],
+};
+
+const STRINGS = {
+  en: { code: 'EN', chooseDept: 'Choose a department', touchHint: 'Touch a department to take your token', liveQueue: 'Live queue', back: 'Back', chooseDoctor: 'Choose a doctor', priorityQ: 'Priority assistance', noQueue: 'No queue', waiting: 'waiting', min: 'min', yourToken: 'Token issued', ahead: 'ahead of you', scanTrack: 'Scan to follow your position from your phone.', nextPatient: 'Done \u2014 next patient', returning: 'Returning to start in', dept: 'Department', doctor: 'Doctor', position: 'Your position', fee: 'Consultation fee', priority: 'Priority', stepDept: 'Department', stepDoctor: 'Doctor', stepToken: 'Token' },
+  hi: { code: '\u0939\u093f', chooseDept: '\u0935\u093f\u092d\u093e\u0917 \u091a\u0941\u0928\u0947\u0902', touchHint: '\u091f\u094b\u0915\u0928 \u0932\u0947\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u0935\u093f\u092d\u093e\u0917 \u0938\u094d\u092a\u0930\u094d\u0936 \u0915\u0930\u0947\u0902', liveQueue: '\u0932\u093e\u0907\u0935 \u0915\u0924\u093e\u0930', back: '\u0935\u093e\u092a\u0938', chooseDoctor: '\u0921\u0949\u0915\u094d\u091f\u0930 \u091a\u0941\u0928\u0947\u0902', priorityQ: '\u092a\u094d\u0930\u093e\u0925\u092e\u093f\u0915\u0924\u093e \u0938\u0939\u093e\u092f\u0924\u093e', noQueue: '\u0915\u094b\u0908 \u0915\u0924\u093e\u0930 \u0928\u0939\u0940\u0902', waiting: '\u092a\u094d\u0930\u0924\u0940\u0915\u094d\u0937\u093e \u092e\u0947\u0902', min: '\u092e\u093f\u0928\u091f', yourToken: '\u091f\u094b\u0915\u0928 \u091c\u093e\u0930\u0940', ahead: '\u0906\u092a\u0938\u0947 \u0906\u0917\u0947', scanTrack: '\u0905\u092a\u0928\u0947 \u092b\u094b\u0928 \u092a\u0930 \u0938\u094d\u0925\u093f\u0924\u093f \u0926\u0947\u0916\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u0938\u094d\u0915\u0947\u0928 \u0915\u0930\u0947\u0902\u0964', nextPatient: '\u0939\u094b \u0917\u092f\u093e \u2014 \u0905\u0917\u0932\u093e \u092e\u0930\u0940\u091c', returning: '\u0936\u0941\u0930\u0941\u0906\u0924 \u092a\u0930 \u0935\u093e\u092a\u0938\u0940', dept: '\u0935\u093f\u092d\u093e\u0917', doctor: '\u0921\u0949\u0915\u094d\u091f\u0930', position: '\u0906\u092a\u0915\u093e \u0938\u094d\u0925\u093e\u0928', fee: '\u092a\u0930\u093e\u092e\u0930\u094d\u0936 \u0936\u0941\u0932\u094d\u0915', priority: '\u092a\u094d\u0930\u093e\u0925\u092e\u093f\u0915\u0924\u093e', stepDept: '\u0935\u093f\u092d\u093e\u0917', stepDoctor: '\u0921\u0949\u0915\u094d\u091f\u0930', stepToken: '\u091f\u094b\u0915\u0928' },
+  te: { code: '\u0c24\u0c46', chooseDept: '\u0c35\u0c3f\u0c2d\u0c3e\u0c17\u0c02 \u0c0e\u0c02\u0c1a\u0c41\u0c15\u0c4b\u0c02\u0c21\u0c3f', touchHint: '\u0c1f\u0c4b\u0c15\u0c46\u0c28\u0c4d \u0c2a\u0c4a\u0c02\u0c26\u0c21\u0c3e\u0c28\u0c3f\u0c15\u0c3f \u0c35\u0c3f\u0c2d\u0c3e\u0c17\u0c3e\u0c28\u0c4d\u0c28\u0c3f \u0c24\u0c3e\u0c15\u0c02\u0c21\u0c3f', liveQueue: '\u0c32\u0c48\u0c35\u0c4d \u0c15\u0c4d\u0c2f\u0c42', back: '\u0c35\u0c46\u0c28\u0c41\u0c15\u0c15\u0c41', chooseDoctor: '\u0c35\u0c48\u0c26\u0c4d\u0c2f\u0c41\u0c21\u0c3f\u0c28\u0c3f \u0c0e\u0c02\u0c1a\u0c41\u0c15\u0c4b\u0c02\u0c21\u0c3f', priorityQ: '\u0c2a\u0c4d\u0c30\u0c3e\u0c27\u0c3e\u0c28\u0c4d\u0c2f \u0c38\u0c39\u0c3e\u0c2f\u0c02', noQueue: '\u0c15\u0c4d\u0c2f\u0c42 \u0c32\u0c47\u0c26\u0c41', waiting: '\u0c35\u0c47\u0c1a\u0c3f \u0c09\u0c28\u0c4d\u0c28\u0c3e\u0c30\u0c41', min: '\u0c28\u0c3f\u0c2e\u0c3f', yourToken: '\u0c1f\u0c4b\u0c15\u0c46\u0c28\u0c4d \u0c07\u0c1a\u0c4d\u0c1a\u0c3f\u0c02\u0c26\u0c3f', ahead: '\u0c2e\u0c40\u0c15\u0c41 \u0c2e\u0c41\u0c02\u0c26\u0c41', scanTrack: '\u0c2e\u0c40 \u0c2b\u0c4b\u0c28\u0c4d\u200c\u0c32\u0c4b \u0c38\u0c4d\u0c25\u0c3e\u0c28\u0c02 \u0c1a\u0c42\u0c38\u0c41\u0c15\u0c4b\u0c35\u0c21\u0c3e\u0c28\u0c3f\u0c15\u0c3f \u0c38\u0c4d\u0c15\u0c3e\u0c28\u0c4d \u0c1a\u0c47\u0c2f\u0c02\u0c21\u0c3f.', nextPatient: '\u0c2a\u0c42\u0c30\u0c4d\u0c24\u0c2f\u0c3f\u0c02\u0c26\u0c3f \u2014 \u0c24\u0c26\u0c41\u0c2a\u0c30\u0c3f', returning: '\u0c2e\u0c4a\u0c26\u0c1f\u0c3f\u0c15\u0c3f \u0c24\u0c3f\u0c30\u0c3f\u0c17\u0c3f', dept: '\u0c35\u0c3f\u0c2d\u0c3e\u0c17\u0c02', doctor: '\u0c35\u0c48\u0c26\u0c4d\u0c2f\u0c41\u0c21\u0c41', position: '\u0c2e\u0c40 \u0c38\u0c4d\u0c25\u0c3e\u0c28\u0c02', fee: '\u0c15\u0c28\u0c4d\u0c38\u0c32\u0c4d\u0c1f\u0c47\u0c37\u0c28\u0c4d \u0c30\u0c41\u0c38\u0c41\u0c2e\u0c41', priority: '\u0c2a\u0c4d\u0c30\u0c3e\u0c27\u0c3e\u0c28\u0c4d\u0c2f\u0c24', stepDept: '\u0c35\u0c3f\u0c2d\u0c3e\u0c17\u0c02', stepDoctor: '\u0c35\u0c48\u0c26\u0c4d\u0c2f\u0c41\u0c21\u0c41', stepToken: '\u0c1f\u0c4b\u0c15\u0c46\u0c28\u0c4d' },
+};
+
+const PRIORITY_DEFS = [
+  { key: 'senior', label: 'Senior citizen (60+)' },
+  { key: 'pregnant', label: 'Pregnant' },
+  { key: 'disabled', label: 'Differently-abled' },
+  { key: 'emergency', label: 'Emergency' },
+];
+
+class Component extends DCLogic {
+  state = {
+    screen: 'dept', lang: 'en',
+    priority: { senior: false, pregnant: false, disabled: false, emergency: false },
+    selectedDeptId: null, selectedDoctorId: null, tokenInfo: null,
+    emergencyModal: false, pendingDeptId: null, countdown: 20, clock: new Date(),
+  };
+
+  componentDidMount() {
+    this._interval = setInterval(() => {
+      this.setState(s => {
+        const next = { clock: new Date() };
+        if (s.screen === 'token') {
+          const c = s.countdown - 1;
+          if (c <= 0) { this.goHome(); return {}; }
+          next.countdown = c;
+        }
+        return next;
+      });
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this._interval); }
+
+  togglePriority(key) { this.setState(s => ({ priority: { ...s.priority, [key]: !s.priority[key] } })); }
+
+  proceedToDept(deptId) {
+    const dept = DEPARTMENTS.find(d => d.id === deptId);
+    if (!dept.hasDoctor) this.issueToken(dept, null);
+    else this.setState({ selectedDeptId: deptId, screen: 'doctor' });
+  }
+
+  selectDept(deptId) {
+    if (this.state.priority.emergency) this.setState({ emergencyModal: true, pendingDeptId: deptId });
+    else this.proceedToDept(deptId);
+  }
+
+  confirmEmergency() {
+    const deptId = this.state.pendingDeptId;
+    this.setState({ emergencyModal: false, pendingDeptId: null });
+    this.proceedToDept(deptId);
+  }
+  cancelEmergency() { this.setState({ emergencyModal: false, pendingDeptId: null }); }
+
+  selectDoctor(doctorId) {
+    const dept = DEPARTMENTS.find(d => d.id === this.state.selectedDeptId);
+    const doc = (DOCTORS[dept.id] || []).find(d => d.id === doctorId);
+    this.setState({ selectedDoctorId: doctorId });
+    this.issueToken(dept, doc);
+  }
+
+  issueToken(dept, doc) {
+    const { priority } = this.state;
+    const anyPriority = priority.senior || priority.pregnant || priority.disabled;
+    const isEmergency = priority.emergency;
+    let position = doc ? doc.queue : dept.queue;
+    if (isEmergency) position = 0;
+    else if (anyPriority) position = Math.max(0, Math.min(position, 1));
+    const num = Math.floor(100 + Math.random() * 900);
+    this.setState({
+      screen: 'token', countdown: 20,
+      tokenInfo: { code: `${dept.mono}${num}`, position, fee: doc ? doc.fee : null, isPriority: anyPriority || isEmergency, isEmergency },
+    });
+  }
+
+  goBackToDept() { this.setState({ screen: 'dept', selectedDeptId: null, selectedDoctorId: null }); }
+
+  goHome() {
+    this.setState({
+      screen: 'dept', selectedDeptId: null, selectedDoctorId: null, tokenInfo: null,
+      priority: { senior: false, pregnant: false, disabled: false, emergency: false }, countdown: 20,
+    });
+  }
+
+  renderVals() {
+    const { screen, lang, priority, selectedDeptId, selectedDoctorId, tokenInfo, emergencyModal, countdown, clock } = this.state;
+    const t = STRINGS[lang];
+    const INK = 'oklch(24% 0.01 70)', GREEN = 'oklch(45% 0.09 165)';
+
+    const langOptions = ['en', 'hi', 'te'].map(l => {
+      const active = l === lang;
+      return {
+        label: STRINGS[l].code,
+        style: 'min-width:clamp(42px,5vh,54px);padding:clamp(9px,1.4vh,13px) clamp(10px,1.2vw,16px);border-radius:11px;text-align:center;font-size:clamp(12px,1.6vh,15px);font-weight:600;cursor:pointer;border:1.5px solid;transition:all .15s;'
+          + (active
+            ? `background:${INK};border-color:${INK};color:oklch(99% 0.004 85);`
+            : 'background:oklch(99.5% 0.004 85);border-color:oklch(88% 0.008 80);color:oklch(45% 0.012 75);'),
+        onClick: () => this.setState({ lang: l }),
+      };
+    });
+
+    const stepIndex = screen === 'dept' ? 0 : screen === 'doctor' ? 1 : 2;
+    const steps = [t.stepDept, t.stepDoctor, t.stepToken].map((label, i) => {
+      const state = i === stepIndex ? 'current' : i < stepIndex ? 'done' : 'todo';
+      return {
+        num: String(i + 1), label, showArrow: i < 2,
+        dotStyle: 'width:clamp(22px,2.8vh,28px);height:clamp(22px,2.8vh,28px);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:clamp(11px,1.4vh,13px);font-weight:600;flex:0 0 auto;'
+          + (state === 'current' ? `background:${GREEN};color:oklch(99% 0.004 85);`
+            : state === 'done' ? 'background:oklch(90% 0.03 165);color:oklch(40% 0.09 165);'
+            : 'background:oklch(93% 0.008 80);color:oklch(60% 0.012 75);'),
+        labelStyle: 'font-size:clamp(11px,1.5vh,14px);font-weight:' + (state === 'current' ? '600' : '400') + ';color:'
+          + (state === 'current' ? INK : 'oklch(58% 0.012 75)') + ';white-space:nowrap;',
+      };
+    });
+
+    const priorityChips = PRIORITY_DEFS.map(d => {
+      const active = priority[d.key];
+      const em = d.key === 'emergency';
+      const base = 'display:flex;align-items:center;gap:10px;padding:clamp(10px,1.5vh,15px) clamp(14px,1.6vw,20px);border-radius:12px;font-size:clamp(12px,1.6vh,15px);font-weight:500;cursor:pointer;border:1.5px solid;transition:all .15s;white-space:nowrap;';
+      let style, boxColor;
+      if (active) {
+        style = base + (em
+          ? 'background:oklch(58% 0.13 60);border-color:oklch(58% 0.13 60);color:oklch(99% 0.004 85);'
+          : `background:${INK};border-color:${INK};color:oklch(99% 0.004 85);`);
+        boxColor = 'background:oklch(99% 0.004 85);border-color:oklch(99% 0.004 85);color:' + (em ? 'oklch(48% 0.13 60)' : INK) + ';';
+      } else {
+        style = base + (em
+          ? 'background:oklch(99.5% 0.004 85);border-color:oklch(78% 0.08 60);color:oklch(45% 0.13 60);'
+          : 'background:oklch(99.5% 0.004 85);border-color:oklch(88% 0.008 80);color:oklch(35% 0.012 75);');
+        boxColor = 'background:transparent;border-color:' + (em ? 'oklch(78% 0.08 60)' : 'oklch(84% 0.008 80)') + ';';
+      }
+      return {
+        label: d.label, active, style, onClick: () => this.togglePriority(d.key),
+        boxStyle: 'width:20px;height:20px;border-radius:6px;border:1.5px solid;display:flex;align-items:center;justify-content:center;flex:0 0 auto;' + boxColor,
+      };
+    });
+
+    const anyPriority = PRIORITY_DEFS.some(d => priority[d.key]);
+    const activePriorityTags = PRIORITY_DEFS.filter(d => priority[d.key]).map(d => d.label);
+
+    const freePill = 'background:oklch(92% 0.05 150);color:oklch(36% 0.1 155);';
+    const busyPill = 'background:oklch(94% 0.008 80);color:oklch(35% 0.012 75);';
+
+    const departments = DEPARTMENTS.map((dept, i) => ({
+      name: dept.name, sub: dept.sub, index: String(i + 1).padStart(2, '0'),
+      slotId: `dept-${dept.id}`, slotHint: `${dept.name} photo`,
+      onClick: () => this.selectDept(dept.id),
+      cardStyle: 'background:oklch(99.5% 0.004 85);border:1.5px solid ' + (priority.emergency ? 'oklch(80% 0.07 60)' : 'oklch(89% 0.008 80)')
+        + ';border-radius:20px;padding:clamp(14px,2.2vh,24px) clamp(16px,1.8vw,26px);cursor:pointer;display:flex;flex-direction:column;min-height:0;transition:all .15s;',
+      pillStyle: 'font-size:clamp(11px,1.4vh,13px);font-weight:600;padding:6px 12px;border-radius:8px;font-variant-numeric:tabular-nums;white-space:nowrap;'
+        + (dept.queue === 0 ? freePill : busyPill),
+      queueLabel: dept.queue === 0 ? t.noQueue : `${dept.queue} ${t.waiting}`,
+      waitLabel: dept.wait > 0 ? `~${dept.wait} ${t.min}` : 'Walk in now',
+    }));
+
+    const deptRaw = DEPARTMENTS.find(d => d.id === selectedDeptId);
+    const selectedDept = deptRaw ? { ...deptRaw } : { name: '', mono: '' };
+    const doctors = (DOCTORS[selectedDeptId] || []).map(doc => ({
+      ...doc,
+      queueText: doc.queue === 0 ? t.noQueue : `${doc.queue} ${t.waiting}`,
+      pillStyle: 'font-size:clamp(11px,1.4vh,13px);font-weight:600;padding:6px 12px;border-radius:8px;font-variant-numeric:tabular-nums;'
+        + (doc.queue === 0 ? freePill : busyPill),
+      waitText: `~${doc.wait} ${t.min}`,
+      feeText: `\u20b9${doc.fee}`,
+      onClick: () => this.selectDoctor(doc.id),
+    }));
+    const selectedDoctor = selectedDoctorId ? doctors.find(d => d.id === selectedDoctorId) : null;
+
+    const ti = tokenInfo || { code: '', position: 0, fee: null, isPriority: false, isEmergency: false };
+    const tokenMeta = [
+      { label: t.dept, value: selectedDept.name },
+      selectedDoctor ? { label: t.doctor, value: selectedDoctor.name } : null,
+      { label: t.position, value: ti.position === 0 ? (ti.isEmergency ? 'Next \u2014 go now' : 'You are next') : `${ti.position} ${t.ahead}` },
+      ti.fee ? { label: t.fee, value: `\u20b9${ti.fee} \u00b7 pay at counter` } : null,
+      ti.isPriority && !ti.isEmergency ? { label: t.priority, value: activePriorityTags.join(', ') } : null,
+    ].filter(Boolean);
+
+    return {
+      t, langOptions, steps, priorityChips, hasActivePriority: anyPriority, activePriorityTags,
+      departments, isDeptScreen: screen === 'dept', isDoctorScreen: screen === 'doctor', isTokenScreen: screen === 'token',
+      selectedDept, doctors, selectedDoctor, tokenInfo: ti, tokenMeta,
+      goBackToDept: () => this.goBackToDept(), goHome: () => this.goHome(),
+      countdown, countdownPct: `${(countdown / 20) * 100}%`,
+      emergencyModal, confirmEmergency: () => this.confirmEmergency(), cancelEmergency: () => this.cancelEmergency(),
+      clockTime: clock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      clockDate: clock.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' }),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

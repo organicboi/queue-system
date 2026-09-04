@@ -233,6 +233,7 @@ export interface DbAd {
   display_order: number
   is_active: boolean
   audio_enabled: boolean
+  placement: 'side' | 'fullscreen'
   created_at: string
   updated_at: string
 }
@@ -453,6 +454,10 @@ export interface AdDTO {
   displayOrder: number
   isActive: boolean
   audioEnabled: boolean
+  // 'side' (default) plays continuously in the side rail; 'fullscreen' is held
+  // out of the rail and shown edge-to-edge for a short window after a token is
+  // called (currently the hospital board only — see HospitalBoard.tsx).
+  placement: 'side' | 'fullscreen'
   createdAt: string
 }
 
@@ -661,6 +666,7 @@ export function toAdDTO(row: DbAd): AdDTO {
     displayOrder: row.display_order,
     isActive: row.is_active,
     audioEnabled: row.audio_enabled ?? false,
+    placement: row.placement ?? 'side',
     createdAt: row.created_at,
   }
 }

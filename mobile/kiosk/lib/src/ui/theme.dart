@@ -15,19 +15,19 @@ import 'package:flutter/services.dart';
 class KioskPalette {
   KioskPalette._();
 
-  static const bg = Color(0xFFF7F8FC);
-  static const surface = Color(0xFFFFFFFF);
-  static const surfaceMuted = Color(0xFFF1F3F9);
-  static const border = Color(0xFFE7EBF2);
-  static const borderStrong = Color(0xFFD6DCE7);
+  static const bg = Color(0xFFF5F3EE);
+  static const surface = Color(0xFFFFFEFB);
+  static const surfaceMuted = Color(0xFFF0EEE8);
+  static const border = Color(0xFFE2DED4);
+  static const borderStrong = Color(0xFFD4CFC3);
 
-  static const ink = Color(0xFF101828);
-  static const inkSoft = Color(0xFF5B6577);
-  static const inkFaint = Color(0xFF98A1B0);
+  static const ink = Color(0xFF302E2A);
+  static const inkSoft = Color(0xFF716D64);
+  static const inkFaint = Color(0xFF9A958A);
 
-  static const primary = Color(0xFF2F5BEA);
+  static const primary = Color(0xFF2F7662);
   static const primaryInk = Color(0xFFFFFFFF);
-  static const primarySoft = Color(0xFFE9EEFE);
+  static const primarySoft = Color(0xFFE3F0EB);
 
   static const priority = Color(0xFFB4530A);
   static const prioritySoft = Color(0xFFFDF0E3);
@@ -59,7 +59,7 @@ class KioskPalette {
   /// The ground the service blocks sit on. A touch deeper than [bg] so a wall
   /// of saturated colour has something to sit *on* rather than float over —
   /// the kiosk screen only; the board and the setup flow keep [bg].
-  static const bgDeep = Color(0xFFEDF0F6);
+  static const bgDeep = Color(0xFFF5F3EE);
 
   /// Status/nav bar styling for the rare moment the system bars are swiped in
   /// over the immersive kiosk — dark glyphs on our light chrome.
@@ -153,47 +153,52 @@ ThemeData buildKioskTheme() {
   );
 
   return base.copyWith(
-    textTheme: base.textTheme.apply(
-      bodyColor: KioskPalette.ink,
-      displayColor: KioskPalette.ink,
-    ).copyWith(
-      // Every style below states its own colour. `apply()` above sets one on
-      // the styles it inherits, but a `copyWith` entry *replaces* the style
-      // wholesale — a colourless heading then falls back to whatever
-      // DefaultTextStyle happens to be in scope (inside a Scaffold that is
-      // bodyMedium, the muted body colour), which is how "Please select a
-      // service" ended up paler than the hint underneath it.
-      displayLarge: const TextStyle(
-        fontSize: 132,
-        height: 1.0,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -2,
-        color: KioskPalette.ink,
-      ),
-      headlineMedium: const TextStyle(
-        fontSize: 32,
-        fontWeight: FontWeight.w700,
-        color: KioskPalette.ink,
-      ),
-      headlineSmall: const TextStyle(
-        fontSize: 26,
-        fontWeight: FontWeight.w700,
-        color: KioskPalette.ink,
-      ),
-      titleLarge: const TextStyle(
-        fontSize: 22,
-        fontWeight: FontWeight.w700,
-        color: KioskPalette.ink,
-      ),
-      titleMedium: const TextStyle(
-        fontSize: 17,
-        fontWeight: FontWeight.w600,
-        color: KioskPalette.ink,
-      ),
-      bodyLarge: const TextStyle(fontSize: 17, color: KioskPalette.inkSoft),
-      bodyMedium: const TextStyle(fontSize: 15, color: KioskPalette.inkSoft),
-      labelLarge: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-    ),
+    textTheme: base.textTheme
+        .apply(bodyColor: KioskPalette.ink, displayColor: KioskPalette.ink)
+        .copyWith(
+          // Every style below states its own colour. `apply()` above sets one on
+          // the styles it inherits, but a `copyWith` entry *replaces* the style
+          // wholesale — a colourless heading then falls back to whatever
+          // DefaultTextStyle happens to be in scope (inside a Scaffold that is
+          // bodyMedium, the muted body colour), which is how "Please select a
+          // service" ended up paler than the hint underneath it.
+          displayLarge: const TextStyle(
+            fontSize: 132,
+            height: 1.0,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -2,
+            color: KioskPalette.ink,
+          ),
+          headlineMedium: const TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.w700,
+            color: KioskPalette.ink,
+          ),
+          headlineSmall: const TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+            color: KioskPalette.ink,
+          ),
+          titleLarge: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: KioskPalette.ink,
+          ),
+          titleMedium: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: KioskPalette.ink,
+          ),
+          bodyLarge: const TextStyle(fontSize: 17, color: KioskPalette.inkSoft),
+          bodyMedium: const TextStyle(
+            fontSize: 15,
+            color: KioskPalette.inkSoft,
+          ),
+          labelLarge: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
     dividerTheme: const DividerThemeData(
       color: KioskPalette.border,
       thickness: 1,

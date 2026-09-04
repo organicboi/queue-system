@@ -219,6 +219,7 @@ class BoardAd {
     required this.durationSeconds,
     required this.isActive,
     required this.audioEnabled,
+    required this.placement,
   });
 
   final String id;
@@ -228,7 +229,13 @@ class BoardAd {
   final bool isActive;
   final bool audioEnabled;
 
+  /// 'side' (default) plays in the rail; 'fullscreen' is held out of it and
+  /// shown edge-to-edge instead — the hospital board is the only screen that
+  /// currently acts on this (see hospital_board_screen.dart).
+  final String placement;
+
   bool get isVideo => fileType == 'video';
+  bool get isFullscreen => placement == 'fullscreen';
 
   factory BoardAd.fromJson(Map<String, dynamic> json) {
     return BoardAd(
@@ -238,6 +245,7 @@ class BoardAd {
       durationSeconds: (json['duration_seconds'] as num?)?.toInt() ?? 8,
       isActive: json['is_active'] as bool? ?? true,
       audioEnabled: json['audio_enabled'] as bool? ?? false,
+      placement: json['placement'] as String? ?? 'side',
     );
   }
 }

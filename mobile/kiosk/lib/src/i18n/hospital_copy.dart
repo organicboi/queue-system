@@ -22,6 +22,18 @@ class HospitalCopy {
     required this.tryReception,
     required this.noServices,
     required this.offline,
+    required this.pickHint,
+    required this.walkIn,
+    required this.doctorsOnDuty,
+    required this.doctorOnDuty,
+    required this.noDoctorsToday,
+    required this.waitingHere,
+    required this.noQueue,
+    required this.nextPatient,
+    required this.tapAnywhere,
+    required this.trackTurn,
+    required this.scanToTrack,
+    required this.priorityTag,
   });
 
   final String pick;
@@ -41,6 +53,38 @@ class HospitalCopy {
   final String noServices;
   final String offline;
 
+  // ── Department grid ────────────────────────────────────────
+  /// Sub-head under [pick].
+  final String pickHint;
+
+  /// Second line on a non-OPD card — the desk you walk up to without a doctor.
+  final String walkIn;
+
+  /// Trails a count: "3 doctors on duty".
+  final String doctorsOnDuty;
+  final String doctorOnDuty;
+  final String noDoctorsToday;
+
+  /// Label under a card's queue figure.
+  final String waitingHere;
+  final String noQueue;
+
+  // ── Token screen ───────────────────────────────────────────
+  /// Skips the rest of the linger for whoever is standing behind.
+  final String nextPatient;
+  final String tapAnywhere;
+
+  /// Uppercase label on the QR card, parallel to [yourToken].
+  final String trackTurn;
+
+  /// Caption under the QR itself. Verbatim from `qrCaptionLine()` in
+  /// lib/hospital/printTicket.ts so the screen and the printed ticket say the
+  /// same thing.
+  final String scanToTrack;
+
+  /// Chip on the token card when the patient declared a priority category.
+  final String priorityTag;
+
   static const en = HospitalCopy(
     pick: 'Choose a department',
     pickDoctor: 'Choose a doctor',
@@ -56,8 +100,22 @@ class HospitalCopy {
     notSetUp: 'No doctors on duty for this department today',
     issuing: 'Issuing…',
     tryReception: 'Please ask at reception',
-    noServices: 'No services are set up for this kiosk yet. Please ask staff for help.',
-    offline: 'No connection to the queue server — tokens cannot be issued right now.',
+    noServices:
+        'No services are set up for this kiosk yet. Please ask staff for help.',
+    offline:
+        'No connection to the queue server — tokens cannot be issued right now.',
+    pickHint: 'Touch a department to take your token',
+    walkIn: 'Registration & triage',
+    doctorsOnDuty: 'doctors on duty',
+    doctorOnDuty: '1 doctor on duty',
+    noDoctorsToday: 'No doctors on duty today',
+    waitingHere: 'waiting',
+    noQueue: 'No queue',
+    nextPatient: 'Next patient',
+    tapAnywhere: 'Tap anywhere to continue',
+    trackTurn: 'Track your turn',
+    scanToTrack: 'Scan to track your turn',
+    priorityTag: 'Priority',
   );
 
   static const hi = HospitalCopy(
@@ -75,8 +133,21 @@ class HospitalCopy {
     notSetUp: 'आज इस विभाग में कोई डॉक्टर नहीं',
     issuing: 'जारी हो रहा है…',
     tryReception: 'कृपया रिसेप्शन पर पूछें',
-    noServices: 'इस कियॉस्क के लिए अभी तक कोई सेवा सेट नहीं की गई है. कृपया स्टाफ़ से सहायता लें.',
+    noServices:
+        'इस कियॉस्क के लिए अभी तक कोई सेवा सेट नहीं की गई है. कृपया स्टाफ़ से सहायता लें.',
     offline: 'कतार सर्वर से कनेक्शन नहीं — अभी टोकन जारी नहीं हो सकते.',
+    pickHint: 'टोकन लेने के लिए विभाग पर स्पर्श करें',
+    walkIn: 'पंजीकरण और प्राथमिक जाँच',
+    doctorsOnDuty: 'डॉक्टर उपलब्ध',
+    doctorOnDuty: '1 डॉक्टर उपलब्ध',
+    noDoctorsToday: 'आज कोई डॉक्टर उपलब्ध नहीं',
+    waitingHere: 'प्रतीक्षा में',
+    noQueue: 'कतार नहीं',
+    nextPatient: 'अगला मरीज़',
+    tapAnywhere: 'जारी रखने के लिए कहीं भी स्पर्श करें',
+    trackTurn: 'अपनी बारी देखें',
+    scanToTrack: 'अपनी बारी देखने के लिए स्कैन करें',
+    priorityTag: 'प्राथमिकता',
   );
 
   static const mr = HospitalCopy(
@@ -94,8 +165,21 @@ class HospitalCopy {
     notSetUp: 'आज या विभागात डॉक्टर नाहीत',
     issuing: 'जारी होत आहे…',
     tryReception: 'कृपया रिसेप्शनला विचारा',
-    noServices: 'या कियॉस्कसाठी अद्याप कोणतीही सेवा सेट केलेली नाही. कृपया कर्मचाऱ्यांची मदत घ्या.',
+    noServices:
+        'या कियॉस्कसाठी अद्याप कोणतीही सेवा सेट केलेली नाही. कृपया कर्मचाऱ्यांची मदत घ्या.',
     offline: 'रांग सर्व्हरशी कनेक्शन नाही — सध्या टोकन देता येणार नाहीत.',
+    pickHint: 'टोकन घेण्यासाठी विभागाला स्पर्श करा',
+    walkIn: 'नोंदणी व प्राथमिक तपासणी',
+    doctorsOnDuty: 'डॉक्टर उपलब्ध',
+    doctorOnDuty: '1 डॉक्टर उपलब्ध',
+    noDoctorsToday: 'आज कोणतेही डॉक्टर उपलब्ध नाहीत',
+    waitingHere: 'प्रतीक्षेत',
+    noQueue: 'रांग नाही',
+    nextPatient: 'पुढील रुग्ण',
+    tapAnywhere: 'सुरू ठेवण्यासाठी कुठेही स्पर्श करा',
+    trackTurn: 'तुमची पाळी पहा',
+    scanToTrack: 'तुमची बारी पाहण्यासाठी स्कॅन करा',
+    priorityTag: 'प्राधान्य',
   );
 
   static const ar = HospitalCopy(
@@ -113,16 +197,29 @@ class HospitalCopy {
     notSetUp: 'لا يوجد أطباء في هذا القسم اليوم',
     issuing: 'جارٍ الإصدار…',
     tryReception: 'يرجى السؤال في الاستقبال',
-    noServices: 'لم يتم إعداد أي خدمات لهذا الجهاز بعد. يرجى طلب المساعدة من الموظفين.',
+    noServices:
+        'لم يتم إعداد أي خدمات لهذا الجهاز بعد. يرجى طلب المساعدة من الموظفين.',
     offline: 'لا يوجد اتصال بخادم الطابور — لا يمكن إصدار التذاكر الآن.',
+    pickHint: 'المس القسم للحصول على تذكرتك',
+    walkIn: 'التسجيل والفرز',
+    doctorsOnDuty: 'أطباء في الخدمة',
+    doctorOnDuty: 'طبيب واحد في الخدمة',
+    noDoctorsToday: 'لا يوجد أطباء اليوم',
+    waitingHere: 'في الانتظار',
+    noQueue: 'لا يوجد طابور',
+    nextPatient: 'المريض التالي',
+    tapAnywhere: 'المس أي مكان للمتابعة',
+    trackTurn: 'تتبع دورك',
+    scanToTrack: 'امسح لمتابعة دورك',
+    priorityTag: 'أولوية',
   );
 
   static HospitalCopy of(String lang) => switch (lang) {
-        'hi' => hi,
-        'mr' => mr,
-        'ar' => ar,
-        _ => en,
-      };
+    'hi' => hi,
+    'mr' => mr,
+    'ar' => ar,
+    _ => en,
+  };
 
   static TextDirection directionOf(String lang) =>
       lang == 'ar' ? TextDirection.rtl : TextDirection.ltr;
@@ -137,6 +234,17 @@ class HospitalPriorityCategory {
   final Map<String, String> _labels;
 
   String label(String lang) => _labels[lang] ?? _labels['en'] ?? key;
+
+  /// The label for a stored `priority_category` value, or null when the token
+  /// carries none (or one this build doesn't know — a server-side addition
+  /// should show nothing rather than a raw key).
+  static String? labelFor(String? key, String lang) {
+    if (key == null || key.isEmpty) return null;
+    for (final c in all) {
+      if (c.key == key) return c.label(lang);
+    }
+    return null;
+  }
 
   static const all = <HospitalPriorityCategory>[
     HospitalPriorityCategory('senior', {

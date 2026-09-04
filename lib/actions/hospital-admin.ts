@@ -18,6 +18,7 @@ import {
 import { createPairingCode } from '@/lib/dal/device-pairing'
 import { coerceLocales, regionLocales, type LocaleMap } from '@/lib/region'
 import { HOSPITAL_DEPARTMENT_COLORS } from '@/lib/hospital/constants'
+import { DEFAULT_DEPARTMENTS, DEPARTMENT_TYPES } from '@/lib/hospital/defaultDepartments'
 import type { ProfileDTO } from '@/lib/db/types'
 
 // ── Locale-map form helpers ───────────────────────────────────
@@ -69,8 +70,6 @@ export interface HospitalDepartmentResult {
   department?: HospitalDepartmentDTO
   error?: string
 }
-
-const DEPARTMENT_TYPES = ['opd', 'lab', 'radiology', 'pharmacy', 'billing', 'triage'] as const
 
 const DepartmentSchema = z.object({
   branchId: z.string().uuid(),
@@ -283,24 +282,15 @@ export async function reorderHospitalDepartmentsAction(
 }
 
 // ── Seed the standard OPD + service-point set ─────────────────
-const DEFAULT_DEPARTMENTS: {
-  nameEn: string; prefix: string; type: (typeof DEPARTMENT_TYPES)[number]; icon: string; color: string
-}[] = [
-  { nameEn: 'Registration',      prefix: 'R', type: 'triage',    icon: 'UserPlus',     color: '#4338CA' },
-  { nameEn: 'General Medicine',   prefix: 'GM', type: 'opd',      icon: 'Stethoscope',  color: '#0F766E' },
-  { nameEn: 'Orthopaedics',       prefix: 'OR', type: 'opd',      icon: 'Bone',         color: '#B45309' },
-  { nameEn: 'Paediatrics',        prefix: 'PD', type: 'opd',      icon: 'Baby',         color: '#BE185D' },
-  { nameEn: 'ENT',                prefix: 'EN', type: 'opd',      icon: 'Ear',          color: '#7C3AED' },
-  { nameEn: 'Ophthalmology',      prefix: 'EY', type: 'opd',      icon: 'Eye',          color: '#0E7490' },
-  { nameEn: 'Laboratory',         prefix: 'LB', type: 'lab',      icon: 'Microscope',   color: '#15803D' },
-  { nameEn: 'Radiology',          prefix: 'XR', type: 'radiology', icon: 'ScanLine',    color: '#1D4ED8' },
-  { nameEn: 'Pharmacy',           prefix: 'PH', type: 'pharmacy', icon: 'Pill',         color: '#C2410C' },
-  { nameEn: 'Billing',            prefix: 'BL', type: 'billing',  icon: 'Receipt',      color: '#475569' },
-]
-
+// DEFAULT_DEPARTMENTS lives in lib/hospital/defaultDepartments.ts — it is also
+// the set a hospital branch gets auto-seeded with the moment it's created
+// (distributor.ts createCustomerAction, auth.ts onboardAction). This action is
+// the manual fallback: re-run it from /hospital/departments to add any
+// standard departments the branch is missing, or to backfill locales onto a
+// branch that was created before this or that translation existed.
 export async function seedHospitalDepartmentsAction(
   branchId: string
-): Promise<{ created?: number; error?: string }> {
+): Promise<{ created?: number; updated?: number; error?: string }> {
   const g = await guard(branchId)
   if (!g.ok) return { error: g.error }
   const { profile } = g
@@ -308,35 +298,63 @@ export async function seedHospitalDepartmentsAction(
   const supabase = createSupabaseServiceClient()
   const { data: existing } = await supabase
     .from('hospital_departments')
-    .select('prefix')
+    .select('id, prefix, name')
     .eq('branch_id', branchId)
     .eq('is_active', true)
 
+  const existingRows = (existing ?? []) as { id: string; prefix: string; name: LocaleMap | null }[]
+
+  // Branches seeded before the standard set carried translations hold
+  // English-only names. Fill in this market's other locales for those rows —
+  // only keys that are absent, so a name the hospital entered itself is never
+  // overwritten.
+  const fill = regionLocales().filter((l) => l !== 'en')
+  let updated = 0
+  for (const row of existingRows) {
+    const def = DEFAULT_DEPARTMENTS.find((d) => d.prefix === row.prefix)
+    if (!def) continue
+    const name: Record<string, string> = { ...(row.name ?? {}) }
+    if (!name.en) name.en = def.name.en
+    let changed = !name.en || row.name?.en !== name.en
+    for (const l of fill) {
+      if (!name[l] && def.name[l]) {
+        name[l] = def.name[l]
+        changed = true
+      }
+    }
+    if (!changed) continue
+    const { error: upErr } = await supabase
+      .from('hospital_departments')
+      .update({ name })
+      .eq('id', row.id)
+    if (!upErr) updated++
+  }
+
   const dq = await getHospitalDepartmentQuota(profile.customerId, branchId)
-  if (dq.remaining <= 0) return { error: quotaReachedMessage('department', dq.limit) }
+  const taken = new Set(existingRows.map((d) => d.prefix))
+  const missing = DEFAULT_DEPARTMENTS.filter((d) => !taken.has(d.prefix))
+  if (dq.remaining <= 0 && missing.length > 0) {
+    return { error: quotaReachedMessage('department', dq.limit) }
+  }
 
-  const taken = new Set(((existing ?? []) as { prefix: string }[]).map((d) => d.prefix))
-  const rows = DEFAULT_DEPARTMENTS
-    .filter((d) => !taken.has(d.prefix))
-    .slice(0, dq.remaining)
-    .map((d, i) => ({
-      customer_id: profile.customerId,
-      branch_id: branchId,
-      name: { en: d.nameEn } as LocaleMap,
-      prefix: d.prefix,
-      type: d.type,
-      color: d.color,
-      icon: d.icon,
-      display_order: i + 1,
-    }))
+  const rows = missing.slice(0, dq.remaining).map((d, i) => ({
+    customer_id: profile.customerId,
+    branch_id: branchId,
+    name: d.name,
+    prefix: d.prefix,
+    type: d.type,
+    color: d.color,
+    icon: d.icon,
+    display_order: existingRows.length + i + 1,
+  }))
 
-  if (rows.length === 0) return { created: 0 }
-
-  const { error } = await supabase.from('hospital_departments').insert(rows)
-  if (error) return { error: 'Could not add the default departments' }
+  if (rows.length > 0) {
+    const { error } = await supabase.from('hospital_departments').insert(rows)
+    if (error) return { error: 'Could not add the default departments' }
+  }
 
   revalidatePath('/hospital/departments')
-  return { created: rows.length }
+  return { created: rows.length, updated }
 }
 
 // ══════════════════════════════════════════════════════════════

@@ -165,7 +165,6 @@ void main() {
               KioskHeader(
                 title: 'Vibe International School',
                 logoUrl: '',
-                copy: copy,
                 languages: const ['en', 'ar'],
                 lang: lang,
                 onLangChange: (_) {},

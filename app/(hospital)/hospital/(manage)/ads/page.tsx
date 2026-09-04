@@ -20,10 +20,12 @@ export default async function HospitalAdsPage() {
       <div>
         <h1 className="text-xl font-bold text-slate-900">Ads &amp; Media</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          What plays on the waiting-area TVs at {branch.name}.
+          What plays on the waiting-area TVs at {branch.name}. Side-panel ads run
+          alongside the room list; fullscreen ads take over the whole screen for
+          1 minute right after a token is called, then the board returns to normal.
         </p>
       </div>
-      <SchoolAdsManager branchId={branch.id} ads={ads} tickers={tickers} />
+      <SchoolAdsManager branchId={branch.id} ads={ads} tickers={tickers} placementEditable />
     </div>
   )
 }

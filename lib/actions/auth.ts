@@ -6,6 +6,8 @@ import { z } from 'zod'
 import { createSupabaseServerClient, createSupabaseServiceClient } from '@/lib/db/server'
 import { getProfile } from '@/lib/dal/session'
 import { verticalHome } from '@/lib/verticals'
+import { seedDefaultHospitalDepartments } from '@/lib/hospital/defaultDepartments'
+import { regionLocales } from '@/lib/region'
 
 export interface AuthResult {
   error?: string
@@ -201,13 +203,18 @@ export async function onboardAction(_prev: AuthResult, formData: FormData): Prom
 
     // Same reasoning for hospital: the kiosk ticket and the TV board need a
     // hospital name before anything renders. hospital_settings.hospital_name is
-    // a jsonb locale map with a required `en` key.
+    // a jsonb locale map with a required `en` key. languages defaults to every
+    // locale this market offers — see distributor.ts createCustomerAction,
+    // the other branch-creation path, for why. The standard, fully translated
+    // department set is seeded alongside it too.
     if (branch && keyVertical === 'hospital') {
       await service.from('hospital_settings').insert({
         customer_id: customerId,
         branch_id: branch.id,
         hospital_name: { en: parsed.data.businessName ?? 'Hospital' },
+        languages: regionLocales(),
       })
+      await seedDefaultHospitalDepartments(service, { customerId, branchId: branch.id })
     }
   }
 

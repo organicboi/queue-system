@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;font-family:'IBM Plex Sans',sans-serif;-webkit-font-smoothing:antialiased;}
+  * { box-sizing: border-box; }
+  @keyframes fadeIn { from{opacity:0; transform:scale(0.98)} to{opacity:1; transform:scale(1)} }
+</style>
+</helmet>
+
+<div style="width:100vw;height:100vh;background:oklch(97% 0.004 250);display:flex;flex-direction:column;overflow:hidden;position:relative;">
+
+  <div style="height:76px;flex:0 0 auto;background:oklch(99% 0.002 250);border-bottom:1px solid oklch(91% 0.004 250);display:flex;align-items:center;justify-content:space-between;padding:0 40px;">
+    <div style="font-size:21px;font-weight:700;color:oklch(22% 0.01 250);letter-spacing:-0.01em;">Apollo Hospitals</div>
+    <div style="display:flex;align-items:center;gap:24px;">
+      <div style="display:flex;gap:6px;background:oklch(95% 0.004 250);padding:4px;border-radius:10px;">
+        <sc-for list="{{ langOptions }}" as="lo" hint-placeholder-count="3">
+          <div onClick="{{ lo.onClick }}" style="padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:oklch(45% 0.01 250);" style-hover="background:oklch(92% 0.004 250);">{{ lo.label }}</div>
+        </sc-for>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:17px;font-weight:700;color:oklch(22% 0.01 250);">{{ clockTime }}</div>
+        <div style="font-size:12px;color:oklch(52% 0.01 250);">{{ clockDate }}</div>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ isDeptScreen }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;display:flex;flex-direction:column;padding:36px 48px;overflow:auto;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;">
+        <div>
+          <div style="font-size:32px;font-weight:700;color:oklch(22% 0.01 250);letter-spacing:-0.01em;">{{ t.chooseDept }}</div>
+          <div style="font-size:15px;color:oklch(52% 0.01 250);margin-top:4px;">{{ t.touchHint }}</div>
+        </div>
+      </div>
+
+      <div style="background:oklch(99% 0.002 250);border:1px solid oklch(91% 0.004 250);border-radius:20px;padding:22px 26px;margin-bottom:24px;">
+        <div style="font-size:15px;font-weight:600;color:oklch(22% 0.01 250);margin-bottom:14px;">{{ t.priorityQ }}</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <sc-for list="{{ priorityChips }}" as="chip" hint-placeholder-count="4">
+            <div onClick="{{ chip.onClick }}" style="{{ chip.style }}">{{ chip.label }}</div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;flex:1;">
+        <sc-for list="{{ departments }}" as="dept" hint-placeholder-count="6">
+          <div onClick="{{ dept.onClick }}" style="{{ dept.cardStyle }}" style-hover="{{ dept.cardHoverStyle }}">
+            <div style="display:flex;align-items:center;gap:16px;">
+              <div style="{{ dept.monoStyle }}">{{ dept.mono }}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:19px;font-weight:700;color:oklch(22% 0.01 250);">{{ dept.name }}</div>
+                <div style="font-size:13px;color:oklch(52% 0.01 250);margin-top:2px;">{{ dept.sub }}</div>
+              </div>
+              <svg width="20" height="20" viewBox="0 0 24 24" style="flex:0 0 auto;color:oklch(60% 0.01 250);"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:16px;">
+              <div style="{{ dept.badgeStyle }}">{{ dept.queueLabel }}</div>
+              <sc-if value="{{ dept.showWait }}" hint-placeholder-val="{{ false }}">
+                <div style="background:oklch(95% 0.004 250);color:oklch(52% 0.01 250);font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;">{{ dept.waitLabel }}</div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isDoctorScreen }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;display:flex;flex-direction:column;padding:36px 48px;overflow:auto;">
+      <div onClick="{{ goBackToDept }}" style="display:flex;align-items:center;gap:8px;width:fit-content;cursor:pointer;padding:12px 20px;background:oklch(99% 0.002 250);border:1px solid oklch(91% 0.004 250);border-radius:14px;margin-bottom:24px;" style-hover="background:oklch(95% 0.004 250);">
+        <svg width="18" height="18" viewBox="0 0 24 24" style="color:oklch(45% 0.01 250);"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span style="font-size:14px;font-weight:600;color:oklch(45% 0.01 250);">{{ t.back }}</span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;">
+        <div style="width:56px;height:56px;border-radius:16px;background:oklch(94% 0.03 195);color:oklch(40% 0.09 195);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;">{{ selectedDept.mono }}</div>
+        <div>
+          <div style="font-size:26px;font-weight:700;color:oklch(22% 0.01 250);">{{ selectedDept.name }}</div>
+          <div style="font-size:14px;color:oklch(52% 0.01 250);">{{ t.chooseDoctor }}</div>
+        </div>
+      </div>
+
+      <sc-if value="{{ hasActivePriority }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;gap:8px;margin:18px 0 6px;flex-wrap:wrap;">
+          <sc-for list="{{ activePriorityTags }}" as="tag" hint-placeholder-count="1">
+            <div style="background:oklch(95% 0.04 75);color:oklch(40% 0.14 75);font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;">{{ tag }}</div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <div style="display:flex;flex-direction:column;gap:14px;margin-top:20px;">
+        <sc-for list="{{ doctors }}" as="doc" hint-placeholder-count="2">
+          <div onClick="{{ doc.onClick }}" style="background:oklch(99% 0.002 250);border:1px solid oklch(91% 0.004 250);border-radius:18px;padding:20px 24px;display:flex;align-items:center;gap:18px;cursor:pointer;" style-hover="border-color:oklch(52% 0.09 195);box-shadow:0 4px 16px oklch(52% 0.09 195 / 0.1);">
+            <div style="width:48px;height:48px;border-radius:12px;background:oklch(95% 0.004 250);display:flex;align-items:center;justify-content:center;flex:0 0 auto;">
+              <svg width="22" height="22" viewBox="0 0 24 24" style="color:oklch(45% 0.01 250);"><path d="M9 3h6v3H9z" stroke="currentColor" stroke-width="1.6" fill="none"/><rect x="3" y="7" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 11v4M10 13h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:17px;font-weight:700;color:oklch(22% 0.01 250);">{{ doc.name }}</div>
+              <div style="font-size:13px;color:oklch(52% 0.01 250);margin-top:2px;">{{ doc.qual }}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:13px;font-weight:600;color:oklch(22% 0.01 250);">{{ doc.waitText }}</div>
+              <div style="font-size:12px;color:oklch(52% 0.01 250);margin-top:2px;">Fee \u20b9{{ doc.fee }}</div>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" style="color:oklch(60% 0.01 250);"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isTokenScreen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ goHome }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:28px;padding:20px;cursor:pointer;">
+      <div style="background:oklch(99% 0.002 250);border-radius:28px;padding:44px 56px;width:420px;box-shadow:0 20px 60px oklch(22% 0.01 250 / 0.08);animation:fadeIn 0.3s ease;" onClick="{{ stop }}">
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <div style="width:52px;height:52px;border-radius:50%;background:oklch(94% 0.03 195);display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+            <svg width="24" height="24" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="oklch(40% 0.09 195)" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="font-size:13px;font-weight:700;letter-spacing:0.12em;color:oklch(52% 0.01 250);">{{ t.yourToken }}</div>
+          <div style="font-size:76px;font-weight:700;color:oklch(45% 0.14 75);letter-spacing:-0.02em;line-height:1.1;margin:6px 0 18px;">{{ tokenInfo.code }}</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:8px;">
+            <div style="background:oklch(94% 0.03 195);color:oklch(38% 0.09 195);font-size:14px;font-weight:600;padding:8px 16px;border-radius:20px;">{{ selectedDept.name }}</div>
+            <sc-if value="{{ selectedDoctor }}" hint-placeholder-val="{{ false }}">
+              <div style="background:oklch(95% 0.004 250);color:oklch(30% 0.01 250);font-size:14px;font-weight:600;padding:8px 16px;border-radius:20px;">{{ selectedDoctor.name }}</div>
+            </sc-if>
+          </div>
+          <sc-if value="{{ tokenInfo.isEmergency }}" hint-placeholder-val="{{ false }}">
+            <div style="background:oklch(95% 0.04 75);border:1px solid oklch(80% 0.1 75);color:oklch(38% 0.14 75);font-size:13px;font-weight:600;padding:12px 16px;border-radius:14px;margin:14px 0 4px;text-align:center;">Staff notified \u2014 please proceed to the nearest nurse station now.</div>
+          </sc-if>
+          <sc-if value="{{ tokenInfo.isPriority }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:14px;color:oklch(45% 0.14 75);font-weight:600;margin-top:14px;">Priority token</div>
+          </sc-if>
+          <div style="font-size:15px;color:oklch(22% 0.01 250);margin-top:16px;"><b>{{ tokenInfo.position }}</b> {{ t.ahead }}</div>
+          <div style="font-size:13px;color:oklch(52% 0.01 250);margin-top:2px;">{{ t.watchBoard }}</div>
+          <div onClick="{{ goHome }}" style="margin-top:22px;background:oklch(52% 0.09 195);color:white;font-size:15px;font-weight:700;padding:16px 0;width:100%;text-align:center;border-radius:14px;cursor:pointer;" style-hover="background:oklch(46% 0.09 195);">{{ t.nextPatient }}</div>
+        </div>
+      </div>
+
+      <div style="background:oklch(99% 0.002 250);border-radius:24px;padding:32px;width:220px;box-shadow:0 20px 60px oklch(22% 0.01 250 / 0.08);animation:fadeIn 0.3s ease;text-align:center;" onClick="{{ stop }}">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:oklch(52% 0.01 250);margin-bottom:14px;">TRACK YOUR TURN</div>
+        <div style="width:156px;height:156px;margin:0 auto;border-radius:14px;background:repeating-linear-gradient(45deg, oklch(92% 0.004 250) 0px, oklch(92% 0.004 250) 6px, oklch(98% 0.002 250) 6px, oklch(98% 0.002 250) 12px);display:flex;align-items:center;justify-content:center;">
+          <span style="font-family:monospace;font-size:11px;color:oklch(50% 0.01 250);background:oklch(99% 0.002 250);padding:4px 8px;border-radius:6px;">QR CODE</span>
+        </div>
+        <div style="font-size:13px;color:oklch(52% 0.01 250);margin-top:14px;">{{ t.scanTrack }}</div>
+        <div style="font-size:12px;color:oklch(60% 0.01 250);margin-top:18px;">{{ t.returning }} {{ countdown }}s</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ emergencyModal }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:oklch(20% 0.01 250 / 0.5);display:flex;align-items:center;justify-content:center;">
+      <div style="background:oklch(99% 0.002 250);border-radius:24px;padding:36px 40px;width:420px;text-align:center;">
+        <div style="width:52px;height:52px;border-radius:50%;background:oklch(95% 0.04 75);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+          <svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01" stroke="oklch(45% 0.14 75)" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M10.3 3.9L2.7 18a1.6 1.6 0 001.4 2.4h16a1.6 1.6 0 001.4-2.4L13.7 3.9a1.6 1.6 0 00-2.8 0z" stroke="oklch(45% 0.14 75)" stroke-width="1.8" fill="none"/></svg>
+        </div>
+        <div style="font-size:19px;font-weight:700;color:oklch(22% 0.01 250);margin-bottom:8px;">Emergency selected</div>
+        <div style="font-size:14px;color:oklch(52% 0.01 250);line-height:1.5;margin-bottom:24px;">Front desk staff will be notified immediately. Your token will be moved to the front of the queue.</div>
+        <div onClick="{{ confirmEmergency }}" style="background:oklch(45% 0.14 75);color:white;font-size:15px;font-weight:700;padding:15px 0;border-radius:14px;cursor:pointer;">Continue</div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const DEPARTMENTS = [
+  { id: 'reg', name: 'Registration', sub: 'Registration & triage', mono: 'RG', queue: 0, wait: 0, hasDoctor: false },
+  { id: 'genmed', name: 'General Medicine', sub: 'Fever, cold & general checkups', mono: 'GM', queue: 6, wait: 35, hasDoctor: true },
+  { id: 'ortho', name: 'Orthopaedics', sub: 'Bones, joints & fractures', mono: 'OR', queue: 3, wait: 20, hasDoctor: true },
+  { id: 'ped', name: 'Paediatrics', sub: 'Child care, 0\u201312 yrs', mono: 'PD', queue: 9, wait: 50, hasDoctor: true },
+  { id: 'ent', name: 'ENT', sub: 'Ear, nose & throat', mono: 'ENT', queue: 2, wait: 15, hasDoctor: true },
+  { id: 'eye', name: 'Ophthalmology', sub: 'Eye care & vision', mono: 'OP', queue: 4, wait: 25, hasDoctor: true },
+];
+
+const DOCTORS = {
+  genmed: [
+    { id: 'd1', name: 'Dr. Mehta', qual: 'MBBS, MD', fee: 400, queue: 6, wait: 35 },
+    { id: 'd2', name: 'Dr. Iyer', qual: 'MBBS', fee: 350, queue: 2, wait: 12 },
+  ],
+  ortho: [{ id: 'd3', name: 'Dr. Khan', qual: 'MS Ortho', fee: 600, queue: 3, wait: 20 }],
+  ped: [
+    { id: 'd4', name: 'Dr. Nair', qual: 'MD Paediatrics', fee: 450, queue: 5, wait: 28 },
+    { id: 'd5', name: 'Dr. Sharma', qual: 'MBBS, DCH', fee: 400, queue: 4, wait: 22 },
+  ],
+  ent: [{ id: 'd6', name: 'Dr. Rao', qual: 'MS ENT', fee: 500, queue: 2, wait: 15 }],
+  eye: [
+    { id: 'd7', name: 'Dr. Jadhav', qual: 'MD, MBBS', fee: 500, queue: 3, wait: 18 },
+    { id: 'd8', name: 'Dr. Desai', qual: 'MS Ophthalmology', fee: 600, queue: 1, wait: 6 },
+  ],
+};
+
+const STRINGS = {
+  en: { chooseDept: 'Choose a department', touchHint: 'Touch a department to begin', back: 'Back', chooseDoctor: 'Choose a doctor', priorityQ: 'Do any of these apply to you?', noQueue: 'No queue', waiting: 'waiting', avgWait: 'avg. wait', min: 'min', yourToken: 'YOUR TOKEN', ahead: 'people ahead of you', watchBoard: 'Please watch the display board', scanTrack: 'Scan to track your turn', nextPatient: 'New token', returning: 'Returning to home in' },
+  hi: { chooseDept: '\u0935\u093f\u092d\u093e\u0917 \u091a\u0941\u0928\u0947\u0902', touchHint: '\u0936\u0941\u0930\u0942 \u0915\u0930\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u0935\u093f\u092d\u093e\u0917 \u0915\u094b \u0938\u094d\u092a\u0930\u094d\u0936 \u0915\u0930\u0947\u0902', back: '\u0935\u093e\u092a\u0938', chooseDoctor: '\u0921\u0949\u0915\u094d\u091f\u0930 \u091a\u0941\u0928\u0947\u0902', priorityQ: '\u0915\u094d\u092f\u093e \u0907\u0928\u092e\u0947\u0902 \u0938\u0947 \u0915\u094b\u0908 \u0906\u092a \u092a\u0930 \u0932\u093e\u0917\u0942 \u0939\u094b\u0924\u093e \u0939\u0947?', noQueue: '\u0915\u094b\u0908 \u0915\u0924\u093e\u0930 \u0928\u0939\u0940\u0902', waiting: '\u092a\u094d\u0930\u0924\u0940\u0915\u094d\u0937\u093e \u092e\u0947\u0902', avgWait: '\u0914\u0938\u0924 \u092a\u094d\u0930\u0924\u0940\u0915\u094d\u0937\u093e', min: '\u092e\u093f\u0928\u091f', yourToken: '\u0906\u092a\u0915\u093e \u091f\u094b\u0915\u0928', ahead: '\u0932\u094b\u0917 \u0906\u092a\u0938\u0947 \u0906\u0917\u0947 \u0939\u0948\u0902', watchBoard: '\u0915\u0943\u092a\u092f\u093e \u0921\u093f\u0938\u094d\u092a\u094d\u0932\u0947 \u092c\u094b\u0930\u094d\u0921 \u0926\u0947\u0916\u0947\u0902', scanTrack: '\u0905\u092a\u0928\u0940 \u092c\u093e\u0930\u0940 \u091f\u094d\u0930\u0947\u0915 \u0915\u0930\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u0938\u094d\u0915\u0947\u0928 \u0915\u0930\u0947\u0902', nextPatient: '\u0928\u092f\u093e \u091f\u094b\u0915\u0928', returning: '\u0939\u094b\u092e \u0938\u094d\u0915\u094d\u0930\u0940\u0928 \u092a\u0930 \u0935\u093e\u092a\u0938\u0940 \u092e\u0947\u0902' },
+  te: { chooseDept: '\u0c35\u0c3f\u0c2d\u0c3e\u0c17\u0c02 \u0c0e\u0c02\u0c1a\u0c41\u0c15\u0c4b\u0c02\u0c21\u0c3f', touchHint: '\u0c2a\u0c4d\u0c30\u0c3e\u0c30\u0c02\u0c2c\u0c3f\u0c02\u0c1a\u0c21\u0c3e\u0c28\u0c3f\u0c15\u0c3f \u0c35\u0c3f\u0c2d\u0c3e\u0c17\u0c3e\u0c28\u0c4d\u0c28\u0c3f \u0c24\u0c3e\u0c15\u0c02\u0c21\u0c3f', back: '\u0c35\u0c46\u0c28\u0c41\u0c15\u0c15\u0c41', chooseDoctor: '\u0c35\u0c48\u0c26\u0c4d\u0c2f\u0c41\u0c21\u0c3f\u0c28\u0c3f \u0c0e\u0c02\u0c1a\u0c41\u0c15\u0c4b\u0c02\u0c21\u0c3f', priorityQ: '\u0c07\u0c35\u0c3f \u0c2e\u0c40\u0c15\u0c41 \u0c35\u0c30\u0c4d\u0c24\u0c3f\u0c38\u0c4d\u0c24\u0c3e\u0c2f\u0c3e?', noQueue: '\u0c15\u0c4d\u0c2f\u0c42 \u0c32\u0c47\u0c26\u0c41', waiting: '\u0c35\u0c47\u0c1a\u0c3f \u0c09\u0c28\u0c4d\u0c28\u0c3e\u0c30\u0c41', avgWait: '\u0c38\u0c17\u0c1f\u0c41 \u0c35\u0c47\u0c1a\u0c3f\u0c02\u0c21\u0c47 \u0c38\u0c2e\u0c2f\u0c02', min: '\u0c28\u0c3f\u0c2e\u0c3f\u0c37\u0c3e\u0c32\u0c41', yourToken: '\u0c2e\u0c40 \u0c1f\u0c4b\u0c15\u0c46\u0c28\u0c4d', ahead: '\u0c2e\u0c02\u0c26\u0c3f \u0c2e\u0c40\u0c15\u0c41 \u0c2e\u0c41\u0c02\u0c26\u0c41 \u0c09\u0c28\u0c4d\u0c28\u0c3e\u0c30\u0c41', watchBoard: '\u0c26\u0c2f\u0c1a\u0c47\u0c38\u0c3f \u0c21\u0c3f\u0c38\u0c4d\u0c2a\u0c4d\u0c32\u0c47 \u0c2c\u0c4b\u0c30\u0c4d\u0c21\u0c41 \u0c1a\u0c42\u0c21\u0c02\u0c21\u0c3f', scanTrack: '\u0c2e\u0c40 \u0c35\u0c02\u0c24\u0c41 \u0c1f\u0c4d\u0c30\u0c3e\u0c15\u0c4d \u0c1a\u0c47\u0c2f\u0c21\u0c3e\u0c28\u0c3f\u0c15\u0c3f \u0c38\u0c4d\u0c15\u0c3e\u0c28\u0c4d \u0c1a\u0c47\u0c2f\u0c02\u0c21\u0c3f', nextPatient: '\u0c15\u0c4a\u0c24\u0c4d\u0c24 \u0c1f\u0c4b\u0c15\u0c46\u0c28\u0c4d', returning: '\u0c39\u0c4b\u0c2e\u0c4d \u0c38\u0c4d\u0c15\u0c4d\u0c30\u0c40\u0c28\u0c4d\u0c15\u0c41 \u0c24\u0c3f\u0c30\u0c3f\u0c17\u0c3f \u0c35\u0c46\u0c33\u0c4d\u0c33\u0c21\u0c02' },
+};
+
+class Component extends DCLogic {
+  state = {
+    screen: 'dept',
+    lang: 'en',
+    priority: { senior: false, pregnant: false, disabled: false, emergency: false },
+    selectedDeptId: null,
+    selectedDoctorId: null,
+    tokenInfo: null,
+    emergencyModal: false,
+    pendingDeptId: null,
+    countdown: 15,
+    clock: new Date(),
+  };
+
+  componentDidMount() {
+    this._interval = setInterval(() => {
+      this.setState(s => {
+        const next = { clock: new Date() };
+        if (s.screen === 'token') {
+          const c = s.countdown - 1;
+          if (c <= 0) { this.goHome(); return {}; }
+          next.countdown = c;
+        }
+        return next;
+      });
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this._interval); }
+
+  togglePriority(key) {
+    this.setState(s => ({ priority: { ...s.priority, [key]: !s.priority[key] } }));
+  }
+
+  proceedToDept(deptId) {
+    const dept = DEPARTMENTS.find(d => d.id === deptId);
+    if (!dept.hasDoctor) {
+      this.issueToken(dept, null);
+    } else {
+      this.setState({ selectedDeptId: deptId, screen: 'doctor' });
+    }
+  }
+
+  selectDept(deptId) {
+    if (this.state.priority.emergency) {
+      this.setState({ emergencyModal: true, pendingDeptId: deptId });
+    } else {
+      this.proceedToDept(deptId);
+    }
+  }
+
+  confirmEmergency() {
+    const deptId = this.state.pendingDeptId;
+    this.setState({ emergencyModal: false, pendingDeptId: null });
+    this.proceedToDept(deptId);
+  }
+
+  selectDoctor(doctorId) {
+    const dept = DEPARTMENTS.find(d => d.id === this.state.selectedDeptId);
+    const doc = (DOCTORS[dept.id] || []).find(d => d.id === doctorId);
+    this.setState({ selectedDoctorId: doctorId });
+    this.issueToken(dept, doc);
+  }
+
+  issueToken(dept, doc) {
+    const { priority } = this.state;
+    const anyPriority = priority.senior || priority.pregnant || priority.disabled;
+    const isEmergency = priority.emergency;
+    let position = doc ? doc.queue : dept.queue;
+    if (isEmergency) position = 0;
+    else if (anyPriority) position = Math.max(0, Math.min(position, 1));
+    const prefix = dept.mono.slice(0, 2);
+    const num = Math.floor(100 + Math.random() * 900);
+    this.setState({
+      screen: 'token',
+      countdown: 15,
+      tokenInfo: { code: `${prefix}${num}`, position, isPriority: anyPriority || isEmergency, isEmergency },
+    });
+  }
+
+  goBackToDept() {
+    this.setState({ screen: 'dept', selectedDeptId: null, selectedDoctorId: null });
+  }
+
+  goHome() {
+    this.setState({
+      screen: 'dept', selectedDeptId: null, selectedDoctorId: null, tokenInfo: null,
+      priority: { senior: false, pregnant: false, disabled: false, emergency: false },
+      countdown: 15,
+    });
+  }
+
+  renderVals() {
+    const { screen, lang, priority, selectedDeptId, selectedDoctorId, tokenInfo, emergencyModal, countdown, clock } = this.state;
+    const t = STRINGS[lang];
+
+    const langOptions = ['en', 'hi', 'te'].map(l => ({
+      label: l.toUpperCase(),
+      onClick: () => this.setState({ lang: l }),
+    }));
+
+    const priorityDefs = [
+      { key: 'senior', label: 'Senior citizen (60+)' },
+      { key: 'pregnant', label: 'Pregnant' },
+      { key: 'disabled', label: 'Differently-abled' },
+      { key: 'emergency', label: 'Emergency' },
+    ];
+    const priorityChips = priorityDefs.map(d => {
+      const active = priority[d.key];
+      const isEmergency = d.key === 'emergency';
+      const base = 'padding:10px 18px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;border:1.5px solid;';
+      let style;
+      if (active) {
+        style = isEmergency
+          ? base + 'background:oklch(45% 0.14 75);border-color:oklch(45% 0.14 75);color:white;'
+          : base + 'background:oklch(52% 0.09 195);border-color:oklch(52% 0.09 195);color:white;';
+      } else {
+        style = isEmergency
+          ? base + 'background:oklch(99% 0.002 250);border-color:oklch(80% 0.1 75);color:oklch(45% 0.14 75);'
+          : base + 'background:oklch(99% 0.002 250);border-color:oklch(88% 0.004 250);color:oklch(35% 0.01 250);';
+      }
+      return { label: d.label, style, onClick: () => this.togglePriority(d.key) };
+    });
+
+    const anyPriority = priority.senior || priority.pregnant || priority.disabled;
+    const activePriorityTags = priorityDefs.filter(d => priority[d.key]).map(d => d.label);
+
+    const departments = DEPARTMENTS.map(dept => {
+      const cardStyle = 'background:oklch(99% 0.002 250);border:1.5px solid ' + (priority.emergency ? 'oklch(80% 0.1 75)' : 'oklch(91% 0.004 250)') + ';border-radius:20px;padding:22px 24px;cursor:pointer;transition:box-shadow .15s,border-color .15s;';
+      return {
+        id: dept.id, name: dept.name, sub: dept.sub, mono: dept.mono,
+        onClick: () => this.selectDept(dept.id),
+        cardStyle,
+        cardHoverStyle: 'box-shadow:0 6px 20px oklch(22% 0.01 250 / 0.08);border-color:oklch(52% 0.09 195);',
+        monoStyle: 'width:56px;height:56px;border-radius:14px;background:oklch(94% 0.03 195);color:oklch(38% 0.09 195);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;flex:0 0 auto;',
+        badgeStyle: 'background:' + (dept.queue === 0 ? 'oklch(94% 0.02 150)' : 'oklch(95% 0.004 250)') + ';color:' + (dept.queue === 0 ? 'oklch(40% 0.1 150)' : 'oklch(35% 0.01 250)') + ';font-size:12px;font-weight:700;padding:6px 12px;border-radius:8px;',
+        queueLabel: dept.queue === 0 ? t.noQueue : `${dept.queue} ${t.waiting}`,
+        showWait: dept.wait > 0,
+        waitLabel: `~${dept.wait} ${t.min} ${t.avgWait}`,
+      };
+    });
+
+    const selectedDeptRaw = DEPARTMENTS.find(d => d.id === selectedDeptId);
+    const selectedDept = selectedDeptRaw ? { ...selectedDeptRaw } : { name: '', mono: '' };
+    const doctors = (DOCTORS[selectedDeptId] || []).map(doc => ({
+      ...doc,
+      waitText: `${doc.queue} ${t.waiting} \u00b7 ~${doc.wait} ${t.min}`,
+      onClick: () => this.selectDoctor(doc.id),
+    }));
+    const selectedDoctor = selectedDoctorId ? doctors.find(d => d.id === selectedDoctorId) : null;
+
+    return {
+      t, langOptions, priorityChips, hasActivePriority: anyPriority, activePriorityTags,
+      departments, isDeptScreen: screen === 'dept', isDoctorScreen: screen === 'doctor', isTokenScreen: screen === 'token',
+      selectedDept, doctors, selectedDoctor, goBackToDept: () => this.goBackToDept(),
+      tokenInfo: tokenInfo || { code: '', position: 0, isPriority: false, isEmergency: false },
+      countdown, goHome: () => this.goHome(), stop: (e) => e && e.stopPropagation && e.stopPropagation(),
+      emergencyModal, confirmEmergency: () => this.confirmEmergency(),
+      clockTime: clock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      clockDate: clock.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' }),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

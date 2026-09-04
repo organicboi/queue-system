@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kataar — Quote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=Hanken+Grotesk:wght@400;500;600&family=Spline+Sans+Mono:wght@500;600&family=IBM+Plex+Sans+Devanagari:wght@500;600&display=swap">
+<style>
+  :root {
+    --box:        #0A0B0D;
+    --bg:         #FAFAF8;
+    --panel:      #FFFFFF;
+    --ink:        #1A1B18;
+    --soft:       #55574F;
+    --faint:      #8B8D83;
+    --line:       #E4E3DC;
+    --line-firm:  #D3D2C9;
+    --accent:     #1C5D42;
+    --accent-ink: #123E2C;
+    --accent-bg:  #EAF1EB;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; }
+
+  body {
+    background: var(--box);
+    font-family: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .stage {
+    position: relative;
+    width: min(100vw, calc(100vh * 16 / 9));
+    height: min(100vh, calc(100vw * 9 / 16));
+    background: var(--bg);
+    overflow: hidden;
+    container-type: size;
+  }
+
+  .slide {
+    position: absolute; inset: 0;
+    padding: 3.8cqw 5.2cqw;
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .serif { font-family: "Source Serif 4", Georgia, "Times New Roman", serif; }
+  .figs  { font-family: "Spline Sans Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .dev   { font-family: "IBM Plex Sans Devanagari", sans-serif; }
+
+  /* ---------- head ---------- */
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 2cqw; }
+  .eyebrow {
+    font-family: "Spline Sans Mono", monospace; font-weight: 500;
+    font-size: 1.05cqw; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent);
+  }
+  .head h1 {
+    font-family: "Source Serif 4", serif; font-weight: 600;
+    font-size: 3cqw; line-height: 1.05; letter-spacing: -0.01em; margin-top: 0.5cqw;
+  }
+  .wm { display: flex; align-items: center; gap: 0.7cqw; flex: none; padding-top: 0.4cqw; }
+  .wm .g {
+    width: 2.3cqw; height: 2.3cqw; display: grid; place-items: center;
+    border: 1px solid var(--accent); color: var(--accent);
+    font-family: "IBM Plex Sans Devanagari", sans-serif; font-size: 1.3cqw; line-height: 1;
+  }
+  .wm b { font-family: "Source Serif 4", serif; font-weight: 600; font-size: 1.4cqw; }
+
+  /* ---------- body ---------- */
+  .body { display: grid; grid-template-columns: 1.48fr 1fr; gap: 4.4cqw; margin-top: 2.6cqw; flex: 1; }
+
+  /* left: the quote */
+  .quote { display: flex; flex-direction: column; }
+  .quote .lbl {
+    font-family: "Spline Sans Mono", monospace; font-weight: 500;
+    font-size: 1cqw; letter-spacing: 0.16em; text-transform: uppercase; color: var(--soft);
+  }
+  .price {
+    font-family: "Source Serif 4", serif; font-weight: 700;
+    font-size: 7cqw; line-height: 0.95; letter-spacing: -0.02em;
+    margin-top: 0.9cqw; font-variant-numeric: tabular-nums;
+  }
+  .price em {
+    display: block; font-style: normal; font-family: "Hanken Grotesk", sans-serif;
+    font-weight: 500; font-size: 1.35cqw; letter-spacing: 0.01em; color: var(--soft); margin-top: 0.6cqw;
+  }
+  .breakdown {
+    margin-top: 1.5cqw; padding-top: 1.2cqw; border-top: 1px solid var(--line-firm);
+    font-size: 1.35cqw; color: var(--ink); line-height: 1.5;
+  }
+  .breakdown .figs { color: var(--accent-ink); font-weight: 500; }
+  .breakdown small { display: block; font-size: 1.1cqw; color: var(--faint); margin-top: 0.5cqw; }
+
+  .stampwrap { margin-top: auto; padding-top: 1.8cqw; display: flex; align-items: center; gap: 2.2cqw; }
+  .stamp {
+    border: 2px solid var(--accent); color: var(--accent-ink);
+    background: var(--accent-bg);
+    padding: 1cqw 1.6cqw; transform: rotate(-2.4deg);
+    box-shadow: 0 0 0 1px var(--accent) inset;
+    text-align: center; flex: none;
+  }
+  .stamp .s1 { font-family: "Spline Sans Mono", monospace; font-size: 0.85cqw; letter-spacing: 0.22em; text-transform: uppercase; }
+  .stamp .s2 { font-family: "Spline Sans Mono", monospace; font-weight: 600; font-size: 2.3cqw; letter-spacing: 0.12em; margin-top: 0.25cqw; }
+  .stamp .s3 { font-size: 0.82cqw; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin-top: 0.25cqw; }
+  .stampwrap p { font-size: 1.1cqw; color: var(--soft); line-height: 1.5; }
+  .stampwrap p b { color: var(--ink); font-weight: 600; }
+
+  /* right: standard pricing reference */
+  .ref { border-left: 1px solid var(--line-firm); padding-left: 3cqw; }
+  .ref .lbl {
+    font-family: "Spline Sans Mono", monospace; font-weight: 500;
+    font-size: 1cqw; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint);
+  }
+  .ref .row { padding: 1.35cqw 0; border-top: 1px solid var(--line); }
+  .ref .row:first-of-type { margin-top: 0.6cqw; }
+  .ref .row .n { font-family: "Source Serif 4", serif; font-weight: 600; font-size: 1.45cqw; }
+  .ref .row.mark .n { color: var(--accent-ink); }
+  .ref .row .p { font-family: "Spline Sans Mono", monospace; font-size: 1.4cqw; margin-top: 0.35cqw; font-variant-numeric: tabular-nums; }
+  .ref .row .d { font-size: 1.02cqw; color: var(--faint); margin-top: 0.4cqw; line-height: 1.4; }
+  .ref .row.mark .d { color: var(--accent); }
+
+  /* ---------- foot ---------- */
+  .foot {
+    margin-top: 2.4cqw; padding-top: 1.2cqw; border-top: 1px solid var(--line-firm);
+    display: flex; justify-content: space-between; gap: 2cqw;
+    font-size: 1cqw; color: var(--faint); line-height: 1.5;
+  }
+  .foot .figs { color: var(--soft); }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  /* ---------- mobile ---------- */
+  @media (max-width: 860px) {
+    body { display: block; background: var(--bg); }
+    .stage { width: 100%; height: auto; container-type: normal; }
+    .slide { position: static; padding: 2.2rem 1.4rem; overflow: visible; }
+    .eyebrow { font-size: 0.7rem; }
+    .head h1 { font-size: 1.5rem; }
+    .wm { display: none; }
+    .body { grid-template-columns: 1fr; gap: 2.4rem; margin-top: 1.8rem; }
+    .quote .lbl, .ref .lbl { font-size: 0.72rem; }
+    .price { font-size: 3.2rem; }
+    .price em { font-size: 0.9rem; }
+    .breakdown { font-size: 0.95rem; } .breakdown small { font-size: 0.8rem; }
+    .stampwrap { flex-direction: column; align-items: flex-start; gap: 1rem; padding-top: 1.4rem; }
+    .stamp { padding: 0.7rem 1.1rem; }
+    .stamp .s1, .stamp .s3 { font-size: 0.6rem; } .stamp .s2 { font-size: 1.5rem; }
+    .stampwrap p { font-size: 0.85rem; }
+    .ref { border-left: 0; padding-left: 0; border-top: 2px solid var(--line-firm); padding-top: 1.4rem; }
+    .ref .row .n { font-size: 1.05rem; } .ref .row .p { font-size: 1rem; } .ref .row .d { font-size: 0.8rem; }
+    .foot { flex-direction: column; gap: 0.4rem; font-size: 0.78rem; }
+  }
+
+  @media print {
+    body { display: block; }
+    .stage { width: 100%; height: auto; container-type: normal; }
+    .slide { position: static; overflow: visible; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <section class="slide">
+
+    <div class="head">
+      <div>
+        <p class="eyebrow">Prepared quote &nbsp;&middot;&nbsp; [ School / Trust ]</p>
+        <h1>Your price for the school queue system.</h1>
+      </div>
+      <span class="wm"><span class="g" aria-hidden="true">क</span><b>Kataar</b></span>
+    </div>
+
+    <div class="body">
+
+      <div class="quote">
+        <p class="lbl">Launch partner price &mdash; India 2026</p>
+        <div class="price">
+          &#8377;35,000
+          <em>all-in for 24 months &nbsp;&middot;&nbsp; one campus &nbsp;&middot;&nbsp; price locked to March 2028</em>
+        </div>
+        <div class="breakdown">
+          <span class="figs">&#8377;30,000</span> platform licence &nbsp;&nbsp;+&nbsp;&nbsp; <span class="figs">&#8377;5,000</span> one-time deployment &amp; setup
+          <small>This is the full Two-year partnership &mdash; nothing is cut from the plan.</small>
+        </div>
+
+        <div class="stampwrap">
+          <div class="stamp">
+            <div class="s1">Apply at sign-up</div>
+            <div class="s2">INDIA2026</div>
+            <div class="s3">one use</div>
+          </div>
+          <p>Enter the coupon on the plan page to unlock this rate.<br>
+          <b>Offered to one school</b> &mdash; the standard two-year rate is &#8377;82,000.</p>
+        </div>
+      </div>
+
+      <div class="ref">
+        <p class="lbl">Standard pricing / per campus</p>
+
+        <div class="row">
+          <div class="n">Annual subscription</div>
+          <div class="p">&#8377;50,000 / year</div>
+          <div class="d">+ &#8377;10,000 setup &middot; billed each session</div>
+        </div>
+
+        <div class="row mark">
+          <div class="n">Two-year partnership</div>
+          <div class="p">&#8377;82,000 / 2 years</div>
+          <div class="d">Recommended &mdash; the plan INDIA2026 discounts</div>
+        </div>
+
+        <div class="row">
+          <div class="n">One-time licence</div>
+          <div class="p">&#8377;1,75,000 once</div>
+          <div class="d">+ &#8377;35,000 / year maintenance from year two</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="foot">
+      <span>Sizing &mdash; <span class="figs">Starter</span> under 500 students, from &#8377;22,000/yr &nbsp;·&nbsp; <span class="figs">Standard</span> 500&ndash;1,500, &#8377;50,000/yr &nbsp;·&nbsp; <span class="figs">Trust</span> 1,500+, from &#8377;95,000/yr</span>
+      <span>All figures exclusive of 18% GST &middot; 2% TDS applies on payment</span>
+    </div>
+
+  </section>
+</div>
+
+</body>
+</html>

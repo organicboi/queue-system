@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Image from 'next/image'
 import { Volume2 } from 'lucide-react'
 import { DisplayClock } from '@/components/display/DisplayClock'
+import { SchoolAdRail, type SchoolAd } from '@/components/school/SchoolAdRail'
 import { useHospitalBoard } from '@/lib/hooks/useHospitalBoard'
 import { HospitalAnnouncer } from '@/lib/hospital/announce'
 import type { HospitalBoardPacket } from '@/lib/db/hospital-types'
@@ -12,6 +13,9 @@ import type { Locale } from '@/lib/region'
 import { coerceLocales, defaultLocale, dirFor, pickLocale, regionLocales } from '@/lib/region'
 
 const FLASH_MS = 8000
+// A called token's fullscreen ad window — long enough for the patient to walk
+// to the room, short enough that the board isn't dark for the next call.
+const FULLSCREEN_AD_MS = 60_000
 
 const COPY: Record<Locale, {
   token: string; room: string; doctor: string; waiting: string
@@ -64,6 +68,35 @@ export function HospitalBoard({ screenToken, initial }: {
   const [dismissedKey, setDismissedKey] = useState(0)
   const flash = lastCall && lastCall.key !== dismissedKey ? lastCall : null
 
+  const allAds = useMemo(() => packet.ads ?? [], [packet.ads])
+  const sideAds: SchoolAd[] = useMemo(
+    () =>
+      allAds
+        .filter((a) => a.is_active && a.placement !== 'fullscreen')
+        .map((a) => ({
+          id: a.id,
+          src: a.file_url,
+          type: a.file_type,
+          durationMs: (a.duration_seconds || 8) * 1000,
+          audioEnabled: a.audio_enabled ?? false,
+        })),
+    [allAds]
+  )
+  const fullscreenAds: SchoolAd[] = useMemo(
+    () =>
+      allAds
+        .filter((a) => a.is_active && a.placement === 'fullscreen')
+        .map((a) => ({
+          id: a.id,
+          src: a.file_url,
+          type: a.file_type,
+          durationMs: (a.duration_seconds || 8) * 1000,
+          audioEnabled: a.audio_enabled ?? false,
+        })),
+    [allAds]
+  )
+  const hasFullscreenAds = fullscreenAds.length > 0
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (announcer.isReady) setAudioReady(true)
@@ -85,10 +118,29 @@ export function HospitalBoard({ screenToken, initial }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastCall?.key, audioReady])
 
+  // Fullscreen-ad-on-call: once the "now calling" flash card dismisses itself,
+  // hold a fullscreen ad for FULLSCREEN_AD_MS, then let the board fall back to
+  // its normal view (room grid + side rail). A fresh call while one is showing
+  // interrupts it — the new flash takes priority and restarts the cycle.
+  const [fullscreenAdActive, setFullscreenAdActive] = useState(false)
+  useEffect(() => {
+    if (!lastCall || !hasFullscreenAds) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFullscreenAdActive(false)
+    const show = setTimeout(() => setFullscreenAdActive(true), FLASH_MS)
+    const hide = setTimeout(() => setFullscreenAdActive(false), FLASH_MS + FULLSCREEN_AD_MS)
+    return () => {
+      clearTimeout(show)
+      clearTimeout(hide)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastCall?.key, hasFullscreenAds])
+
   const tickerLines = (packet.tickers ?? []).map((t) => t.message)
   const ticker = [packet.tickerText, ...tickerLines].filter(Boolean).join('   •   ')
   const rooms = (packet.rooms ?? []).filter((r) => r.is_open)
-  const twoCol = rooms.length > 6
+  const hasSideAds = sideAds.length > 0
+  const twoCol = !hasSideAds && rooms.length > 6
 
   if (packet.status === 'expired') {
     return (
@@ -118,65 +170,73 @@ export function HospitalBoard({ screenToken, initial }: {
         {packet.showClock !== false && <DisplayClock timeColor="#0F172A" dateColor="#64748B" />}
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="grid shrink-0 grid-cols-[1.1fr_1fr_1fr] gap-4 border-b border-slate-200 bg-white px-6 py-2 text-slate-500">
-          <Cell label={bc.token} />
-          <Cell label={bc.room} />
-          <Cell label={bc.doctor} />
-        </div>
-
-        <div className={twoCol ? 'grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-3 p-3' : 'flex min-h-0 flex-1 flex-col gap-2.5 p-3'}>
-          {rooms.length === 0 ? (
-            <div className="col-span-full flex flex-1 items-center justify-center text-slate-400">
-              <p style={{ fontSize: 'clamp(1rem, 2vw, 2rem)' }}>{bc.noRooms}</p>
-            </div>
-          ) : (
-            rooms.map((room) => {
-              const called = !!room.token_code
-              const isFlashing = flash?.tokenCode && flash.tokenCode === room.token_code
-              return (
-                <motion.div
-                  key={room.id}
-                  animate={isFlashing ? { scale: [1, 1.03, 1] } : { scale: 1 }}
-                  transition={{ duration: 0.25 }}
-                  className={
-                    'grid min-h-0 flex-1 grid-cols-[1.1fr_1fr_1fr] items-center gap-4 rounded-2xl border px-6 ' +
-                    (called ? 'border-accent-600 bg-accent-600 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-900')
-                  }
-                >
-                  <p dir="ltr" className="truncate font-mono font-black tabular-nums" style={{ fontSize: 'clamp(2rem, 6vw, 6rem)' }}>
-                    {room.token_code ?? '—'}
-                  </p>
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold" style={{ fontSize: 'clamp(1rem, 2.2vw, 2.4rem)' }}>{room.label}</p>
-                    <p className={called ? 'truncate text-white/80' : 'truncate text-slate-500'} style={{ fontSize: 'clamp(0.7rem, 1.1vw, 1.2rem)' }}>
-                      {called ? bc.proceed : bc.free}
-                    </p>
-                  </div>
-                  <p className="truncate font-semibold" style={{ fontSize: 'clamp(0.9rem, 2vw, 2.2rem)' }}>
-                    {room.doctor_name ?? (room.department_en ?? '')}
-                    {room.doctor_on_leave ? ' · on leave' : ''}
-                  </p>
-                </motion.div>
-              )
-            })
-          )}
-        </div>
-
-        {(packet.departments ?? []).length > 0 && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-200 bg-white px-6 py-2">
-            {(packet.departments ?? []).filter((d) => d.waiting > 0).map((d) => (
-              <span key={d.id} className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                <span className="size-2 rounded-full" style={{ backgroundColor: d.color }} />
-                <span className="text-slate-600" style={{ fontSize: 'clamp(0.65rem, 0.9vw, 1rem)' }}>
-                  {pickLocale(d.name, boardLocale) || d.name_en}
-                </span>
-                <span dir="ltr" className="font-mono font-bold tabular-nums text-slate-900" style={{ fontSize: 'clamp(0.7rem, 1vw, 1.1rem)' }}>
-                  {d.waiting}
-                </span>
-              </span>
-            ))}
+      <div className="flex min-h-0 flex-1">
+        <main className={hasSideAds ? 'flex min-w-0 flex-[62] flex-col' : 'flex min-w-0 flex-1 flex-col'}>
+          <div className="grid shrink-0 grid-cols-[1.1fr_1fr_1fr] gap-4 border-b border-slate-200 bg-white px-6 py-2 text-slate-500">
+            <Cell label={bc.token} />
+            <Cell label={bc.room} />
+            <Cell label={bc.doctor} />
           </div>
+
+          <div className={twoCol ? 'grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-3 p-3' : 'flex min-h-0 flex-1 flex-col gap-2.5 p-3'}>
+            {rooms.length === 0 ? (
+              <div className="col-span-full flex flex-1 items-center justify-center text-slate-400">
+                <p style={{ fontSize: 'clamp(1rem, 2vw, 2rem)' }}>{bc.noRooms}</p>
+              </div>
+            ) : (
+              rooms.map((room) => {
+                const called = !!room.token_code
+                const isFlashing = flash?.tokenCode && flash.tokenCode === room.token_code
+                return (
+                  <motion.div
+                    key={room.id}
+                    animate={isFlashing ? { scale: [1, 1.03, 1] } : { scale: 1 }}
+                    transition={{ duration: 0.25 }}
+                    className={
+                      'grid min-h-0 flex-1 grid-cols-[1.1fr_1fr_1fr] items-center gap-4 rounded-2xl border px-6 ' +
+                      (called ? 'border-accent-600 bg-accent-600 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-900')
+                    }
+                  >
+                    <p dir="ltr" className="truncate font-mono font-black tabular-nums" style={{ fontSize: 'clamp(2rem, 6vw, 6rem)' }}>
+                      {room.token_code ?? '—'}
+                    </p>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold" style={{ fontSize: 'clamp(1rem, 2.2vw, 2.4rem)' }}>{room.label}</p>
+                      <p className={called ? 'truncate text-white/80' : 'truncate text-slate-500'} style={{ fontSize: 'clamp(0.7rem, 1.1vw, 1.2rem)' }}>
+                        {called ? bc.proceed : bc.free}
+                      </p>
+                    </div>
+                    <p className="truncate font-semibold" style={{ fontSize: 'clamp(0.9rem, 2vw, 2.2rem)' }}>
+                      {room.doctor_name ?? (room.department_en ?? '')}
+                      {room.doctor_on_leave ? ' · on leave' : ''}
+                    </p>
+                  </motion.div>
+                )
+              })
+            )}
+          </div>
+
+          {(packet.departments ?? []).length > 0 && (
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-200 bg-white px-6 py-2">
+              {(packet.departments ?? []).filter((d) => d.waiting > 0).map((d) => (
+                <span key={d.id} className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                  <span className="size-2 rounded-full" style={{ backgroundColor: d.color }} />
+                  <span className="text-slate-600" style={{ fontSize: 'clamp(0.65rem, 0.9vw, 1rem)' }}>
+                    {pickLocale(d.name, boardLocale) || d.name_en}
+                  </span>
+                  <span dir="ltr" className="font-mono font-bold tabular-nums text-slate-900" style={{ fontSize: 'clamp(0.7rem, 1vw, 1.1rem)' }}>
+                    {d.waiting}
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
+        </main>
+
+        {hasSideAds && (
+          <aside className="min-w-0 flex-[38] border-s border-slate-200">
+            <SchoolAdRail ads={sideAds} audioReady={audioReady} />
+          </aside>
         )}
       </div>
 
@@ -213,6 +273,21 @@ export function HospitalBoard({ screenToken, initial }: {
                 <p className="text-slate-500" style={{ fontSize: 'clamp(0.9rem, 1.6vw, 1.6rem)' }}>{flash.doctorName}</p>
               )}
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Fullscreen-on-call ads — takes over the whole board for a bit after a
+          token is called, then hands back to the normal room grid + rail. */}
+      <AnimatePresence>
+        {fullscreenAdActive && (
+          <motion.div
+            key="fullscreen-ad"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.6, ease: 'easeInOut' }}
+            className="absolute inset-0 z-[25]"
+          >
+            <SchoolAdRail ads={fullscreenAds} audioReady={audioReady} />
           </motion.div>
         )}
       </AnimatePresence>

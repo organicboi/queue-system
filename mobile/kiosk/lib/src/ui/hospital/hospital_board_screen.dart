@@ -18,6 +18,11 @@ import '../theme.dart';
 /// counts, the reused ad rail + ticker, and a full-screen flash + native TTS
 /// on a new call. Poll-only (3s) with a dedupe — a TV that drops its network
 /// in a power blink recovers with nobody there to reload it.
+///
+/// Ads have two placements: 'side' plays in the right-hand rail continuously;
+/// 'fullscreen' is held out of the rail and instead takes over the whole
+/// screen for 60s starting right after the "now calling" flash dismisses,
+/// then hands back to the normal board automatically.
 class HospitalBoardScreen extends ConsumerStatefulWidget {
   const HospitalBoardScreen({super.key});
 
@@ -31,7 +36,17 @@ class _HospitalBoardScreenState extends ConsumerState<HospitalBoardScreen> {
   HospitalBoardRoom? _flash;
   Timer? _flashTimer;
 
+  // Fullscreen-ad-on-call: once the "now calling" flash dismisses itself,
+  // hold a fullscreen ad for _fullscreenAdDuration, then fall back to the
+  // normal board (room table + side rail). A fresh call while one is
+  // showing interrupts it — the new flash takes priority and restarts the
+  // cycle. Ported from components/hospital/HospitalBoard.tsx.
+  bool _fullscreenAdActive = false;
+  Timer? _fullscreenAdShowTimer;
+  Timer? _fullscreenAdHideTimer;
+
   static const _flashDuration = Duration(seconds: 8);
+  static const _fullscreenAdDuration = Duration(seconds: 60);
 
   @override
   void initState() {
@@ -43,6 +58,8 @@ class _HospitalBoardScreenState extends ConsumerState<HospitalBoardScreen> {
   void dispose() {
     WakelockPlus.disable();
     _flashTimer?.cancel();
+    _fullscreenAdShowTimer?.cancel();
+    _fullscreenAdHideTimer?.cancel();
     super.dispose();
   }
 
@@ -69,12 +86,27 @@ class _HospitalBoardScreenState extends ConsumerState<HospitalBoardScreen> {
     _flashTimer = Timer(_flashDuration, () {
       if (mounted) setState(() => _flash = null);
     });
+
+    final fullscreenAds = packet.ads.where((a) => a.isFullscreen).toList();
+    _fullscreenAdShowTimer?.cancel();
+    _fullscreenAdHideTimer?.cancel();
+    if (_fullscreenAdActive) setState(() => _fullscreenAdActive = false);
+    if (fullscreenAds.isNotEmpty) {
+      _fullscreenAdShowTimer = Timer(_flashDuration, () {
+        if (mounted) setState(() => _fullscreenAdActive = true);
+      });
+      _fullscreenAdHideTimer = Timer(_flashDuration + _fullscreenAdDuration, () {
+        if (mounted) setState(() => _fullscreenAdActive = false);
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<AsyncValue<HospitalBoardPacket>>(hospitalBoardProvider,
-        (prev, next) {
+    ref.listen<AsyncValue<HospitalBoardPacket>>(hospitalBoardProvider, (
+      prev,
+      next,
+    ) {
       final packet = next.value;
       if (packet != null) _handlePacket(packet);
     });
@@ -89,62 +121,90 @@ class _HospitalBoardScreenState extends ConsumerState<HospitalBoardScreen> {
         body: async.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(
-            child: Text('$e',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 30 * scale, color: KioskPalette.inkSoft)),
+            child: Text(
+              '$e',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 30 * scale,
+                color: KioskPalette.inkSoft,
+              ),
+            ),
           ),
-          data: (packet) => Stack(
-            children: [
-              Column(
-                children: [
-                  _Header(packet: packet, scale: scale),
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          flex: packet.ads.isEmpty ? 100 : 70,
-                          child: Column(
-                            children: [
-                              Expanded(
-                                child: _RoomTable(
-                                    rooms: packet.rooms, scale: scale),
-                              ),
-                              if (packet.recent.isNotEmpty)
-                                _RecentStrip(
-                                    recent: packet.recent, scale: scale),
-                              if (packet.departments.isNotEmpty)
-                                _WaitingStrip(
-                                    departments: packet.departments,
-                                    scale: scale),
-                            ],
-                          ),
-                        ),
-                        if (packet.ads.isNotEmpty)
+          data: (packet) {
+            // The board has no language picker — a TV in a lobby can't be
+            // tapped by every patient walking past it — so it renders in the
+            // branch's own primary language, the same source HospitalBoard.tsx
+            // falls back to (`announceLocalesResolved`, the branch's
+            // configured announce languages in order).
+            final lang = packet.announceLocalesResolved.first;
+            final sideAds = packet.ads.where((a) => !a.isFullscreen).toList();
+            final fullscreenAds = packet.ads.where((a) => a.isFullscreen).toList();
+            return Stack(
+              children: [
+                Column(
+                  children: [
+                    _Header(packet: packet, scale: scale),
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                           Expanded(
-                            flex: 30,
-                            child: BoardAdRail(
-                              ads: packet.ads,
-                              isSpeaking: announcer.isSpeaking,
+                            flex: sideAds.isEmpty ? 100 : 70,
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: _RoomTable(
+                                    rooms: packet.rooms,
+                                    scale: scale,
+                                    lang: lang,
+                                  ),
+                                ),
+                                if (packet.recent.isNotEmpty)
+                                  _RecentStrip(
+                                    recent: packet.recent,
+                                    scale: scale,
+                                  ),
+                                if (packet.departments.isNotEmpty)
+                                  _WaitingStrip(
+                                    departments: packet.departments,
+                                    scale: scale,
+                                    lang: lang,
+                                  ),
+                              ],
                             ),
                           ),
-                      ],
+                          if (sideAds.isNotEmpty)
+                            Expanded(
+                              flex: 30,
+                              child: BoardAdRail(
+                                ads: sideAds,
+                                isSpeaking: announcer.isSpeaking,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    BoardTicker(message: packet.tickerText, scale: scale),
+                  ],
+                ),
+                if (_flash != null)
+                  _HospitalNowCalling(
+                    room: _flash!,
+                    onDismiss: () {
+                      _flashTimer?.cancel();
+                      setState(() => _flash = null);
+                    },
+                  ),
+                if (_fullscreenAdActive && fullscreenAds.isNotEmpty)
+                  Positioned.fill(
+                    child: BoardAdRail(
+                      ads: fullscreenAds,
+                      isSpeaking: announcer.isSpeaking,
                     ),
                   ),
-                  BoardTicker(message: packet.tickerText, scale: scale),
-                ],
-              ),
-              if (_flash != null)
-                _HospitalNowCalling(
-                  room: _flash!,
-                  onDismiss: () {
-                    _flashTimer?.cancel();
-                    setState(() => _flash = null);
-                  },
-                ),
-            ],
-          ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -164,16 +224,19 @@ class _Header extends StatelessWidget {
       decoration: const BoxDecoration(
         color: KioskPalette.surface,
         border: Border(
-            bottom: BorderSide(color: KioskPalette.borderStrong, width: 2)),
+          bottom: BorderSide(color: KioskPalette.borderStrong, width: 2),
+        ),
       ),
       child: Row(
         children: [
           if (packet.logoUrl.isNotEmpty)
             Padding(
               padding: EdgeInsets.only(right: 20 * scale),
-              child: Image.network(packet.logoUrl,
-                  height: 72 * scale,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink()),
+              child: Image.network(
+                packet.logoUrl,
+                height: 72 * scale,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              ),
             ),
           Expanded(
             child: Text(
@@ -223,20 +286,27 @@ class _ClockState extends State<_Clock> {
     final h = _now.hour % 12 == 0 ? 12 : _now.hour % 12;
     final m = _now.minute.toString().padLeft(2, '0');
     final ampm = _now.hour >= 12 ? 'PM' : 'AM';
-    return Text('$h:$m $ampm',
-        style: TextStyle(
-          fontSize: 40 * widget.scale,
-          fontWeight: FontWeight.w700,
-          fontFeatures: const [FontFeature.tabularFigures()],
-          color: KioskPalette.ink,
-        ));
+    return Text(
+      '$h:$m $ampm',
+      style: TextStyle(
+        fontSize: 40 * widget.scale,
+        fontWeight: FontWeight.w700,
+        fontFeatures: const [FontFeature.tabularFigures()],
+        color: KioskPalette.ink,
+      ),
+    );
   }
 }
 
 class _RoomTable extends StatelessWidget {
-  const _RoomTable({required this.rooms, required this.scale});
+  const _RoomTable({
+    required this.rooms,
+    required this.scale,
+    required this.lang,
+  });
   final List<HospitalBoardRoom> rooms;
   final double scale;
+  final String lang;
 
   @override
   Widget build(BuildContext context) {
@@ -248,9 +318,10 @@ class _RoomTable extends StatelessWidget {
 
     if (open.isEmpty) {
       return Center(
-        child: Text('No rooms are open right now',
-            style:
-                TextStyle(fontSize: 34 * scale, color: KioskPalette.inkSoft)),
+        child: Text(
+          'No rooms are open right now',
+          style: TextStyle(fontSize: 34 * scale, color: KioskPalette.inkSoft),
+        ),
       );
     }
 
@@ -258,7 +329,9 @@ class _RoomTable extends StatelessWidget {
       children: [
         Container(
           padding: EdgeInsets.symmetric(
-              horizontal: 28 * scale, vertical: 12 * scale),
+            horizontal: 28 * scale,
+            vertical: 12 * scale,
+          ),
           child: Row(
             children: [
               _hcell('TOKEN', scale, flex: 3),
@@ -272,7 +345,8 @@ class _RoomTable extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: 20 * scale),
             itemCount: open.length,
             separatorBuilder: (_, _) => SizedBox(height: 10 * scale),
-            itemBuilder: (context, i) => _RoomRow(room: open[i], scale: scale),
+            itemBuilder: (context, i) =>
+                _RoomRow(room: open[i], scale: scale, lang: lang),
           ),
         ),
       ],
@@ -280,21 +354,24 @@ class _RoomTable extends StatelessWidget {
   }
 
   Widget _hcell(String t, double scale, {required int flex}) => Expanded(
-        flex: flex,
-        child: Text(t,
-            style: TextStyle(
-              fontSize: 22 * scale,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 2,
-              color: KioskPalette.inkFaint,
-            )),
-      );
+    flex: flex,
+    child: Text(
+      t,
+      style: TextStyle(
+        fontSize: 22 * scale,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 2,
+        color: KioskPalette.inkFaint,
+      ),
+    ),
+  );
 }
 
 class _RoomRow extends StatelessWidget {
-  const _RoomRow({required this.room, required this.scale});
+  const _RoomRow({required this.room, required this.scale, required this.lang});
   final HospitalBoardRoom room;
   final double scale;
+  final String lang;
 
   @override
   Widget build(BuildContext context) {
@@ -302,12 +379,16 @@ class _RoomRow extends StatelessWidget {
         ? departmentColor(room.departmentColor!)
         : KioskPalette.primary;
     return Container(
-      padding:
-          EdgeInsets.symmetric(horizontal: 20 * scale, vertical: 16 * scale),
+      padding: EdgeInsets.symmetric(
+        horizontal: 20 * scale,
+        vertical: 16 * scale,
+      ),
       decoration: BoxDecoration(
         color: KioskPalette.surface,
         borderRadius: BorderRadius.circular(14 * scale),
-        border: Border(left: BorderSide(color: color, width: 6 * scale)),
+        border: Border(
+          left: BorderSide(color: color, width: 6 * scale),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -326,22 +407,26 @@ class _RoomRow extends StatelessWidget {
           ),
           Expanded(
             flex: 4,
-            child: Text(room.label,
-                style: TextStyle(
-                    fontSize: 34 * scale,
-                    fontWeight: FontWeight.w700,
-                    color: KioskPalette.ink)),
+            child: Text(
+              room.label,
+              style: TextStyle(
+                fontSize: 34 * scale,
+                fontWeight: FontWeight.w700,
+                color: KioskPalette.ink,
+              ),
+            ),
           ),
           Expanded(
             flex: 5,
             child: Text(
               room.doctorOnLeave
                   ? '${room.doctorName ?? ''} (on leave)'
-                  : (room.doctorName ?? room.departmentNameFor('en')),
+                  : (room.doctorName ?? room.departmentNameFor(lang)),
               style: TextStyle(
-                  fontSize: 30 * scale,
-                  fontWeight: FontWeight.w600,
-                  color: KioskPalette.inkSoft),
+                fontSize: 30 * scale,
+                fontWeight: FontWeight.w600,
+                color: KioskPalette.inkSoft,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -349,16 +434,21 @@ class _RoomRow extends StatelessWidget {
             Container(
               margin: EdgeInsets.only(left: 8 * scale),
               padding: EdgeInsets.symmetric(
-                  horizontal: 10 * scale, vertical: 4 * scale),
+                horizontal: 10 * scale,
+                vertical: 4 * scale,
+              ),
               decoration: BoxDecoration(
                 color: KioskPalette.primarySoft,
                 borderRadius: BorderRadius.circular(6 * scale),
               ),
-              child: Text('PRIORITY',
-                  style: TextStyle(
-                      fontSize: 16 * scale,
-                      fontWeight: FontWeight.w800,
-                      color: KioskPalette.primary)),
+              child: Text(
+                'PRIORITY',
+                style: TextStyle(
+                  fontSize: 16 * scale,
+                  fontWeight: FontWeight.w800,
+                  color: KioskPalette.primary,
+                ),
+              ),
             ),
         ],
       ),
@@ -374,28 +464,36 @@ class _RecentStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-          EdgeInsets.symmetric(horizontal: 24 * scale, vertical: 10 * scale),
+      padding: EdgeInsets.symmetric(
+        horizontal: 24 * scale,
+        vertical: 10 * scale,
+      ),
       color: KioskPalette.surfaceMuted,
       child: Row(
         children: [
-          Text('SERVED  ',
-              style: TextStyle(
-                  fontSize: 18 * scale,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                  color: KioskPalette.inkFaint)),
+          Text(
+            'SERVED  ',
+            style: TextStyle(
+              fontSize: 18 * scale,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.5,
+              color: KioskPalette.inkFaint,
+            ),
+          ),
           Expanded(
             child: Wrap(
               spacing: 18 * scale,
               children: [
                 for (final r in recent.take(8))
-                  Text(r.tokenCode,
-                      style: TextStyle(
-                          fontSize: 24 * scale,
-                          fontWeight: FontWeight.w700,
-                          color: KioskPalette.inkSoft,
-                          fontFeatures: const [FontFeature.tabularFigures()])),
+                  Text(
+                    r.tokenCode,
+                    style: TextStyle(
+                      fontSize: 24 * scale,
+                      fontWeight: FontWeight.w700,
+                      color: KioskPalette.inkSoft,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -406,17 +504,24 @@ class _RecentStrip extends StatelessWidget {
 }
 
 class _WaitingStrip extends StatelessWidget {
-  const _WaitingStrip({required this.departments, required this.scale});
+  const _WaitingStrip({
+    required this.departments,
+    required this.scale,
+    required this.lang,
+  });
   final List<HospitalBoardDepartment> departments;
   final double scale;
+  final String lang;
 
   @override
   Widget build(BuildContext context) {
     final withWaiting = departments.where((d) => d.waiting > 0).toList();
     if (withWaiting.isEmpty) return const SizedBox.shrink();
     return Container(
-      padding:
-          EdgeInsets.symmetric(horizontal: 24 * scale, vertical: 12 * scale),
+      padding: EdgeInsets.symmetric(
+        horizontal: 24 * scale,
+        vertical: 12 * scale,
+      ),
       decoration: const BoxDecoration(
         color: KioskPalette.surface,
         border: Border(top: BorderSide(color: KioskPalette.border)),
@@ -433,14 +538,19 @@ class _WaitingStrip extends StatelessWidget {
                   width: 12 * scale,
                   height: 12 * scale,
                   decoration: BoxDecoration(
-                      color: departmentColor(d.color), shape: BoxShape.circle),
+                    color: departmentColor(d.color),
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 SizedBox(width: 8 * scale),
-                Text('${d.nameFor('en')}: ${d.waiting}',
-                    style: TextStyle(
-                        fontSize: 22 * scale,
-                        fontWeight: FontWeight.w600,
-                        color: KioskPalette.inkSoft)),
+                Text(
+                  '${d.nameFor(lang)}: ${d.waiting}',
+                  style: TextStyle(
+                    fontSize: 22 * scale,
+                    fontWeight: FontWeight.w600,
+                    color: KioskPalette.inkSoft,
+                  ),
+                ),
               ],
             ),
         ],
@@ -468,62 +578,67 @@ class _HospitalNowCalling extends StatelessWidget {
         child: Container(
           color: Colors.black.withValues(alpha: 0.86),
           alignment: Alignment.center,
-          child: LayoutBuilder(builder: (context, c) {
-            final unit = c.maxHeight / 1080;
-            final tokenFont = (c.maxHeight * 0.30).clamp(96.0, 340.0);
-            return Padding(
-              padding: EdgeInsets.symmetric(horizontal: 48 * unit),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: 34 * unit, vertical: 12 * unit),
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(16 * unit),
-                    ),
-                    child: Text(
-                      room.recallCount > 0 ? 'CALLING AGAIN' : 'NOW CALLING',
-                      style: TextStyle(
-                        fontSize: 34 * unit,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 4 * unit,
-                        color: Colors.white,
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final unit = c.maxHeight / 1080;
+              final tokenFont = (c.maxHeight * 0.30).clamp(96.0, 340.0);
+              return Padding(
+                padding: EdgeInsets.symmetric(horizontal: 48 * unit),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 34 * unit,
+                        vertical: 12 * unit,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(16 * unit),
+                      ),
+                      child: Text(
+                        room.recallCount > 0 ? 'CALLING AGAIN' : 'NOW CALLING',
+                        style: TextStyle(
+                          fontSize: 34 * unit,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 4 * unit,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                  SizedBox(height: 28 * unit),
-                  Directionality(
-                    textDirection: TextDirection.ltr,
-                    child: Text(
-                      room.tokenCode ?? '',
+                    SizedBox(height: 28 * unit),
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: Text(
+                        room.tokenCode ?? '',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: tokenFont,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                          color: Colors.white,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 24 * unit),
+                    Text(
+                      [
+                        room.label,
+                        room.doctorName,
+                      ].where((s) => (s ?? '').isNotEmpty).join('  ·  '),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: tokenFont,
-                        fontWeight: FontWeight.w900,
-                        height: 1,
-                        color: Colors.white,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+                        fontSize: 46 * unit,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white70,
                       ),
                     ),
-                  ),
-                  SizedBox(height: 24 * unit),
-                  Text(
-                    [room.label, room.doctorName]
-                        .where((s) => (s ?? '').isNotEmpty)
-                        .join('  ·  '),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 46 * unit,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white70,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );

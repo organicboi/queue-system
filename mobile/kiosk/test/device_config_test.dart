@@ -69,11 +69,13 @@ void main() {
       role: DeviceRole.kiosk,
       setupComplete: true,
       branchToken: 'tok-1',
+      branchId: 'branch-1',
       screenToken: '',
       webUrl: '',
       adminPinHash: 'hash',
       adminPinSalt: 'salt',
       adminPinLength: 6,
+      defaultLocale: 'mr',
       printer: PrinterSettings(
         transport: PrinterTransportKind.network,
         networkHost: '192.168.1.50',
@@ -83,9 +85,35 @@ void main() {
 
     final loaded = await DeviceConfig.load();
     expect(loaded.branchToken, 'tok-1');
+    expect(loaded.branchId, 'branch-1');
+    expect(loaded.defaultLocale, 'mr');
     expect(loaded.adminPinLength, 6);
     expect(loaded.printer.transport.storageValue, 'network');
     expect(loaded.printer.networkHost, '192.168.1.50');
+  });
+
+  test('defaultLocale survives clearProvisioning; branchId does not', () async {
+    const config = DeviceConfig(
+      baseUrl: 'https://example.com',
+      role: DeviceRole.kiosk,
+      setupComplete: true,
+      branchToken: 'tok-1',
+      branchId: 'branch-1',
+      screenToken: '',
+      webUrl: '',
+      adminPinHash: null,
+      adminPinSalt: null,
+      adminPinLength: 4,
+      defaultLocale: 'hi',
+      printer: PrinterSettings(),
+    );
+    await config.save();
+    await DeviceConfig.clearProvisioning();
+
+    final loaded = await DeviceConfig.load();
+    expect(loaded.defaultLocale, 'hi');
+    expect(loaded.branchId, isEmpty);
+    expect(loaded.branchToken, isEmpty);
   });
 
   /// Regression: an 80mm raster on a 58mm head silently loses every dot past
