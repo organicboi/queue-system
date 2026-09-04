@@ -30,6 +30,9 @@ export const MAX_SCHOOL_ENTITLEMENT = 200
 // useful, so the defaults are wider than the school's single slot.
 export const DEFAULT_HOSPITAL_DEPARTMENT_LIMIT = 12
 export const DEFAULT_HOSPITAL_ROOM_LIMIT = 8
+// Guard rail matching customers_max_hospital_*_check — see
+// supabase/migrations/20260905_hospital_plans.sql.
+export const MAX_HOSPITAL_ENTITLEMENT = 500
 
 // ── DB Row Types (snake_case — exact DB columns) ──────────────
 export interface DbPlan {
@@ -49,6 +52,14 @@ export interface DbPlan {
   price_monthly: number
   price_yearly: number
   is_active: boolean
+  // Which product this plan is sold for. NULL = any vertical (Starter/Pro/
+  // Enterprise, shared by the hotel and school pickers). See
+  // supabase/migrations/20260905_hospital_plans.sql.
+  vertical: CustomerVertical | null
+  // Seeds a new hospital customer's department/room entitlement at creation
+  // time. NULL outside the hospital vertical.
+  default_department_limit: number | null
+  default_counter_limit: number | null
   created_at: string
   updated_at: string
 }
@@ -275,6 +286,9 @@ export interface PlanDTO {
   priceMonthly: number
   priceYearly: number
   isActive: boolean
+  vertical: CustomerVertical | null
+  defaultDepartmentLimit: number | null
+  defaultCounterLimit: number | null
 }
 
 export interface CustomerDTO {
@@ -759,6 +773,9 @@ export function toPlanDTO(row: DbPlan): PlanDTO {
     priceMonthly: row.price_monthly,
     priceYearly: row.price_yearly,
     isActive: row.is_active,
+    vertical: row.vertical,
+    defaultDepartmentLimit: row.default_department_limit,
+    defaultCounterLimit: row.default_counter_limit,
   }
 }
 

@@ -36,10 +36,24 @@ export function tomorrowOf(serviceDate: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-export function isDoctorOnDuty(doc: ReceptionDoc, date: string): boolean {
+// Whether `date` falls on a weekday this doctor has a standing weekly-schedule
+// row for. Informational only — it does NOT gate booking. The weekly grid is
+// a rough recurring-shift sketch (see the doctor Schedule editor), not a
+// promise the doctor is never in on any other day, so a future-dated booking
+// is never blocked on this. It only drives a soft heads-up in the form.
+export function isDoctorScheduledOn(doc: ReceptionDoc, date: string): boolean {
   if (!date) return false
   const weekday = new Date(`${date}T00:00:00`).getDay()
-  return doc.weekdays.includes(weekday) && !doc.leaveDates.includes(date)
+  return doc.weekdays.includes(weekday)
+}
+
+// Whether this doctor has been explicitly marked on leave for `date` — a
+// specific fact reception itself recorded, unlike the generic weekly
+// schedule. This one DOES block booking, matching book_hospital_appointment /
+// reschedule_hospital_appointment on the server.
+export function isDoctorOnLeave(doc: ReceptionDoc, date: string): boolean {
+  if (!date) return false
+  return doc.leaveDates.includes(date)
 }
 
 // date="2026-09-06", time="09:30" → "2026-09-06T09:30:00" — the branch's own

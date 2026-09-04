@@ -12,7 +12,11 @@ export default async function DistributorCustomersPage() {
     getAllCustomers(),
     (async () => {
       const supabase = createSupabaseServiceClient()
-      const { data } = await supabase.from('plans').select('id, name').order('price_monthly')
+      const { data } = await supabase
+        .from('plans')
+        .select('id, name, vertical, default_department_limit, default_counter_limit')
+        .eq('is_active', true)
+        .order('price_monthly')
       return data ?? []
     })(),
   ])

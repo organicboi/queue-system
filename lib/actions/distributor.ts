@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { createSupabaseServiceClient } from '@/lib/db/server'
 import { requireDistributor } from '@/lib/dal/session'
 import type { CustomerVertical, DistributorStats } from '@/lib/db/types'
-import { MAX_SCHOOL_ENTITLEMENT } from '@/lib/db/types'
+import { MAX_SCHOOL_ENTITLEMENT, MAX_HOSPITAL_ENTITLEMENT } from '@/lib/db/types'
 import { DEFAULT_VERTICAL, VERTICALS, isVertical } from '@/lib/verticals'
 import { regionLocales } from '@/lib/region'
 import { seedDefaultHospitalDepartments } from '@/lib/hospital/defaultDepartments'
@@ -44,6 +44,19 @@ export async function createCustomerAction(
 
   const service = createSupabaseServiceClient()
 
+  // A plan scoped to another vertical (e.g. Clinic, hospital-only) can't be
+  // sold under a different system — the picker already filters these out,
+  // this just refuses a client that bypassed it.
+  const { data: plan } = await service
+    .from('plans')
+    .select('vertical, default_department_limit, default_counter_limit')
+    .eq('id', parsed.data.planId)
+    .maybeSingle()
+  if (!plan) return { error: 'Plan not found' }
+  if (plan.vertical && plan.vertical !== parsed.data.vertical) {
+    return { error: 'This plan is not available for the selected system' }
+  }
+
   const slug = parsed.data.businessName
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
     + '-' + Math.random().toString(36).slice(2, 6)
@@ -57,6 +70,16 @@ export async function createCustomerAction(
       slug,
       plan_id: parsed.data.planId,
       vertical: parsed.data.vertical,
+      // The hospital plan carries its own department/room ceiling (Clinic
+      // 2/4, Hospital 8/15, Multispecialist 30/40) — seed the customer's
+      // entitlement from it so the two never start out of sync. Left at the
+      // column default for every other plan or vertical.
+      ...(parsed.data.vertical === 'hospital' && plan.default_department_limit != null
+        ? { max_hospital_departments: plan.default_department_limit }
+        : {}),
+      ...(parsed.data.vertical === 'hospital' && plan.default_counter_limit != null
+        ? { max_hospital_rooms: plan.default_counter_limit }
+        : {}),
     })
     .select().single()
 
@@ -236,9 +259,25 @@ export async function changePlanAction(customerId: string, planId: string): Prom
   await requireDistributor()
   const service = createSupabaseServiceClient()
 
+  // Moving a hospital tenant onto a new tier carries its department/room
+  // ceiling along (same seeding as create) — a plan change is a resale of
+  // capacity, not just a label swap. setCustomerHospitalLimitsAction remains
+  // the way to fine-tune away from the tier's defaults afterwards.
+  const { data: plan } = await service
+    .from('plans')
+    .select('vertical, default_department_limit, default_counter_limit')
+    .eq('id', planId)
+    .maybeSingle()
+
+  const update: Record<string, unknown> = { plan_id: planId, updated_at: new Date().toISOString() }
+  if (plan?.vertical === 'hospital') {
+    if (plan.default_department_limit != null) update.max_hospital_departments = plan.default_department_limit
+    if (plan.default_counter_limit != null) update.max_hospital_rooms = plan.default_counter_limit
+  }
+
   const { error } = await service
     .from('customers')
-    .update({ plan_id: planId, updated_at: new Date().toISOString() })
+    .update(update)
     .eq('id', customerId)
 
   if (error) return { error: 'Failed to change plan' }
@@ -360,6 +399,137 @@ export async function setSchoolIdentityAction(
 
   revalidatePath('/distributor/customers')
   revalidatePath('/school/settings')
+  return {}
+}
+
+// ── Hospital entitlements ─────────────────────────────────────
+// How many departments and rooms a hospital tenant may run, per branch — the
+// same sold-capacity rule as school (see setCustomerSchoolLimitsAction just
+// above). createCustomerAction and changePlanAction seed these from the
+// chosen plan's default_department_limit/default_counter_limit; this is
+// where a distributor fine-tunes away from that default for one customer —
+// e.g. a Hospital-tier client who bought two extra rooms.
+//
+// Lowering below what the tenant already runs is allowed and deliberately
+// non-destructive: existing rows keep working, but no new one can be added
+// until they deactivate down to the new ceiling.
+const HospitalLimitsSchema = z.object({
+  maxHospitalDepartments: z.coerce.number().int().min(0).max(MAX_HOSPITAL_ENTITLEMENT),
+  maxHospitalRooms: z.coerce.number().int().min(0).max(MAX_HOSPITAL_ENTITLEMENT),
+  // Public QR-tracking add-on — same two-question split as school. See
+  // getHospitalPublicTrackingGranted in lib/dal/hospital-limits.ts.
+  publicTrackingEnabled: z.boolean(),
+  // SMS/push notifications add-on. See customers.hospital_notifications_enabled.
+  notificationsEnabled: z.boolean(),
+})
+
+export async function setCustomerHospitalLimitsAction(
+  customerId: string,
+  limits: {
+    maxHospitalDepartments: number
+    maxHospitalRooms: number
+    publicTrackingEnabled: boolean
+    notificationsEnabled: boolean
+  }
+): Promise<{ error?: string }> {
+  await requireDistributor()
+
+  const parsed = HospitalLimitsSchema.safeParse(limits)
+  if (!parsed.success) {
+    return { error: `Enter a number between 0 and ${MAX_HOSPITAL_ENTITLEMENT}` }
+  }
+
+  const service = createSupabaseServiceClient()
+  const { error } = await service
+    .from('customers')
+    .update({
+      max_hospital_departments: parsed.data.maxHospitalDepartments,
+      max_hospital_rooms: parsed.data.maxHospitalRooms,
+      hospital_public_tracking_enabled: parsed.data.publicTrackingEnabled,
+      hospital_notifications_enabled: parsed.data.notificationsEnabled,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', customerId)
+
+  if (error) return { error: 'Could not update the limits' }
+
+  revalidatePath('/distributor/customers')
+  return {}
+}
+
+// ── Edit customer ──────────────────────────────────────────────
+// The business-facing profile fields — everything that isn't a plan, a
+// vertical (locked to the redeemed key) or a vertical-specific entitlement.
+const UpdateCustomerSchema = z.object({
+  businessName: z.string().min(1, 'Business name is required').max(100),
+  phone: z.string().max(30),
+  email: z.string().max(120).refine((v) => v === '' || z.string().email().safeParse(v).success, {
+    message: 'Enter a valid email or leave it blank',
+  }),
+  address: z.string().max(300),
+  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a hex color like #0F172A'),
+  secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a hex color like #6366F1'),
+})
+
+export async function updateCustomerAction(
+  customerId: string,
+  input: z.input<typeof UpdateCustomerSchema>
+): Promise<{ error?: string }> {
+  await requireDistributor()
+
+  const parsed = UpdateCustomerSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  const service = createSupabaseServiceClient()
+  const { error } = await service
+    .from('customers')
+    .update({
+      name: parsed.data.businessName,
+      business_name: parsed.data.businessName,
+      phone: parsed.data.phone,
+      email: parsed.data.email,
+      address: parsed.data.address,
+      primary_color: parsed.data.primaryColor,
+      secondary_color: parsed.data.secondaryColor,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', customerId)
+
+  if (error) return { error: 'Could not update the customer' }
+
+  revalidatePath('/distributor/customers')
+  return {}
+}
+
+// ── Delete customer ────────────────────────────────────────────
+// Hard delete — every tenant table references customers.id ON DELETE CASCADE,
+// so this permanently removes the customer and everything under it (branches,
+// staff, queue history, tokens, patients — all of it). There is no undo.
+// The client requires the distributor to type the customer's exact name
+// before this is called; expectedName is checked again here so the guard
+// can't be skipped by calling the action directly.
+export async function deleteCustomerAction(
+  customerId: string,
+  expectedName: string
+): Promise<{ error?: string }> {
+  await requireDistributor()
+  const service = createSupabaseServiceClient()
+
+  const { data: customer } = await service
+    .from('customers')
+    .select('name')
+    .eq('id', customerId)
+    .maybeSingle()
+
+  if (!customer) return { error: 'Customer not found' }
+  if (customer.name !== expectedName) {
+    return { error: 'Name did not match — nothing was deleted' }
+  }
+
+  const { error } = await service.from('customers').delete().eq('id', customerId)
+  if (error) return { error: 'Could not delete the customer' }
+
+  revalidatePath('/distributor/customers')
   return {}
 }
 

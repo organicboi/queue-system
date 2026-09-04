@@ -10,7 +10,7 @@ export default async function DistributorKeysPage() {
 
   const [{ data: keys }, { data: plans }] = await Promise.all([
     supabase.from('license_keys').select('*').order('created_at', { ascending: false }),
-    supabase.from('plans').select('id, name').order('price_monthly'),
+    supabase.from('plans').select('id, name, vertical').eq('is_active', true).order('price_monthly'),
   ])
 
   return (

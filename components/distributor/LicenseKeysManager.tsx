@@ -18,7 +18,7 @@ interface LicenseKey {
   vertical: CustomerVertical | null
   created_at: string
 }
-interface Plan { id: string; name: string }
+interface Plan { id: string; name: string; vertical: CustomerVertical | null }
 
 interface Props {
   keys: LicenseKey[]
@@ -26,13 +26,24 @@ interface Props {
 }
 
 export function LicenseKeysManager({ keys, plans }: Props) {
-  const [selectedPlan, setSelectedPlan] = useState(plans[0]?.id ?? '')
   // Which product the key entitles its customer to. Chosen here, at issue
   // time — this is the only thing that decides which dashboard the customer
   // ever sees, so it sits next to the plan rather than behind a menu.
   const [selectedVertical, setSelectedVertical] = useState<CustomerVertical>(DEFAULT_VERTICAL)
+  // A plan scoped to another vertical (e.g. Clinic, hospital-only) can't be
+  // issued for a key of this vertical — same rule as the customers page.
+  const plansForVertical = plans.filter(p => !p.vertical || p.vertical === selectedVertical)
+  const [selectedPlan, setSelectedPlan] = useState(plansForVertical[0]?.id ?? '')
   const [generatedKey, setGeneratedKey] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+
+  function handleSelectVertical(v: CustomerVertical) {
+    setSelectedVertical(v)
+    const stillValid = plans.find(p => p.id === selectedPlan && (!p.vertical || p.vertical === v))
+    if (!stillValid) {
+      setSelectedPlan(plans.find(p => !p.vertical || p.vertical === v)?.id ?? '')
+    }
+  }
 
   function handleGenerate() {
     if (!selectedPlan) return
@@ -69,14 +80,14 @@ export function LicenseKeysManager({ keys, plans }: Props) {
               <SelectValue placeholder="Select plan" />
             </SelectTrigger>
             <SelectContent>
-              {plans.map(p => (
+              {plansForVertical.map(p => (
                 <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select
             value={selectedVertical}
-            onValueChange={(v) => setSelectedVertical(v as CustomerVertical)}
+            onValueChange={(v) => handleSelectVertical(v as CustomerVertical)}
           >
             <SelectTrigger className="w-56">
               <SelectValue placeholder="Select system" />

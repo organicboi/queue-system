@@ -2,13 +2,15 @@
 
 import { useState, useActionState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Plus, Pencil, Power, CalendarClock, CalendarOff, X } from 'lucide-react'
+import { Plus, Pencil, Power, CalendarClock, CalendarOff, X, Info } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   createHospitalDoctorAction,
   editHospitalDoctorAction,
@@ -262,6 +264,8 @@ function DoctorFields({ opdDepartments, doctor }: {
 }
 
 interface DraftRow { on: boolean; startTime: string; endTime: string; slotMinutes: number; maxTokens: number }
+const SESSION_LABEL: Record<(typeof SESSIONS)[number], string> = { am: 'Morning', pm: 'Evening' }
+const WEEKDAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 function ScheduleDialog({ branchId, doctor, onClose, onSaved }: {
   branchId: string
@@ -298,8 +302,23 @@ function ScheduleDialog({ branchId, doctor, onClose, onSaved }: {
     return out
   })
 
+  // A quick-fill draft per session, so setting up the common case — the same
+  // hours every working day — isn't 7 rounds of retyping the same times.
+  const [fill, setFill] = useState<Record<(typeof SESSIONS)[number], Omit<DraftRow, 'on'>>>({
+    am: { startTime: '09:00', endTime: '13:00', slotMinutes: 15, maxTokens: 40 },
+    pm: { startTime: '17:00', endTime: '20:00', slotMinutes: 15, maxTokens: 40 },
+  })
+
   function patch(k: string, p: Partial<DraftRow>) {
     setRows((prev) => ({ ...prev, [k]: { ...prev[k], ...p } }))
+  }
+
+  function applyFill(session: (typeof SESSIONS)[number], weekdays: number[]) {
+    setRows((prev) => {
+      const next = { ...prev }
+      for (const w of weekdays) next[key(w, session)] = { on: true, ...fill[session] }
+      return next
+    })
   }
 
   function save() {
@@ -333,41 +352,106 @@ function ScheduleDialog({ branchId, doctor, onClose, onSaved }: {
         <DialogHeader>
           <DialogTitle>{doctor.name} — weekly schedule</DialogTitle>
         </DialogHeader>
+        <p className="text-xs text-muted-foreground">
+          Turn on the sessions this doctor sees patients in. A day with nothing turned on means
+          they won’t show up on the kiosk, or be pre-selected as on duty, for that day.
+        </p>
+
+        {/* Quick fill — the common case is the same hours every working day */}
+        <div className="grid gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-2.5 sm:grid-cols-2">
+          {SESSIONS.map((s) => (
+            <div key={s} className="space-y-1.5">
+              <p className="text-xs font-semibold text-slate-600">{SESSION_LABEL[s]} quick fill</p>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="time" value={fill[s].startTime}
+                  onChange={(e) => setFill((prev) => ({ ...prev, [s]: { ...prev[s], startTime: e.target.value } }))}
+                  className="h-8 min-w-0 flex-1 rounded border border-border px-1.5 text-xs"
+                />
+                <span className="text-xs text-muted-foreground">–</span>
+                <input
+                  type="time" value={fill[s].endTime}
+                  onChange={(e) => setFill((prev) => ({ ...prev, [s]: { ...prev[s], endTime: e.target.value } }))}
+                  className="h-8 min-w-0 flex-1 rounded border border-border px-1.5 text-xs"
+                />
+              </div>
+              <div className="flex gap-1.5">
+                <Button type="button" variant="outline" size="sm" className="h-7 flex-1 text-[11px]"
+                  onClick={() => applyFill(s, [1, 2, 3, 4, 5, 6])}>
+                  Apply Mon–Sat
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="h-7 flex-1 text-[11px]"
+                  onClick={() => applyFill(s, [0, 1, 2, 3, 4, 5, 6])}>
+                  Apply all 7 days
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
         <div className="space-y-2">
           {Array.from({ length: 7 }, (_, w) => (
-            <div key={w} className="rounded-xl border border-slate-200 p-2">
-              <p className="mb-1 text-xs font-semibold text-slate-700">{WEEKDAYS[w]}</p>
-              {SESSIONS.map((s) => {
-                const k = key(w, s)
-                const r = rows[k]
-                return (
-                  <div key={s} className="flex flex-wrap items-center gap-2 py-1">
-                    <label className="flex w-14 items-center gap-1.5 text-xs">
-                      <input type="checkbox" checked={r.on} onChange={(e) => patch(k, { on: e.target.checked })} />
-                      {s.toUpperCase()}
-                    </label>
-                    <input
-                      type="time" value={r.startTime} disabled={!r.on}
-                      onChange={(e) => patch(k, { startTime: e.target.value })}
-                      className="h-8 rounded border border-border px-1.5 text-xs disabled:opacity-40"
-                    />
-                    <span className="text-xs text-muted-foreground">–</span>
-                    <input
-                      type="time" value={r.endTime} disabled={!r.on}
-                      onChange={(e) => patch(k, { endTime: e.target.value })}
-                      className="h-8 rounded border border-border px-1.5 text-xs disabled:opacity-40"
-                    />
-                    <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                      cap
-                      <input
-                        type="number" min={1} max={500} value={r.maxTokens} disabled={!r.on}
-                        onChange={(e) => patch(k, { maxTokens: Number(e.target.value) })}
-                        className="h-8 w-16 rounded border border-border px-1.5 text-xs disabled:opacity-40"
-                      />
-                    </label>
-                  </div>
-                )
-              })}
+            <div key={w} className="rounded-xl border border-slate-200 p-2.5">
+              <p className="mb-1.5 text-xs font-semibold text-slate-700">{WEEKDAY_FULL[w]}</p>
+              <div className="space-y-2">
+                {SESSIONS.map((s) => {
+                  const k = key(w, s)
+                  const r = rows[k]
+                  return (
+                    <div key={s} className={'rounded-lg border px-2 py-1.5 ' + (r.on ? 'border-accent-200 bg-accent-50/40' : 'border-slate-200')}>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={r.on}
+                          onCheckedChange={(v) => patch(k, { on: v })}
+                          aria-label={`${SESSION_LABEL[s]} session on ${WEEKDAY_FULL[w]}`}
+                        />
+                        <span className="text-xs font-medium text-slate-700">{SESSION_LABEL[s]} ({s.toUpperCase()})</span>
+                      </div>
+                      {r.on && (
+                        <div className="mt-1.5 grid grid-cols-3 gap-2">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-muted-foreground">Start</span>
+                            <input
+                              type="time" value={r.startTime}
+                              onChange={(e) => patch(k, { startTime: e.target.value })}
+                              className="h-8 w-full rounded border border-border px-1.5 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-muted-foreground">End</span>
+                            <input
+                              type="time" value={r.endTime}
+                              onChange={(e) => patch(k, { endTime: e.target.value })}
+                              className="h-8 w-full rounded border border-border px-1.5 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                              Planned patients
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button type="button" className="text-slate-400 hover:text-slate-600" aria-label="What is this?">
+                                    <Info className="size-2.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  How many patients you expect to see in this session — for your own
+                                  planning. It doesn’t stop tokens or bookings once reached.
+                                </TooltipContent>
+                              </Tooltip>
+                            </span>
+                            <input
+                              type="number" min={1} max={500} value={r.maxTokens}
+                              onChange={(e) => patch(k, { maxTokens: Number(e.target.value) })}
+                              className="h-8 w-full rounded border border-border px-1.5 text-xs"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           ))}
         </div>

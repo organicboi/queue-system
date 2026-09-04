@@ -12,15 +12,24 @@ import type { CustomerVertical } from '@/lib/db/types'
 import {
   createCustomerAction, toggleCustomerActiveAction, changePlanAction,
   setCustomerSchoolLimitsAction, setSchoolIdentityAction,
+  setCustomerHospitalLimitsAction, updateCustomerAction, deleteCustomerAction,
 } from '@/lib/actions/distributor'
 import type { SchoolBranchIdentity } from '@/lib/db/school-types'
-import { MAX_SCHOOL_ENTITLEMENT } from '@/lib/db/types'
+import { MAX_SCHOOL_ENTITLEMENT, MAX_HOSPITAL_ENTITLEMENT } from '@/lib/db/types'
 import { dirFor, LOCALE_LABEL, regionLocales } from '@/lib/region'
-import { Plus, Power, Copy, Check, Key, SlidersHorizontal } from 'lucide-react'
+import { Plus, Power, Copy, Check, Key, SlidersHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { CustomerDTO } from '@/lib/db/types'
 
-interface Plan { id: string; name: string }
+interface Plan {
+  id: string
+  name: string
+  // NULL = sold under any vertical (Starter/Pro/Enterprise). Set on the three
+  // hospital-only tiers — see supabase/migrations/20260905_hospital_plans.sql.
+  vertical?: CustomerVertical | null
+  default_department_limit?: number | null
+  default_counter_limit?: number | null
+}
 type CustomerWithPlan = CustomerDTO & { planName?: string }
 
 interface Props {
@@ -30,19 +39,33 @@ interface Props {
   identities: Record<string, SchoolBranchIdentity[]>
 }
 
+// A plan scoped to another vertical can't be sold under this one.
+function plansForVertical(plans: Plan[], vertical: CustomerVertical): Plan[] {
+  return plans.filter(p => !p.vertical || p.vertical === vertical)
+}
+
 const INIT: { error?: string; licenseKey?: string } = {}
 
 export function DistributorCustomersManager({ customers, plans, identities }: Props) {
   const [open, setOpen] = useState(false)
-  // Which school tenant's setup — branding and allowance — is being edited.
+  // Which school/hospital tenant's setup — branding and allowance — is being edited.
   const [setupFor, setSetupFor] = useState<CustomerWithPlan | null>(null)
-  const [planId, setPlanId] = useState(plans[0]?.id ?? '')
+  const [editFor, setEditFor] = useState<CustomerWithPlan | null>(null)
+  const [deleteFor, setDeleteFor] = useState<CustomerWithPlan | null>(null)
   // The key issued with this customer carries the system, and the customer row
   // is stamped with it too — so the tenant lands in the right product the very
   // first time they sign in.
   const [vertical, setVertical] = useState<CustomerVertical>(DEFAULT_VERTICAL)
+  const availablePlans = plansForVertical(plans, vertical)
+  const [planId, setPlanId] = useState(availablePlans[0]?.id ?? '')
   const [copied, setCopied] = useState(false)
   const [state, formAction, pending] = useActionState(createCustomerAction, INIT)
+
+  function handleVerticalChange(v: CustomerVertical) {
+    setVertical(v)
+    const stillValid = plans.find(p => p.id === planId && (!p.vertical || p.vertical === v))
+    if (!stillValid) setPlanId(plansForVertical(plans, v)[0]?.id ?? '')
+  }
 
   const justCreated = !state.error && state !== INIT && state.licenseKey
 
@@ -101,23 +124,8 @@ export function DistributorCustomersManager({ customers, plans, identities }: Pr
               /* ── Create form ── */
               <form action={formAction} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label>Plan</Label>
-                  <Select value={planId} onValueChange={setPlanId}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder="Select plan" /></SelectTrigger>
-                    <SelectContent>
-                      {plans.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <input type="hidden" name="planId" value={planId} />
-                </div>
-                <div className="space-y-1.5">
                   <Label>System</Label>
-                  <Select
-                    value={vertical}
-                    onValueChange={(v) => setVertical(v as CustomerVertical)}
-                  >
+                  <Select value={vertical} onValueChange={(v) => handleVerticalChange(v as CustomerVertical)}>
                     <SelectTrigger className="w-full"><SelectValue placeholder="Select system" /></SelectTrigger>
                     <SelectContent>
                       {VERTICALS.map(v => (
@@ -130,6 +138,28 @@ export function DistributorCustomersManager({ customers, plans, identities }: Pr
                     {verticalMeta(vertical).description}. This customer can only sign in
                     to the system chosen here.
                   </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Plan</Label>
+                  <Select value={planId} onValueChange={setPlanId}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Select plan" /></SelectTrigger>
+                    <SelectContent>
+                      {availablePlans.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <input type="hidden" name="planId" value={planId} />
+                  {(() => {
+                    const chosen = availablePlans.find(p => p.id === planId)
+                    if (vertical !== 'hospital' || !chosen || chosen.default_department_limit == null) return null
+                    return (
+                      <p className="text-[11px] text-muted-foreground">
+                        Starts with {chosen.default_department_limit} departments,{' '}
+                        {chosen.default_counter_limit} rooms — adjustable later from Hospital setup.
+                      </p>
+                    )
+                  })()}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="businessName">Business Name</Label>
@@ -166,6 +196,8 @@ export function DistributorCustomersManager({ customers, plans, identities }: Pr
                     className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                       c.vertical === 'school'
                         ? 'bg-violet-100 text-violet-700'
+                        : c.vertical === 'hospital'
+                        ? 'bg-rose-100 text-rose-700'
                         : 'bg-sky-100 text-sky-700'
                     }`}
                     title={verticalMeta(c.vertical).label}
@@ -173,13 +205,19 @@ export function DistributorCustomersManager({ customers, plans, identities }: Pr
                     {verticalMeta(c.vertical).short.toUpperCase()}
                   </span>
                   {c.planName && <span className="text-xs text-muted-foreground">{c.planName}</span>}
-                  {/* What this school is entitled to build, per branch. The
+                  {/* What this tenant is entitled to build, per branch. The
                       tenant cannot raise it — that is the point of it living
                       here. */}
                   {c.vertical === 'school' && (
                     <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
                       {c.maxSchoolDepartments} dept · {c.maxSchoolCounters} counter
                       {c.maxSchoolCounters === 1 ? '' : 's'}
+                    </span>
+                  )}
+                  {c.vertical === 'hospital' && (
+                    <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
+                      {c.maxHospitalDepartments} dept · {c.maxHospitalRooms} room
+                      {c.maxHospitalRooms === 1 ? '' : 's'}
                     </span>
                   )}
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
@@ -202,7 +240,7 @@ export function DistributorCustomersManager({ customers, plans, identities }: Pr
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {plans.map(p => (
+                    {plansForVertical(plans, c.vertical).map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -218,6 +256,33 @@ export function DistributorCustomersManager({ customers, plans, identities }: Pr
                     School setup
                   </Button>
                 )}
+                {c.vertical === 'hospital' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs px-2"
+                    onClick={() => setSetupFor(c)}
+                  >
+                    <SlidersHorizontal className="size-3.5 mr-1" />
+                    Hospital setup
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setEditFor(c)}
+                >
+                  <Pencil className="size-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs px-2 text-red-500 hover:text-red-600"
+                  onClick={() => setDeleteFor(c)}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -240,10 +305,16 @@ export function DistributorCustomersManager({ customers, plans, identities }: Pr
       </div>
 
       <SchoolSetupDialog
-        customer={setupFor}
+        customer={setupFor?.vertical === 'school' ? setupFor : null}
         branches={setupFor ? identities[setupFor.id] ?? [] : []}
         onClose={() => setSetupFor(null)}
       />
+      <HospitalSetupDialog
+        customer={setupFor?.vertical === 'hospital' ? setupFor : null}
+        onClose={() => setSetupFor(null)}
+      />
+      <EditCustomerDialog customer={editFor} onClose={() => setEditFor(null)} />
+      <DeleteCustomerDialog customer={deleteFor} onClose={() => setDeleteFor(null)} />
     </div>
   )
 }
@@ -437,6 +508,309 @@ function SchoolSetupDialog({ customer, branches, onClose }: {
 
         <div className="flex justify-end">
           <Button variant="outline" onClick={onClose}>Done</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Departments and rooms a hospital tenant may run, per branch — the same
+// sold-capacity model as school (see SchoolSetupDialog above), plus the two
+// hospital add-on grants. New customers start with the numbers baked into
+// the plan they were sold (Clinic 2/4, Hospital 8/15, Multispecialist
+// 30/40); this is where a distributor sells a customer extra capacity above
+// that, or claws back what a downgraded/cancelled customer no longer gets.
+function HospitalSetupDialog({ customer, onClose }: {
+  customer: CustomerWithPlan | null
+  onClose: () => void
+}) {
+  const [forId, setForId] = useState<string | null>(null)
+  const [departments, setDepartments] = useState('0')
+  const [rooms, setRooms] = useState('0')
+  const [publicTracking, setPublicTracking] = useState(false)
+  const [notifications, setNotifications] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  if (customer && forId !== customer.id) {
+    setForId(customer.id)
+    setDepartments(String(customer.maxHospitalDepartments))
+    setRooms(String(customer.maxHospitalRooms))
+    setPublicTracking(customer.hospitalPublicTrackingEnabled)
+    setNotifications(customer.hospitalNotificationsEnabled)
+  }
+
+  async function save() {
+    if (!customer) return
+    setSaving(true)
+    const r = await setCustomerHospitalLimitsAction(customer.id, {
+      maxHospitalDepartments: Number(departments),
+      maxHospitalRooms: Number(rooms),
+      publicTrackingEnabled: publicTracking,
+      notificationsEnabled: notifications,
+    })
+    setSaving(false)
+    if (r.error) toast.error(r.error)
+    else toast.success('Limits updated')
+  }
+
+  return (
+    <Dialog open={!!customer} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{customer?.name} — hospital setup</DialogTitle>
+        </DialogHeader>
+
+        <section className="space-y-3 rounded-xl border border-border p-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Limits</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              How many departments and rooms this hospital can run at each branch.
+              Set by the plan at signup — adjust here for a custom deal.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="maxHospitalDepartments">Departments</Label>
+              <Input
+                id="maxHospitalDepartments"
+                type="number"
+                min={0}
+                max={MAX_HOSPITAL_ENTITLEMENT}
+                value={departments}
+                onChange={(e) => setDepartments(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="maxHospitalRooms">Rooms (counters)</Label>
+              <Input
+                id="maxHospitalRooms"
+                type="number"
+                min={0}
+                max={MAX_HOSPITAL_ENTITLEMENT}
+                value={rooms}
+                onChange={(e) => setRooms(e.target.value)}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Lowering a number never removes anything the hospital already built — it
+            just stops them adding more until they deactivate down to the new limit.
+            Add-on pricing for capacity above the plan: ₹299 / extra department
+            (includes 1 room), ₹199 / extra room.
+          </p>
+
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900">Public ticket tracking (QR)</p>
+              <p className="text-[11px] text-muted-foreground">
+                Adds a QR code to every printed ticket linking to a live waiting-position
+                page. The hospital has its own on/off switch on /hospital/settings — this
+                is the grant that switch depends on.
+              </p>
+            </div>
+            <Switch checked={publicTracking} onCheckedChange={setPublicTracking} />
+          </div>
+
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900">SMS / push notifications</p>
+              <p className="text-[11px] text-muted-foreground">
+                Lets the hospital notify patients as their turn approaches.
+              </p>
+            </div>
+            <Switch checked={notifications} onCheckedChange={setNotifications} />
+          </div>
+
+          <Button size="sm" onClick={save} disabled={saving}>
+            {saving ? 'Saving…' : 'Save Limits'}
+          </Button>
+        </section>
+
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={onClose}>Done</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// The business-facing profile fields any customer can have edited by the
+// distributor — everything that isn't the plan, the vertical (locked to the
+// redeemed key) or a vertical-specific entitlement (its own setup dialog).
+function EditCustomerDialog({ customer, onClose }: {
+  customer: CustomerWithPlan | null
+  onClose: () => void
+}) {
+  const [forId, setForId] = useState<string | null>(null)
+  const [businessName, setBusinessName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [address, setAddress] = useState('')
+  const [primaryColor, setPrimaryColor] = useState('#0F172A')
+  const [secondaryColor, setSecondaryColor] = useState('#6366F1')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | undefined>()
+
+  if (customer && forId !== customer.id) {
+    setForId(customer.id)
+    setBusinessName(customer.businessName || customer.name)
+    setPhone(customer.phone)
+    setEmail(customer.email)
+    setAddress(customer.address)
+    setPrimaryColor(customer.primaryColor)
+    setSecondaryColor(customer.secondaryColor)
+    setError(undefined)
+  }
+
+  async function save() {
+    if (!customer) return
+    setSaving(true)
+    const r = await updateCustomerAction(customer.id, {
+      businessName, phone, email, address, primaryColor, secondaryColor,
+    })
+    setSaving(false)
+    if (r.error) setError(r.error)
+    else {
+      setError(undefined)
+      toast.success('Customer updated')
+      onClose()
+    }
+  }
+
+  return (
+    <Dialog open={!!customer} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit {customer?.name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="editBusinessName">Business Name</Label>
+            <Input id="editBusinessName" value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="editPhone">Phone</Label>
+              <Input id="editPhone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="editEmail">Email</Label>
+              <Input id="editEmail" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="editAddress">Address</Label>
+            <Input id="editAddress" value={address} onChange={(e) => setAddress(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="editPrimaryColor">Primary Color</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  className="size-8 rounded border border-border shrink-0"
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                />
+                <Input id="editPrimaryColor" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="editSecondaryColor">Secondary Color</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  className="size-8 rounded border border-border shrink-0"
+                  value={secondaryColor}
+                  onChange={(e) => setSecondaryColor(e.target.value)}
+                />
+                <Input id="editSecondaryColor" value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} />
+              </div>
+            </div>
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button onClick={save} disabled={saving || !businessName.trim()}>
+              {saving ? 'Saving…' : 'Save Changes'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Hard delete, guarded by typing the customer's exact name — every tenant
+// table cascades from customers.id, so this permanently removes the
+// customer and everything under it (branches, staff, queue history, tokens,
+// patients). There is no undo, so "Disable" (which just flips is_active
+// and keeps everything) is the button for the common case; this is for
+// actually retiring a test tenant or an account that's really leaving.
+function DeleteCustomerDialog({ customer, onClose }: {
+  customer: CustomerWithPlan | null
+  onClose: () => void
+}) {
+  const [forId, setForId] = useState<string | null>(null)
+  const [confirmText, setConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState<string | undefined>()
+
+  if (customer && forId !== customer.id) {
+    setForId(customer.id)
+    setConfirmText('')
+    setError(undefined)
+  }
+
+  async function doDelete() {
+    if (!customer) return
+    setDeleting(true)
+    const r = await deleteCustomerAction(customer.id, customer.name)
+    setDeleting(false)
+    if (r.error) setError(r.error)
+    else {
+      toast.success(`${customer.name} deleted`)
+      onClose()
+    }
+  }
+
+  const canDelete = !!customer && confirmText === customer.name
+
+  return (
+    <Dialog open={!!customer} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete {customer?.name}?</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            This permanently deletes the customer and everything under it — branches,
+            staff logins, queue history, tokens/patients, screens, everything. There is
+            no undo. If you just want to stop them signing in, use{' '}
+            <span className="font-medium text-foreground">Disable</span> instead.
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirmDeleteName">
+              Type <span className="font-mono font-semibold text-foreground">{customer?.name}</span> to confirm
+            </Label>
+            <Input
+              id="confirmDeleteName"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={doDelete}
+              disabled={!canDelete || deleting}
+            >
+              {deleting ? 'Deleting…' : 'Delete Permanently'}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
